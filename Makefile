@@ -15,12 +15,14 @@ MAIN_HDR  := axis.h encoder.h pendel.h safety.h SafeQueue.h
 COMMON    := src/common/config.cpp src/common/runlog.cpp
 CORE      := src/core/pid.cpp src/core/supervisor.cpp src/core/units.cpp src/core/swingfit.cpp
 CORE_H    := src/core/pid.h src/core/supervisor.h src/core/units.h src/core/swingfit.h
+HW        := src/hw/sim_hw.cpp
+HW_H      := src/hw/hardware.h src/hw/sim_hw.h
 COMMON_H  := src/common/config.h src/common/runlog.h src/rt/ringlog.h
 PENDCTL   := src/app/pendctl.cpp src/app/selftest.cpp src/app/timing_probe.cpp src/app/encoder_log.cpp \
              src/rt/rt.cpp axis.cpp safety.cpp
 PENDCTL_H := src/app/modes.h src/rt/rt.h src/rt/latency.h axis.h safety.h SafeQueue.h
 TESTS     := tests/unit/test_main.cpp tests/unit/test_ringlog.cpp tests/unit/test_config.cpp tests/unit/test_pid.cpp \
-             tests/unit/test_supervisor.cpp tests/unit/test_swingfit.cpp
+             tests/unit/test_supervisor.cpp tests/unit/test_swingfit.cpp tests/unit/test_simhw.cpp
 
 .PHONY: all test clean
 all: $(BUILD)/main $(BUILD)/pendctl $(BUILD)/unit_tests
@@ -36,9 +38,9 @@ $(BUILD)/pendctl: $(PENDCTL) $(PENDCTL_H) $(COMMON) $(COMMON_H) | $(BUILD)
 	rm -f $@
 	$(CXX) $(APP_FLAGS) -o $@ $(PENDCTL) $(COMMON) -lgpiod -pthread
 
-$(BUILD)/unit_tests: $(TESTS) tests/unit/check.h $(COMMON) $(COMMON_H) $(CORE) $(CORE_H) tests/golden/*.csv | $(BUILD)
+$(BUILD)/unit_tests: $(TESTS) tests/unit/check.h $(COMMON) $(COMMON_H) $(CORE) $(CORE_H) $(HW) $(HW_H) tests/golden/*.csv | $(BUILD)
 	rm -f $@
-	$(CXX) $(APP_FLAGS) -Itests/unit -o $@ $(TESTS) $(COMMON) $(CORE) -pthread
+	$(CXX) $(APP_FLAGS) -Itests/unit -o $@ $(TESTS) $(COMMON) $(CORE) $(HW) -pthread
 
 test: $(BUILD)/unit_tests
 	$(BUILD)/unit_tests

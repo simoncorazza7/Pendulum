@@ -21,6 +21,7 @@ from dataclasses import fields, replace
 
 from pendel import units
 from pendel.encsim import edge_crossings
+from pendel.simhw import SimHw, SimHwParams
 from pendel.swingfit import fit_offset_linear
 from pendel.control import PidParams, PidState, design_gains, pid_step
 from pendel.supervisor import (Mode, SupervisorInputs, SupervisorParams, SupervisorState, brake_distance,
@@ -195,6 +196,66 @@ def render_swing() -> dict[str, str]:
     return {"swing_edges.csv": NL.join(edges) + NL, "swing_fit.csv": NL.join(fit) + NL}
 
 
+def simhw_cases():
+    """(name, params, theta0, steps, action(k) -> (enable or None, halt, axis_arg or None))."""
+    dt = 0.002
+    base = SimHwParams(coulomb=0.01)
+
+    def drive_halt_coast(k):
+        t = k * dt
+        enable = True if k == 50 else (False if k == 710 else None)
+        arg = None
+        if 50 <= k < 600:
+            arg = units.axis_accel_arg(1.5 * math.sin(2 * math.pi * 1.3 * t), base.truth)
+        elif 600 <= k < 700:
+            arg = units.axis_accel_arg(-3.0, base.truth)
+        return enable, k == 700, arg
+
+    def crash_left(k):
+        return (True if k == 0 else None), False, units.axis_accel_arg(4.0, base.truth)
+
+    rev = replace(base, truth=replace(base.truth, theta_sign=-1, x_sign=-1, c_bottom=-7.6))
+
+    def reversed_signs(k):
+        t = k * dt
+        return (True if k == 0 else None), False, units.axis_accel_arg(2.0 * math.sin(2 * math.pi * 2.0 * t), rev.truth)
+
+    yield "drive_halt_coast", base, math.pi + 0.08, 1500, drive_halt_coast
+    yield "crash_left", base, math.pi - 0.03, 600, crash_left
+    yield "reversed_signs", rev, -math.pi + 0.05, 800, reversed_signs
+
+
+def render_simhw() -> dict[str, str]:
+    NL = chr(10)
+    rows = ["case,k,enable,halt,cmd_valid,cmd_arg,t_ns,counts,n_edges,overflow,pos,speed,lim_r,lim_l,axis_acc,"
+            "driver,theta,thetadot,x,v"]
+    edges = ["case,k,i,ts_ns,count_after"]
+    params = ["case,w0,bJ,coulomb,c_bottom,theta_sign,x_sign,theta0"]
+    for name, p, th0, steps, action in simhw_cases():
+        params.append(f"{name},{p.w0!r},{p.bJ!r},{p.coulomb!r},{p.truth.c_bottom!r},{p.truth.theta_sign},"
+                      f"{p.truth.x_sign},{th0!r}")
+        hw = SimHw(p, theta0=th0)
+        for k in range(steps):
+            smp = hw.read()
+            enable, halt, arg = action(k)
+            rows.append(f"{name},{k},{-1 if enable is None else int(enable)},{int(halt)},{int(arg is not None)},"
+                        f"{0 if arg is None else arg},{smp['t_ns']},{smp['counts']},{len(smp['edges'])},"
+                        f"{int(smp['edges_overflow'])},{smp['pos_usteps']},{smp['speed_toggles']},"
+                        f"{int(smp['limit_right'])},{int(smp['limit_left'])},{int(smp['axis_accelerating'])},"
+                        f"{int(smp['driver_enabled'])},{hw.th!r},{hw.thd!r},{hw.x!r},{hw.v!r}")
+            for i, (ts, ca) in enumerate(smp["edges"]):
+                edges.append(f"{name},{k},{i},{ts},{ca}")
+            if enable is not None:
+                hw.enable_driver(enable)
+            if halt:
+                hw.halt()
+            if arg is not None:
+                hw.command_accel(arg)
+            hw.advance(0.002)
+    return {"simhw_params.csv": NL.join(params) + NL, "simhw_golden.csv": NL.join(rows) + NL,
+            "simhw_edges.csv": NL.join(edges) + NL}
+
+
 def render() -> dict[str, str]:
     params_lines = ["case," + ",".join(PARAM_FIELDS)]
     golden_lines = ["case,k,theta,v_cart,dt,a_cmd,u,integral,vel_f,saturated"]
@@ -215,7 +276,8 @@ def render() -> dict[str, str]:
             "pid_golden.csv": "\n".join(golden_lines) + "\n",
             "design_gains.csv": "\n".join(gains_lines) + "\n",
             **render_supervisor(),
-            **render_swing()}
+            **render_swing(),
+            **render_simhw()}
 
 
 def main() -> None:
