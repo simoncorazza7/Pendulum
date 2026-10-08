@@ -16,11 +16,12 @@ double taper(double margin, double width) {
 
 }
 
-PidResult pidStep(const PidParams& p, const PidState& s, double theta, double v_cart, double dt) {
+PidResult pidStep(const PidParams& p, const PidState& s, double theta, double v_cart, double dt,
+                  const double* velEst) {
     // Derivative of the measurement (not of the error), filtered.
     const double vel_raw = s.has_prev ? (theta - s.prev_theta) / dt : 0.0;
     const double alpha = dt / (dt + 1.0 / (2.0 * kPi * p.vel_fc));
-    const double vel_f = s.vel_f + alpha * (vel_raw - s.vel_f);
+    const double vel_f = velEst ? *velEst : s.vel_f + alpha * (vel_raw - s.vel_f);
 
     const double e = theta - p.theta_ref;
     const double u = p.kp * e + p.ki * s.integral + p.kd * vel_f;

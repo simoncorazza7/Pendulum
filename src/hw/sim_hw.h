@@ -47,6 +47,14 @@ public:
 
     void advance(double dt);                 // move simulated time
 
+    // Test hook (C++ only, not in the Python mirror): a hand moves the pendulum linearly to theta
+    // over `duration` s, then holds it there (thetadot 0) until release(). The encoder edges of the
+    // move are emitted as it happens (an instantaneous move would overflow the edge buffer, which the
+    // runtime treats as an encoder fault). The cart keeps following commands meanwhile.
+    void holdAt(double theta, double duration = 0.4);
+    void release() { held_ = false; }
+    bool held() const { return held_; }
+
     // Ground truth for tests and logging.
     double theta() const { return th_; }     // rad from upright, unwrapped
     double thetadot() const { return thd_; }
@@ -61,12 +69,14 @@ private:
     double pos(double x) const;              // Axis position, usteps (continuous)
     double realised(double v, double h) const;
     void f(const double s[4], double a, double out[4]) const;
+    void emitEdges(double thOld, double thNew, double t0, double h);
 
     SimHwParams p_;
     double th_, thd_, x_, v_ = 0.0, t_ = 0.0;
     double a_applied_ = 0.0, a_pending_ = 0.0;
     bool has_pending_ = false;
-    bool driver_ = false, halted_ = false, commanded_ = false, crashed_ = false;
+    bool driver_ = false, halted_ = false, commanded_ = false, crashed_ = false, held_ = false;
+    double lift_from_ = 0, lift_to_ = 0, lift_t0_ = 0, lift_T_ = 0;   // hand motion
     std::int64_t u0_floor_, c_prev_;
     std::vector<Edge> edges_;
 };

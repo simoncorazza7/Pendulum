@@ -103,7 +103,7 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 
 ## Status (details: `docs/session_log.md`)
 - Claude runs on Simon's Windows PC, drives the Pi over SSH (host key ED25519
-  SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM). PC tests: `bash tests/unit/run_pc.sh` (34/34).
+  SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM). PC tests: `bash tests/unit/run_pc.sh` (46/46).
 - Done: 0.1–0.4, Gate A. GPIO24 held high from boot (`gpio=24=op,dh`). Simon will add a motor-only E-stop.
 - **0.5 in progress on the Pi** (started ~14:44 under nohup, mock chip): fetch `logs/*timing-probe*` +
   `build/timing_all.out`, run `py/timing_report.py`, write `docs/stage0_5_timing.md`.
@@ -115,5 +115,6 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 - **c_bottom must be re-found after every program start** (no index): small swing + `core::fitOffset`.
 - Next on the rig (each needs a go): scope check of GPIO18 (timing-probe, `probe.allow_real_chip`),
   0.6 encoder hand tests (`pendctl --mode encoder-log`, `enc.allow_real_chip`), 0.7, 0.8 (first motion).
-- Next in software: runtime tick (estimator + supervisor + pid + delay line + log) on hw::Hardware,
-  closed-loop C++ sim test, then PiHw adapter and pendctl shadow/balance modes.
+- Runtime tick `rt::BalanceRuntime` on hw::Hardware + closed-loop tests on SimHw done
+  (`docs/stage1_runtime.md`); PC tests 46/46. Next in software (needs the Pi): PiHw adapter, pendctl
+  shadow/balance modes with start-up swing calibration.

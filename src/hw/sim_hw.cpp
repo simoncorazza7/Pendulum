@@ -95,6 +95,12 @@ void SimHw::advance(double dt) {
         for (int i = 0; i < 4; ++i) n[i] = s0[i] + h / 6 * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i]);
         const double thOld = th_;
         th_ = n[0]; thd_ = n[1]; x_ = n[2]; v_ = n[3];
+        if (held_) {
+            const double tEnd = t_ + (j + 1) * h;
+            const double frac = lift_T_ > 0 ? std::min(1.0, (tEnd - lift_t0_) / lift_T_) : 1.0;
+            th_ = lift_from_ + (lift_to_ - lift_from_) * frac;
+            thd_ = frac < 1.0 ? (lift_to_ - lift_from_) / lift_T_ : 0.0;
+        }
         if ((halted_ || !driver_) && v_ * s0[3] < 0) v_ = 0.0;   // braking/coasting stops at 0
         const double ps = pos(x_);
         if (ps <= p_.pos_end_right || ps >= p_.pos_end_left) {     // hard stop: crash
@@ -103,19 +109,34 @@ void SimHw::advance(double dt) {
             v_ = 0.0;
             crashed_ = true;
         }
-        const double u0 = u(thOld), u1 = u(th_);
-        const auto cNew = static_cast<std::int64_t>(std::floor(u1));
-        if (cNew != c_prev_) {
-            const double t0 = t_ + j * h;
-            const bool up = cNew > c_prev_;
-            for (std::int64_t b = up ? c_prev_ + 1 : c_prev_; up ? b <= cNew : b > cNew; b += up ? 1 : -1) {
-                const double ts = t0 + h * (static_cast<double>(b) - u0) / (u1 - u0);
-                edges_.push_back(Edge{std::llround(ts * 1e9), (up ? b : b - 1) - u0_floor_});
-            }
-            c_prev_ = cNew;
-        }
+        emitEdges(thOld, th_, t_ + j * h, h);
     }
     t_ += dt;
+}
+
+void SimHw::emitEdges(double thOld, double thNew, double t0, double h) {
+    const double u0 = u(thOld), u1 = u(thNew);
+    const auto cNew = static_cast<std::int64_t>(std::floor(u1));
+    if (cNew == c_prev_) return;
+    const bool up = cNew > c_prev_;
+    for (std::int64_t b = up ? c_prev_ + 1 : c_prev_; up ? b <= cNew : b > cNew; b += up ? 1 : -1) {
+        const double ts = t0 + h * (static_cast<double>(b) - u0) / (u1 - u0);
+        edges_.push_back(Edge{std::llround(ts * 1e9), (up ? b : b - 1) - u0_floor_});
+    }
+    c_prev_ = cNew;
+}
+
+void SimHw::holdAt(double theta, double duration) {
+    lift_from_ = th_;
+    lift_to_ = theta;
+    lift_t0_ = t_;
+    lift_T_ = duration;
+    held_ = true;
+    if (duration <= 0) {               // instantaneous: all edges at the current time
+        emitEdges(th_, theta, t_, 0.0);
+        th_ = theta;
+        thd_ = 0.0;
+    }
 }
 
 }

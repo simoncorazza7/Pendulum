@@ -20,7 +20,8 @@ import numpy as np
 from dataclasses import fields, replace
 
 from pendel import units
-from pendel.encsim import edge_crossings
+from pendel.encsim import edge_crossings, encode
+from pendel.estimators import BdLp1, BdLp2
 from pendel.simhw import SimHw, SimHwParams
 from pendel.swingfit import fit_offset_linear
 from pendel.control import PidParams, PidState, design_gains, pid_step
@@ -256,6 +257,31 @@ def render_simhw() -> dict[str, str]:
             "simhw_edges.csv": NL.join(edges) + NL}
 
 
+def render_estimators() -> dict[str, str]:
+    """Counts-based velocity estimators and the controller's external-velocity path."""
+    NL = chr(10)
+    ts = 0.002
+    t = np.arange(0, 4.0, 5e-6)
+    q = 2 * math.pi / 2400
+    theta = np.where(t < 2.0, math.radians(10) * np.sin(2 * math.pi * 3 * t),
+                     (5 - 0.37) * q + 0.2 * q * np.sin(2 * math.pi * 31 * t))
+    enc = encode(t, theta, ts=ts)
+    e1, e2, e3 = BdLp1(ts, 30.0), BdLp2(ts, 30.0), BdLp2(ts, 50.0)
+    est = ["k,counts,bdlp1_30,bdlp2_30,bdlp2_50"]
+    pid_lines = ["k,theta,v_cart,vel_est,a_cmd,u,integral,saturated"]
+    kp, ki, kd = design_gains(2 * math.pi, 0.1, 4 * math.pi, 0.7, math.pi)
+    pp = PidParams(kp=kp, ki=ki, kd=kd, a_max=5.0, v_max=0.8, i_max=1.0, i_delay=0.15, theta_ref=0.001)
+    st = PidState()
+    for k, c in enumerate(enc["count"].tolist()):
+        v1, v2, v3 = e1.update(0, c, []), e2.update(0, c, []), e3.update(0, c, [])
+        est.append(f"{k},{c},{v1!r},{v2!r},{v3!r}")
+        th = c * q
+        vc = 0.9 * math.sin(1.7 * k * ts)
+        a, st, dbg = pid_step(pp, st, th, vc, ts, vel_est=v2)
+        pid_lines.append(f"{k},{th!r},{vc!r},{v2!r},{a!r},{dbg['u']!r},{st.integral!r},{int(dbg['saturated'])}")
+    return {"estimator_golden.csv": NL.join(est) + NL, "pid_ext_golden.csv": NL.join(pid_lines) + NL}
+
+
 def render() -> dict[str, str]:
     params_lines = ["case," + ",".join(PARAM_FIELDS)]
     golden_lines = ["case,k,theta,v_cart,dt,a_cmd,u,integral,vel_f,saturated"]
@@ -277,7 +303,8 @@ def render() -> dict[str, str]:
             "design_gains.csv": "\n".join(gains_lines) + "\n",
             **render_supervisor(),
             **render_swing(),
-            **render_simhw()}
+            **render_simhw(),
+            **render_estimators()}
 
 
 def main() -> None:

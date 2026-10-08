@@ -47,8 +47,11 @@ struct PidResult {
 };
 
 // theta: measured angle from upright, unwrapped (rad). v_cart: realised cart velocity (m/s),
-// only used for the v_max taper. dt: sample period (s).
-PidResult pidStep(const PidParams& p, const PidState& s, double theta, double v_cart, double dt);
+// only used for the v_max taper. dt: sample period (s). velEst: optional external angular
+// velocity estimate (rad/s, e.g. core::VelocityEstimator) that replaces the built-in filtered
+// backward difference (mirror of the Python vel_est argument).
+PidResult pidStep(const PidParams& p, const PidState& s, double theta, double v_cart, double dt,
+                  const double* velEst = nullptr);
 
 // Empty string if the parameters are usable, otherwise the reason.
 std::string validate(const PidParams& p);
@@ -70,6 +73,10 @@ public:
         return out;
     }
     std::size_t length() const { return buf_.size(); }
+    void reset() {
+        for (auto& v : buf_) v = 0.0;
+        head_ = 0;
+    }
 
 private:
     std::vector<double> buf_;
