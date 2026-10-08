@@ -1,0 +1,11 @@
+# build outputs
+/main
+*.o
+build/
+
+# Python
+.venv/
+__pycache__/
+
+# run logs are fetched to the PC, not committed (decide per run)
+logs/
