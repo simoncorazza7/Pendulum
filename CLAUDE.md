@@ -50,6 +50,15 @@ Explain the reasoning behind design choices.
   `"gpiochip4"` works. User `pendel` is in group `gpio` (no sudo needed for GPIO).
 - Code: C++17, libgpiod v1 C API, std::thread. `main` = TCP server :8080 (protocol must not change).
   `Pendel` owns `Encoder` + `Axis`, opens `"gpiochip4"`, runs a gnuplot thread.
+- Code facts (Gate A, `docs/gateA_report.md`):
+  - **Units ×2**: protocol *rates* (speed, accel, max*) are STEP toggles = half-µsteps; positions are
+    µsteps. Keep this in the protocol; convert in the new runtime.
+  - Protocol sign: +accel → +speed → +pos (DIR = 1). pos ≈ 0 at the "right" switch (GPIO2). Internally
+    `curSpeed` = −protocol speed. The physical direction is still unknown.
+  - **Limit switches never stop motion** (outside homing they only rewrite `pos`). `stopOnLimit` isn't a safety net.
+  - `main` dies ~5 s after start via SIGPIPE (gnuplot missing). `persist_gpio_outputs=Y`, so after any exit
+    EN stays 0 (driver on, holding).
+  - The Pi's 5 V comes from the 24 V via the buck, so the rocker switch also cuts the Pi.
 
 ## Model (§3 of the brief)
 Input = cart accel a. Near upright: θ̈ = ω₀²θ − (b/J)θ̇ − (ω₀²/g)a. ω₀ and b/J come from a hanging free swing.
@@ -83,4 +92,7 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   and drives the Pi over SSH. The Pi host key is ED25519 SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM.
   - 0.1 discovery done: `docs/stage0_discovery.md`. Thesis read: `docs/thesis_notes.md`.
   - Git set up on the Pi and the PC (see Code sync). 1 A fuse on VMOT confirmed by Simon, so it limits 0.9.
-  - Next: 0.2 build as-is, then Gate A.
+  - 0.2: the Pi copy builds with 0 warnings (`build/main_asis`); upstream fails (2 errors). Simon made
+    the fixes and built/ran the old `main`.
+  - **At Gate A** (`docs/gateA_report.md`): waiting for Simon's approval of the architecture, the
+    handler behaviour and the test plan, plus answers on E-stop, rig connection, and RT privileges.
