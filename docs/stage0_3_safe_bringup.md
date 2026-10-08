@@ -43,7 +43,14 @@ seen in the logic. The physical step rate is still to be measured in 0.8.
 A failed build plus `;` ran a stale `main` twice on the real chip, so the cart moved (homing) and EN was
 left low. The driver was switched off within ~2 min. Rules are now in CLAUDE.md. No damage reported.
 
-## Still open for 0.3
-- **0.3b** (needs a go): run the new `main` in bring-up mode on the real chip, send SIGINT/SIGTERM/SEGV,
-  and read EN with `pinctrl get 24` after each. The driver stays off throughout (EN = 1) and no motion
-  command is sent.
+## 0.3b on the real chip (go from Simon, 2026-10-08, commit `074fe2a`)
+`build/main_bringup` in the default bring-up mode on `gpiochip4`; only `getAngle`/`getPos` queries were sent.
+
+| Signal | EN during run | Exit code | EN after exit | Log |
+|---|---|---|---|---|
+| SIGINT | op hi | 130 | op hi | "Stopped. Driver off (EN = 1)." |
+| SIGTERM | op hi | 143 | op hi | same |
+| SIGSEGV | op hi | 139 | op hi | "Fatal signal: driver disabled (EN = 1)" |
+
+STEP stayed low and `getPos` stayed 10000 throughout, so no pulses were sent. Simon spun the pendulum during the
+runs: `getAngle` reached 2745 and −7096 (≈ 3 turns), so the real encoder path works. 0.3 is complete.

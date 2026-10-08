@@ -118,5 +118,5 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
     took effect after a reboot (verified `op hi`).
   - Mechanics: the belt's supporting structure reaches the left switch before the cart does
     (shorter usable travel at that end). Measure in 0.8.
-  - 0.3 done in software: atomics, bring-up mode, signal handlers; mock suite 35/35. Open: 0.3b real-chip
-    handler check (needs a go). Then 0.4.
+  - 0.3 done: atomics, bring-up mode, signal handlers; mock suite 35/35; 0.3b on the real chip passed
+    (EN stays high on SIGINT/TERM/SEGV; the real encoder counts). Now 0.4.
