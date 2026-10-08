@@ -53,9 +53,9 @@ init_inputs() { setin $RLIM 1; setin $LLIM 1; setin $ENC_A 0; setin $ENC_B 0; } 
 PID=""
 start_main() {
     : > $LOG
-    ./$BIN --chip "$MOCK" "$@" > $LOG 2>&1 &
+    stdbuf -oL ./$BIN --chip "$MOCK" "$@" > $LOG 2>&1 &   # line-buffered, else the log stays empty
     PID=$!
-    for _ in $(seq 1 50); do grep -q "Server wartet" $LOG && return 0; sleep 0.1; done
+    for _ in $(seq 1 50); do ss -ltn | grep -q ':8080 ' && return 0; sleep 0.1; done
     echo "main did not start:"; cat $LOG; exit 1
 }
 exit_code() { wait "$PID"; echo $?; }
