@@ -1,0 +1,4 @@
+# PC analysis venv (Python 3.14): python -m venv .venv && .venv/Scripts/python -m pip install -r py/requirements.txt
+numpy==2.5.3
+scipy==1.18.1
+matplotlib==3.11.2
