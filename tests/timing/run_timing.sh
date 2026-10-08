@@ -27,8 +27,19 @@ sudo ./build/pendctl --mode timing-probe --set probe.chip="$MOCK" --set probe.pr
     --set probe.duration="$DUR" > build/timing_last.out 2>&1 &
 SUDOPID=$!
 sleep $((DUR / 2 + 1))
+# Per-thread CPU over 2 s from /proc/<pid>/task/<tid>/schedstat (ns on CPU), with policy and core.
 PCPID=$(pgrep -x pendctl | head -1)
-threads=$(ps -L -o tid=,cls=,rtprio=,psr=,pcpu=,comm= -p "$PCPID" 2>/dev/null)
+declare -A run0
+for t in /proc/$PCPID/task/*; do run0[${t##*/}]=$(cut -d' ' -f1 "$t/schedstat"); done
+sleep 2
+threads=""
+for t in /proc/$PCPID/task/*; do
+    tid=${t##*/}; r1=$(cut -d' ' -f1 "$t/schedstat")
+    pol=$(ps -L -o tid=,cls=,rtprio= -p "$PCPID" | awk -v t="$tid" '$1==t{print $2" "$3}')
+    cpu=$(awk '{print $39}' "$t/stat")
+    use=$(echo "(${r1} - ${run0[$tid]:-$r1}) / 20000000" | bc -l)   # ns over 2 s -> percent
+    threads+=$(printf "%s %s core%s %.1f%%" "$tid" "$pol" "$cpu" "$use")$'\n'
+done
 wait $SUDOPID
 
 for p in "${LOADPIDS[@]}"; do kill "$p" 2>/dev/null; done
@@ -47,7 +58,7 @@ sudo chown -R "$(id -un)":"$(id -gn)" logs
     echo "temp_after = $(vcgencmd measure_temp)"
     echo "dmesg_rt_throttling_lines_before = $rtthr_before"
     echo "dmesg_rt_throttling_lines_after = $(sudo dmesg | grep -c 'RT throttling')"
-    echo "# threads at mid-run: tid class rtprio cpu %cpu(lifetime) name"
+    echo "# threads at mid-run: tid class rtprio core cpu-use(2 s window)"
     echo "$threads" | sed 's/^/# /'
 } > "$DIR/env.txt"
 cat "$DIR/env.txt"
