@@ -58,7 +58,7 @@ start_main() {
     for _ in $(seq 1 50); do ss -ltn | grep -q ':8080 ' && return 0; sleep 0.1; done
     echo "main did not start:"; cat $LOG; exit 1
 }
-exit_code() { wait "$PID"; echo $?; }
+wait_exit() { wait "$PID" 2>/dev/null; RC=$?; }   # must run in this shell, not in $(...)
 trap '[ -n "$PID" ] && kill -KILL "$PID" 2>/dev/null; trace_stop' EXIT
 
 echo "== build ($BIN, against $MOCK)"
@@ -94,14 +94,14 @@ n=$(toggles $STEP 20); [ "$n" -gt 0 ] && n=">0"
 check "T4 STEP toggling" ">0" "$n"
 check "T4 DIR = 0 for negative protocol speed" 0 "$(getl $DIR)"
 kill -INT "$PID"
-check "T4 exit code 130 (SIGINT)" 130 "$(exit_code)"
+wait_exit; check "T4 exit code 130 (SIGINT)" 130 "$RC"
 check "T4 EN writes: request 1, 1, enable 0, SIGINT 1" "1 1 0 1" "$(sets $EN)"
 check "T4 stopped within the ramp" 1 "$(grep -c 'Stopped. Driver off' $LOG)"
 
 echo "== T5 SIGTERM while idle"
 init_inputs; trace_start; start_main
 kill -TERM "$PID"
-check "T5 exit code 143 (SIGTERM)" 143 "$(exit_code)"
+wait_exit; check "T5 exit code 143 (SIGTERM)" 143 "$RC"
 check "T5 EN writes end with 1" "1 1 1" "$(sets $EN)"
 
 echo "== T6 fatal signal while driving: EN = 1 at once"
@@ -109,7 +109,7 @@ init_inputs; trace_start; start_main
 q 'setSpeed -2000' >/dev/null
 check "T6 EN = 0 while driving" 0 "$(getl $EN)"
 kill -SEGV "$PID"
-check "T6 exit code 139 (SIGSEGV)" 139 "$(exit_code)"
+wait_exit; check "T6 exit code 139 (SIGSEGV)" 139 "$RC"
 check "T6 EN writes: 1, 1, enable 0, crash handler 1" "1 1 0 1" "$(sets $EN)"
 check "T6 handler message" 1 "$(grep -c 'Fatal signal' $LOG)"
 
@@ -121,7 +121,7 @@ check "T7 alive after 7 s (old code died at ~5 s)" alive "$alive"
 kill -PIPE "$PID"; sleep 0.2
 alive=$(kill -0 "$PID" 2>/dev/null && echo alive || echo dead)
 check "T7 survives an explicit SIGPIPE" alive "$alive"
-kill -TERM "$PID"; exit_code >/dev/null
+kill -TERM "$PID"; wait_exit
 
 echo "== T8 empty line hangs the TCP loop (issue 13); SIGTERM still stops the process"
 init_inputs; start_main
@@ -130,7 +130,7 @@ sleep 0.5
 cpu=$(ps -o %cpu= -p "$PID" | awk '{print ($1 > 50) ? "spinning" : "idle"}')
 check "T8 main thread spinning" spinning "$cpu"
 kill -TERM "$PID"
-check "T8 exit code 143 despite the stuck thread" 143 "$(exit_code)"
+wait_exit; check "T8 exit code 143 despite the stuck thread" 143 "$RC"
 
 echo "== T9 --home on the mock: homing sequence with simulated switches (issues 4, 13)"
 init_inputs; trace_start; start_main --home
@@ -147,7 +147,7 @@ sleep 0.2
 check "T9 speed 0 after homing" 0 "$(q getSpeed)"
 echo "     (endPos = $endpos)"
 kill -INT "$PID"
-check "T9 exit code 130" 130 "$(exit_code)"
+wait_exit; check "T9 exit code 130" 130 "$RC"
 check "T9 EN writes: request 0, 0, SIGINT 1" "0 0 1" "$(sets $EN)"
 PID=""
 
