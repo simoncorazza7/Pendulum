@@ -141,3 +141,6 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   - 0.11 on synthetic data (`docs/stage0_11_estimators.md`): provisional pick = backward difference +
     2nd-order Butterworth LP ~30 Hz (same delay tolerance as BD+LP1 30 Hz, ~30 % less chatter). Redo on
     real logs before deciding; then mirror in pid_step/pid.cpp/golden.
+  - Supervisor + units core (`src/core/supervisor`, `units`, mirrors in py/pendel) and swing fits for
+    0.7/0.10 (`docs/stage0_7_0_10_fits.md`). **c_bottom must be re-found after every program start** (no
+    index): small swing + `core::fitOffset` with w, sigma from 0.10. PC unit tests 30/30.

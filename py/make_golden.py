@@ -20,6 +20,8 @@ import numpy as np
 from dataclasses import fields, replace
 
 from pendel import units
+from pendel.encsim import edge_crossings
+from pendel.swingfit import fit_offset_linear
 from pendel.control import PidParams, PidState, design_gains, pid_step
 from pendel.supervisor import (Mode, SupervisorInputs, SupervisorParams, SupervisorState, brake_distance,
                                supervisor_step)
@@ -178,6 +180,21 @@ def render_supervisor() -> dict[str, str]:
             "units.csv": NL.join(un) + NL}
 
 
+def render_swing() -> dict[str, str]:
+    """Analytic decaying swing about c = 123.37 counts with 20 us timestamp jitter; edges and the
+    linear offset fit (w, sigma known) that the Pi's start-up calibration (core::fitOffset) must match."""
+    NL = chr(10)
+    w, sig, c_true = 6.15, 0.04, 123.37
+    t = np.arange(0, 5.0, 2e-5)
+    u = c_true + 25.0 * np.exp(-sig * t) * np.cos(w * t + 0.3)
+    te, ue = edge_crossings(t, u)
+    te = te + np.random.default_rng(7).normal(0, 20e-6, len(te))
+    c, se = fit_offset_linear(te, ue, w, sig)
+    edges = ["t,u"] + [f"{a!r},{b!r}" for a, b in zip(te.tolist(), ue.tolist())]
+    fit = ["w,sigma,c,se", f"{w!r},{sig!r},{c!r},{se!r}"]
+    return {"swing_edges.csv": NL.join(edges) + NL, "swing_fit.csv": NL.join(fit) + NL}
+
+
 def render() -> dict[str, str]:
     params_lines = ["case," + ",".join(PARAM_FIELDS)]
     golden_lines = ["case,k,theta,v_cart,dt,a_cmd,u,integral,vel_f,saturated"]
@@ -197,7 +214,8 @@ def render() -> dict[str, str]:
     return {"pid_cases.csv": "\n".join(params_lines) + "\n",
             "pid_golden.csv": "\n".join(golden_lines) + "\n",
             "design_gains.csv": "\n".join(gains_lines) + "\n",
-            **render_supervisor()}
+            **render_supervisor(),
+            **render_swing()}
 
 
 def main() -> None:

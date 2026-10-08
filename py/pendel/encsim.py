@@ -45,3 +45,17 @@ def run(est, enc: dict) -> np.ndarray:
     for k in range(len(out)):
         out[k] = est.update(enc["t"][k], int(enc["count"][k]), enc["events"][k])
     return out
+
+
+def edge_crossings(t: np.ndarray, u: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Exact count-boundary crossings of a continuous encoder position u(t) (counts, count = floor(u)).
+    Returns (crossing times, boundary values u = n), sorted in time."""
+    c = np.floor(u).astype(np.int64)
+    te, ue = [], []
+    for i in np.nonzero(np.diff(c))[0]:
+        lo, hi = sorted((c[i], c[i + 1]))
+        for b in range(lo + 1, hi + 1):
+            te.append(t[i] + (b - u[i]) / (u[i + 1] - u[i]) * (t[i + 1] - t[i]))
+            ue.append(float(b))
+    o = np.argsort(te)
+    return np.asarray(te)[o], np.asarray(ue)[o]
