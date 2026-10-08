@@ -16,6 +16,10 @@ Explain the reasoning behind design choices.
   and how to abort. Before the first motion test, confirm a motor-power cut is within reach.
 - **Starting the existing `main` is a hardware action**: the `Axis` ctor calls `home()`, enables
   the driver, and drives toward the right limit switch.
+- **Incident 2026-10-08**: a failed build plus `;` ran a stale `main` twice, and the cart moved. Rules:
+  `rm -f` the binary before building; gate every run with `&&` on the build; never run any binary
+  that can open the real chip (`gpiochip0`/`gpiochip4`) without a go. Use the mock chip for checks.
+  After anything unexpected, run `pinctrl get 24` and restore `pinctrl set 24 op dh` (driver off).
 - Ask first for: `sudo`/system changes, package installs, pin/driver changes, deleting or
   restructuring code, and changes to the existing TCP protocol. No drive-by refactors.
 - Fix nothing on a hunch; show evidence (a test or a log) first. If a hardware fact is uncertain, ask;
