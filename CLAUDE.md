@@ -89,7 +89,13 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 ## Build / run
 - Build (on Pi): `./Kompilierer.sh` (`g++ -Wall -std=c++17 -o main main.cpp encoder.cpp axis.cpp
   pendel.cpp -lgpiod -lgpiodcxx -pthread`). Untracked prebuilt `main` from 2026-10-07 exists on the Pi.
-- Run (on Pi, HARDWARE ACTION, homes immediately): `./start.sh` (`sudo nice -n -20 ./main`)
+  Kompilierer.sh now also compiles `safety.cpp`.
+- Run (on Pi, HARDWARE ACTION): `./start.sh [--home] [--plot] [--chip NAME]`. The default is bring-up
+  mode: no homing, no plot, EN = 1 until the first motion command. `--home` = original start-up
+  (homes at once). SIGINT/SIGTERM → brake ≤ 0.5 s → EN = 1; crash → EN = 1.
+- Mock tests (no hardware): `sudo /sbin/modprobe gpio-mockup gpio_mockup_ranges=-1,28
+  gpio_mockup_named_lines=1` (per boot), then `tests/mock/run_mock_tests.sh` (35 checks). See
+  `docs/stage0_3_safe_bringup.md`.
 
 ## Status
 - Session 1 (2026-10-08): Claude runs on Simon's Windows PC (Wi-Fi "birdwatcher", 192.168.0.103)
@@ -109,4 +115,8 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   - The SIGPIPE path was reproduced standalone: killed at 4.96 s. Simon is unsure whether his `main` survived homing.
   - Unclaimed GPIO24 boots as input pull-down → EN low → **driver enabled whenever no program owns
     it**. Added `gpio=24=op,dh` to `/boot/firmware/config.txt` (backup `config.txt.bak-2026-10-08`);
-    takes effect after a reboot.
+    took effect after a reboot (verified `op hi`).
+  - Mechanics: the belt's supporting structure reaches the left switch before the cart does
+    (shorter usable travel at that end). Measure in 0.8.
+  - 0.3 done in software: atomics, bring-up mode, signal handlers; mock suite 35/35. Open: 0.3b real-chip
+    handler check (needs a go). Then 0.4.
