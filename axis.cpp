@@ -276,8 +276,8 @@
                
          endPos = 10000;
          
-         pos = endPos;
-         curSpeed = 0;
+         pos = endPos.load();
+curSpeed = 0;
          direction = -1;
          isHoming = false;
                

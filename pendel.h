@@ -4,6 +4,7 @@
 #include <gpiod.h>
 #include <iostream>
 #include <stdexcept>
+#include <atomic>
 #include "encoder.h"
 #include "axis.h"
 
@@ -14,7 +15,7 @@ private:
     Axis* axis;
     const char* chipname = "gpiochip4"; // set for Raspberry Pi 4 B+
     gpiod_chip* chip;
-    bool plotRunning;
+    std::atomic<bool> plotRunning{false};
         std::thread thread;             // Thread for plot stream
 
 public:

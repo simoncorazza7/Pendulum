@@ -8,6 +8,7 @@
 #include <vector>
 #include <poll.h>
 #include <queue>
+#include <atomic>
 
 struct EdgeLine {				// help struct
     char line;			 		// edge 'A' oder 'B'
@@ -19,9 +20,9 @@ int timeApartNS(const timespec &a, const timespec &b);
 
 class Encoder {
 private:
-    int winkel;                    // current angle in counted flanks
+    std::atomic<int> winkel{0};          // current angle in counted flanks (read by other threads)
 
-    bool running;                  // is the thread running?
+    std::atomic<bool> running{false};    // is the thread running?
     std::thread thread;            // thread for monitoring angle
 
     gpiod_line* a_line;            // Phase A
@@ -32,7 +33,7 @@ private:
     EdgeLine eL;
     EdgeLine lastEdge; // für Geschwindigkeit
     int lastWinkel;
-    int angleVelocity;
+    std::atomic<int> angleVelocity{0};
     
     std::queue<EdgeLine> aFlanken;
     std::queue<EdgeLine> bFlanken;

@@ -73,8 +73,8 @@
             }
             void Pendel::startPlot(){
                 if(plotRunning) return;
+                plotRunning = true; // set before the thread reads it
                 thread = std::thread(&Pendel::plotLoop, this);
-                plotRunning = true;
             }
             
             void Pendel::plotLoop() const{

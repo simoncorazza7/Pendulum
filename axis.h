@@ -7,6 +7,7 @@
 #include <cmath>
 #include <iostream>
 #include <stdexcept>
+#include <atomic>
 #include "SafeQueue.h"
 
 
@@ -28,20 +29,21 @@ private:
     
     SafeQueue<MotorTask> tasks;
 
-    bool running;                   // LÃ¤uft Thread?
+    std::atomic<bool> running{false};   // LÃ¤uft Thread?
     std::thread thread;             // Thread fÃ¼r Motorposition
-    bool isHoming;
-    int lastRightLimitValue = 1; // start, 1 = not pressed (pull up) 
-    int lastLeftLimitValue = 1; // start, not pressed
+    // Shared between the step thread and the TCP thread -> atomic (Stage 0.3)
+    std::atomic<bool> isHoming{false};
+    std::atomic<int> lastRightLimitValue{1}; // start, 1 = not pressed (pull up) 
+    std::atomic<int> lastLeftLimitValue{1}; // start, not pressed
     
-    int pos;                // current position in steps
-    int endPos;             // total amount of steps from one side to the other
-    int direction;          // current direction
+    std::atomic<int> pos{0};                // current position in steps
+    std::atomic<int> endPos{0};             // total amount of steps from one side to the other
+    std::atomic<int> direction{-1};         // current direction
 
 
-    int curSpeed;           // current speed in motor steps per second
-    int maxSpeed = 120000;           // max speed in motor steps per second
-    int maxAcceleration = 120000;    // maximum acceleration in steps/second*second
+    std::atomic<int> curSpeed{0};           // current speed in motor steps per second
+    std::atomic<int> maxSpeed{120000};           // max speed in motor steps per second
+    std::atomic<int> maxAcceleration{120000};    // maximum acceleration in steps/second*second
     double inverseMaxSpeed;
     int usDelay;
     int waitedUs;
