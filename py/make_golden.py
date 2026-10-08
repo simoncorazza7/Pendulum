@@ -17,7 +17,12 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import numpy as np
 
+from dataclasses import fields, replace
+
+from pendel import units
 from pendel.control import PidParams, PidState, design_gains, pid_step
+from pendel.supervisor import (Mode, SupervisorInputs, SupervisorParams, SupervisorState, brake_distance,
+                               supervisor_step)
 
 GOLDEN = pathlib.Path(__file__).resolve().parent.parent / "tests" / "golden"
 PARAM_FIELDS = ("kp", "ki", "kd", "a_max", "v_max", "v_taper", "i_max", "i_delay", "theta_ref", "vel_fc")
@@ -53,6 +58,126 @@ def cases():
         theta3, np.zeros(n), np.full(n, 0.002)
 
 
+SUP_PARAM_FIELDS = [f.name for f in fields(SupervisorParams)]
+SUP_IN_FIELDS = ["theta", "omega", "x", "v", "limit_pressed", "axis_accelerating", "overrun", "encoder_fault",
+                 "arm", "stop"]
+
+
+def supervisor_cases():
+    """(name, params, scenario); scenario(k, previous output) -> SupervisorInputs, or None to end.
+    Scenarios react to the supervisor's mode, as the real runtime and plant would."""
+    base = SupervisorParams()
+    hang = math.pi - 0.01
+
+    def lift_then(engaged_fn, stopping_v_decay=True):
+        st = {"v": 0.0, "x": 0.0, "t_eng": None}
+
+        def scen(k, out):
+            t = k * 0.002
+            mode = out.mode if out else Mode.IDLE
+            if k < 10:
+                return SupervisorInputs(theta=hang, omega=0.0, x=0.0, v=0.0)
+            if k == 10:
+                return SupervisorInputs(theta=1.0, omega=0.0, x=0.0, v=0.0, arm=True)    # refused: not hanging
+            if k == 15:
+                return SupervisorInputs(theta=hang, omega=0.0, x=0.05, v=0.0, arm=True)  # refused: not centred
+            if k == 20:
+                return SupervisorInputs(theta=hang, omega=0.0, x=0.0, v=0.0, arm=True)   # armed
+            if mode == Mode.IDLE:
+                return None if k > 20 else SupervisorInputs(theta=hang, omega=0.0, x=0.0, v=0.0)
+            if mode == Mode.ARMED:
+                if k < 220:                                                     # lifting by hand, 0.4 s
+                    th = hang - (k - 20) / 200 * (hang - 0.02)
+                    return SupervisorInputs(theta=th, omega=-7.8, x=0.0, v=0.0)
+                return SupervisorInputs(theta=0.02 + 0.005 * math.sin(40 * t), omega=0.1, x=0.0, v=0.0)
+            if mode == Mode.ENGAGED:
+                if st["t_eng"] is None:
+                    st["t_eng"] = t
+                return engaged_fn(t - st["t_eng"], st)
+            if mode == Mode.STOPPING:
+                if stopping_v_decay:
+                    st["v"] = math.copysign(max(0.0, abs(st["v"]) - 3.0 * 0.002), st["v"])
+                st["x"] += st["v"] * 0.002
+                return SupervisorInputs(theta=0.05, omega=0.0, x=st["x"], v=st["v"])
+            return None
+        return scen
+
+    def drift(te, st):                       # cart accelerates at 0.3 m/s^2 toward +x -> soft limit
+        st["v"] = 0.3 * te
+        st["x"] = 0.15 * te * te
+        return SupervisorInputs(theta=0.01 * math.sin(30 * te), omega=0.3 * math.cos(30 * te), x=st["x"], v=st["v"])
+
+    def fall(te, st):                        # pendulum falls -> theta abort
+        return SupervisorInputs(theta=0.02 * math.exp(6 * te), omega=0.12 * math.exp(6 * te), x=0.0, v=0.0)
+
+    def overrun(te, st):
+        return SupervisorInputs(theta=0.0, omega=0.0, x=0.0, v=0.0, overrun=(te > 0.1 and int(te / 0.002) % 7 != 0))
+
+    def limit(te, st):
+        st["v"] = -0.05
+        return SupervisorInputs(theta=0.0, omega=0.0, x=0.0, v=-0.05, limit_pressed=te > 0.2)
+
+    def axis(te, st):
+        return SupervisorInputs(theta=0.0, omega=0.0, x=0.0, v=0.0, axis_accelerating=te < 0.3)
+
+    def long_run(te, st):
+        return SupervisorInputs(theta=0.0, omega=0.0, x=0.0, v=0.0)
+
+    def manual(te, st):
+        st["v"] = 0.02
+        return SupervisorInputs(theta=0.0, omega=0.0, x=0.0, v=0.02, stop=abs(te - 0.25) < 1e-9)
+
+    def stuck(te, st):                       # STOPPING never reaches standstill -> timeout
+        st["v"] = 0.1
+        return SupervisorInputs(theta=0.0, omega=0.0, x=0.0, v=0.1, stop=te > 0.1)
+
+    yield "soft_limit", base, lift_then(drift)
+    yield "theta_abort", base, lift_then(fall)
+    yield "overrun", base, lift_then(overrun)
+    yield "limit_switch", base, lift_then(limit)
+    yield "axis_left_accel", base, lift_then(axis)
+    yield "max_run_time", replace(base, max_run_time=0.5), lift_then(long_run)
+    yield "manual_stop", base, lift_then(manual)
+    yield "stop_timeout", replace(base, stop_timeout=0.3), lift_then(stuck, stopping_v_decay=False)
+
+
+def _fmt(x):
+    return repr(float(x)) if isinstance(x, float) else str(int(x))
+
+
+def render_supervisor() -> dict[str, str]:
+    NL = chr(10)
+    params_lines = ["case," + ",".join(SUP_PARAM_FIELDS)]
+    lines = ["case,k,dt," + ",".join(SUP_IN_FIELDS) + ",mode,driver,run,reset,a_brake,event"]
+    for name, p, scen in supervisor_cases():
+        params_lines.append(name + "," + ",".join(repr(float(getattr(p, f))) for f in SUP_PARAM_FIELDS))
+        s, out = SupervisorState(), None
+        for k in range(20000):
+            i = scen(k, out)
+            if i is None:
+                break
+            out, s = supervisor_step(p, s, i, 0.002)
+            vals = [_fmt(getattr(i, f)) for f in SUP_IN_FIELDS]
+            lines.append(f"{name},{k},0.002," + ",".join(vals) +
+                         f",{int(out.mode)},{int(out.driver_enabled)},{int(out.run_controller)},"
+                         f"{int(out.reset_controller)},{out.a_brake_cmd!r},{int(out.event)}")
+    bd = ["v,a_brake,axis_a,axis_v,distance"]
+    for v, ab, A, V in ((0.5, 3.0, 4.5, 4.5), (2.0, 3.0, 4.5, 4.5), (1.0, 6.0, 4.5, 4.5), (0.3, 1.0, 10.0, 1.5),
+                        (-1.2, 2.0, 3.0, 2.0)):
+        bd.append(",".join(repr(float(x)) for x in (v, ab, A, V, brake_distance(v, ab, A, V))))
+    un = ["counts,theta_sign,c_bottom,pos,x_sign,cur_speed,a,theta,x,v,axis_arg"]
+    for counts, ts_, cb, pos, xs, cs, a in ((1200, 1, 0.0, 6000, 1, -26667, 2.5), (-1201, 1, 0.37, -100, -1, 500, -0.7),
+                                          (37, -1, 1236.6, 0, 1, 0, 1e-5), (3600, -1, -0.5, 13333, -1, 13333, -4.2)):
+        c = units.Calib(c_bottom=cb, theta_sign=ts_, x_sign=xs)
+        un.append(",".join([str(counts), str(ts_), repr(cb), str(pos), str(xs), str(cs), repr(a),
+                            repr(units.theta_from_counts(counts, c)), repr(units.x_from_pos(pos, c)),
+                            repr(units.v_from_axis_speed(cs, c)), str(units.axis_accel_arg(a, c))]))
+    return {"supervisor_params.csv": NL.join(params_lines) + NL,
+            "supervisor_golden.csv": NL.join(lines) + NL,
+            "brake_distance.csv": NL.join(bd) + NL,
+            "units.csv": NL.join(un) + NL}
+
+
 def render() -> dict[str, str]:
     params_lines = ["case," + ",".join(PARAM_FIELDS)]
     golden_lines = ["case,k,theta,v_cart,dt,a_cmd,u,integral,vel_f,saturated"]
@@ -71,7 +196,8 @@ def render() -> dict[str, str]:
         gains_lines.append(",".join(repr(float(x)) for x in (w0, bJ, wc, zeta, p, kp, ki, kd)))
     return {"pid_cases.csv": "\n".join(params_lines) + "\n",
             "pid_golden.csv": "\n".join(golden_lines) + "\n",
-            "design_gains.csv": "\n".join(gains_lines) + "\n"}
+            "design_gains.csv": "\n".join(gains_lines) + "\n",
+            **render_supervisor()}
 
 
 def main() -> None:

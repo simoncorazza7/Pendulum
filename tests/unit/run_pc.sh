@@ -7,5 +7,6 @@ mkdir -p build
 rm -f build/unit_tests_pc.exe
 clang++ -std=c++17 -Wall -Wextra -O2 -Isrc -Itests/unit -o build/unit_tests_pc.exe \
     tests/unit/test_main.cpp tests/unit/test_ringlog.cpp tests/unit/test_config.cpp tests/unit/test_pid.cpp \
-    src/common/config.cpp src/core/pid.cpp
+    tests/unit/test_supervisor.cpp \
+    src/common/config.cpp src/core/pid.cpp src/core/supervisor.cpp src/core/units.cpp
 build/unit_tests_pc.exe
