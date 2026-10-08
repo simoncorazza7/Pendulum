@@ -14,7 +14,8 @@ MAIN_SRC  := main.cpp encoder.cpp axis.cpp pendel.cpp safety.cpp
 MAIN_HDR  := axis.h encoder.h pendel.h safety.h SafeQueue.h
 COMMON    := src/common/config.cpp src/common/runlog.cpp
 COMMON_H  := src/common/config.h src/common/runlog.h src/rt/ringlog.h
-PENDCTL   := src/app/pendctl.cpp src/app/selftest.cpp src/app/timing_probe.cpp src/rt/rt.cpp axis.cpp safety.cpp
+PENDCTL   := src/app/pendctl.cpp src/app/selftest.cpp src/app/timing_probe.cpp src/app/encoder_log.cpp \
+             src/rt/rt.cpp axis.cpp safety.cpp
 PENDCTL_H := src/app/modes.h src/rt/rt.h src/rt/latency.h axis.h safety.h SafeQueue.h
 TESTS     := tests/unit/test_main.cpp tests/unit/test_ringlog.cpp tests/unit/test_config.cpp
 

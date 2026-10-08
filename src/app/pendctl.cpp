@@ -4,6 +4,8 @@
 //   log-selftest   fixed-rate loop logging a synthetic signal; no GPIO (Stage 0.4)
 //   timing-probe   RT control loop + the Axis step thread on a GPIO chip, latency histograms
 //                  (Stage 0.5). Refuses any chip but gpio-mockup unless probe.allow_real_chip=true.
+//   encoder-log    records every raw encoder edge event (Stage 0.6); inputs only. Refuses the real
+//                  chip unless enc.allow_real_chip=true.
 // Usage:
 //   pendctl --mode MODE [--config config/pendctl.conf] [--set key=value ...]
 //
@@ -45,7 +47,7 @@ void onTerminate(int sig) {
 }
 
 void usage() {
-    std::cout << "Usage: pendctl --mode log-selftest|timing-probe [--config FILE] [--set key=value ...]\n";
+    std::cout << "Usage: pendctl --mode log-selftest|timing-probe|encoder-log [--config FILE] [--set key=value ...]\n";
 }
 
 }
@@ -76,6 +78,7 @@ int main(int argc, char** argv) {
         for (const auto& o : overrides) cfg.setFromAssignment(o);
         if (mode == "log-selftest") rc = app::runSelftest(cfg, configPath, cmdLine);
         else if (mode == "timing-probe") rc = app::runTimingProbe(cfg, configPath, cmdLine);
+        else if (mode == "encoder-log") rc = app::runEncoderLog(cfg, configPath, cmdLine);
         else usage();
     } catch (const std::exception& e) {
         std::cerr << "pendctl: " << e.what() << "\n";
