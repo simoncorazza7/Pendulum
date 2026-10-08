@@ -59,6 +59,9 @@ private:
     gpiod_line* ms1_line;
     gpiod_line* ms2_line;
 
+    bool enableAtStart = true;              // false in bring-up mode: EN stays 1 until enableDriver()
+    std::atomic<bool> driverEnabled{false}; // mirrors EN (true = EN low = driver on)
+
     // --- internal loop ---
     void eventLoop();
     
@@ -82,7 +85,8 @@ public:
          unsigned int pinRightLimit,
          unsigned int pinLeftLimit,
          unsigned int pinMs1,
-         unsigned int pinMs2
+         unsigned int pinMs2,
+         bool homeOnStart = true   // false = bring-up mode: no homing, driver off until enableDriver()
          );
 
     ~Axis();
@@ -103,6 +107,11 @@ public:
     
     bool setMaxSpeed(int stepsPerSecond);
     bool setMaxAcceleration(int stepsPerSecond2);
+
+    // Driver enable (EN pin, active low)
+    void enableDriver();
+    void disableDriver();
+    bool isDriverEnabled();
 
     // Getter
     double getEndPos();

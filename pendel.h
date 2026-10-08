@@ -5,21 +5,29 @@
 #include <iostream>
 #include <stdexcept>
 #include <atomic>
+#include <string>
 #include "encoder.h"
 #include "axis.h"
 
+
+// Start-up options. Defaults = bring-up mode (safe): no homing, no gnuplot, driver off until
+// the first motion command. --home restores the original start-up (home at once, driver on).
+struct PendelOptions {
+    bool home = false;               // home on start (original behaviour)
+    bool plot = false;               // gnuplot angle plot (needs gnuplot + X11)
+    std::string chip = "gpiochip4";  // on Raspberry Pi OS gpiochip4 -> gpiochip0 (udev symlink)
+};
 
 class Pendel {
 private:
     Encoder* encoder;
     Axis* axis;
-    const char* chipname = "gpiochip4"; // set for Raspberry Pi 4 B+
     gpiod_chip* chip;
     std::atomic<bool> plotRunning{false};
         std::thread thread;             // Thread for plot stream
 
 public:
-    Pendel();
+    explicit Pendel(const PendelOptions& opt = PendelOptions());
     ~Pendel();
 
     int getAngle() const; // in Anzahl Drehgeberimpulse

@@ -142,8 +142,28 @@ std::string handleCommand(const std::string& line) {
     return response;
 }
 
-int main() {
-    p = new Pendel();
+static void printUsage(const char* prog) {
+    std::cout << "Usage: " << prog << " [--home] [--plot] [--chip NAME]\n"
+              << "  default   bring-up mode: no homing, no plot, driver off until the first\n"
+              << "            motion command (positions are uncalibrated until calibratePos)\n"
+              << "  --home    home on start (original behaviour; drives to the right switch at once)\n"
+              << "  --plot    start the gnuplot angle plot (needs gnuplot and X11)\n"
+              << "  --chip    GPIO chip name (default gpiochip4)\n";
+}
+
+int main(int argc, char** argv) {
+    PendelOptions options;
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if (arg == "--home") options.home = true;
+        else if (arg == "--plot") options.plot = true;
+        else if (arg == "--chip" && i + 1 < argc) options.chip = argv[++i];
+        else { printUsage(argv[0]); return arg == "--help" ? 0 : 2; }
+    }
+    std::cout << "Start: chip=" << options.chip
+              << (options.home ? "  HOMING NOW (cart moves to the right switch)" : "  bring-up mode: no homing, driver off")
+              << (options.plot ? "  plot on" : "  plot off") << "\n";
+    p = new Pendel(options);
     sockaddr_in server_addr{}, client_addr{};
     socklen_t client_len = sizeof(client_addr);
 

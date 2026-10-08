@@ -9,15 +9,15 @@
 
 //g++ -Wall -std=c++17 -o main main.cpp encoder.cpp axis.cpp -lgpiod -lgpiodcxx -pthread
 
-            Pendel::Pendel(){
-                chip = gpiod_chip_open_by_name(chipname);
+            Pendel::Pendel(const PendelOptions& opt){
+                chip = gpiod_chip_open_by_name(opt.chip.c_str());
                 if (!chip){
                     throw std::runtime_error("GPIO-Chip nicht gefunden");
                 }
                 
                 encoder = new Encoder(chip, 10, 19);
-                axis = new Axis(chip, 27, 22, 24, 2, 9, 20, 21);
-                startPlot();
+                axis = new Axis(chip, 27, 22, 24, 2, 9, 20, 21, opt.home);
+                if(opt.plot) startPlot();
             }
             
             Pendel::~Pendel() { //GPIO-Pins wieder freigeben
@@ -41,18 +41,23 @@
                 return axis->getEndPos();
             }
             bool Pendel::setPos(double pos){
+                axis->enableDriver();
                 return axis->setPos(pos);
             }
             bool Pendel::setRelPos(double pos){
+                axis->enableDriver();
                 return axis->setPos(axis->getPos()+pos);
             }
             bool Pendel::setSpeed(int speed){
+                axis->enableDriver();
                 return axis->setSpeed(speed);
             }
             bool Pendel::setAcceleration(int acceleration){
+                axis->enableDriver();
                 return axis->setAcceleration(acceleration * -1.0);
             }
             void Pendel::calibratePos(){
+                axis->enableDriver();
                 axis->home();
             }
             bool Pendel::isCalibrating(){

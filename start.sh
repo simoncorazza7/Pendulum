@@ -1,2 +1,2 @@
 #!/bin/bash
-sudo nice -n -20 ./main
+sudo nice -n -20 ./main "$@"

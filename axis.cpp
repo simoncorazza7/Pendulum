@@ -272,7 +272,8 @@
       Axis::Axis(gpiod_chip* chip, unsigned int pinStep,
             unsigned int pinDir, unsigned int pinEn,
             unsigned int pinRightLimit, unsigned int pinLeftLimit,
-            unsigned int pinMs1, unsigned int pinMs2){
+            unsigned int pinMs1, unsigned int pinMs2,
+            bool homeOnStart){
                
          endPos = 10000;
          
@@ -299,7 +300,8 @@ curSpeed = 0;
             std::cerr << "Fehler: konnte Events nicht anfordern(Home)\n";
         }
          
-         home();
+         enableAtStart = homeOnStart; // homing needs the driver; bring-up mode keeps it off
+         if(homeOnStart) home();
          startThread();
       }
       
@@ -319,11 +321,12 @@ curSpeed = 0;
             //reserve GPIO-Pins
             gpiod_line_request_output(step_line, "step_motor", 0);
             gpiod_line_request_output(dir_line,  "step_motor", 0);
-            gpiod_line_request_output(en_line,   "step_motor", 0);
+            gpiod_line_request_output(en_line,   "step_motor", enableAtStart ? 0 : 1);
             gpiod_line_request_output(ms1_line,  "step_motor", 0);
             gpiod_line_request_output(ms2_line,   "step_motor", 0);
             
-            gpiod_line_set_value(en_line, 0); // turn motor on, 0 = ON, 1 = OFF
+            gpiod_line_set_value(en_line, enableAtStart ? 0 : 1); // 0 = ON, 1 = OFF
+            driverEnabled = enableAtStart;
             
             gpiod_line_set_value(ms1_line, 1); 
             gpiod_line_set_value(ms2_line, 1); 
@@ -365,6 +368,19 @@ curSpeed = 0;
             lastRightLimitValue = currentRightLimitValue;
             lastLeftLimitValue = currentLeftLimitValue;
             return true;
+        }
+        
+        void Axis::enableDriver(){
+            if(driverEnabled) return;
+            gpiod_line_set_value(en_line, 0); // 0 = ON
+            driverEnabled = true;
+        }
+        void Axis::disableDriver(){
+            gpiod_line_set_value(en_line, 1); // 1 = OFF
+            driverEnabled = false;
+        }
+        bool Axis::isDriverEnabled(){
+            return driverEnabled;
         }
         
         bool Axis::isCalibrating(){
