@@ -138,3 +138,6 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   - C++ controller core `src/core/pid.{h,cpp}` (pure pidStep, mirrors py/pendel/control.py) with golden
     test vs Python (`py/make_golden.py`, tests/golden/): bit-identical on the PC. PC tests:
     `bash tests/unit/run_pc.sh` (20/20). Pi: `make test` (not yet run there).
+  - 0.11 on synthetic data (`docs/stage0_11_estimators.md`): provisional pick = backward difference +
+    2nd-order Butterworth LP ~30 Hz (same delay tolerance as BD+LP1 30 Hz, ~30 % less chatter). Redo on
+    real logs before deciding; then mirror in pid_step/pid.cpp/golden.

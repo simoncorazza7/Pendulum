@@ -43,12 +43,15 @@ def taper(margin: float, width: float) -> float:
     return min(1.0, max(0.0, margin / width))
 
 
-def pid_step(p: PidParams, s: PidState, theta: float, v_cart: float, dt: float) -> tuple[float, PidState, dict]:
+def pid_step(p: PidParams, s: PidState, theta: float, v_cart: float, dt: float,
+             vel_est: float | None = None) -> tuple[float, PidState, dict]:
     """One controller sample.
 
     theta  measured angle from upright, unwrapped (rad), e.g. from cumulative encoder counts
     v_cart cart velocity (m/s), as realised by the Axis (used only for the v_max taper)
     dt     sample period (s)
+    vel_est optional external velocity estimate (rad/s) replacing the built-in filtered backward
+           difference (estimator comparison, Stage 0.11; not mirrored in C++ yet)
     Returns (a_cmd in m/s^2, new state, debug dict).
     """
     # Derivative of the measurement (not of the error), filtered.
@@ -57,7 +60,7 @@ def pid_step(p: PidParams, s: PidState, theta: float, v_cart: float, dt: float) 
     else:
         vel_raw = (theta - s.prev_theta) / dt
     alpha = dt / (dt + 1.0 / (2.0 * math.pi * p.vel_fc))
-    vel_f = s.vel_f + alpha * (vel_raw - s.vel_f)
+    vel_f = s.vel_f + alpha * (vel_raw - s.vel_f) if vel_est is None else vel_est
 
     e = theta - p.theta_ref
     u = p.kp * e + p.ki * s.integral + p.kd * vel_f
