@@ -168,7 +168,7 @@ void Encoder::eventLoop() {
 			int winkelSchritteP){	
 		a_line = gpiod_chip_get_line(chip, pinA); // Phase A
 		b_line = gpiod_chip_get_line(chip, pinB); // Phase B
-		winkelSchritte = winkelSchritteP;
+//		winkelSchritte = winkelSchritteP;
 		startThread();
 	}
 	
