@@ -1,4 +1,6 @@
 #include "axis.h"
+#include <pthread.h>
+#include <sched.h>
 
 
 
@@ -19,6 +21,7 @@
                 ).count(); // time between actual step time and wanted step time
                 // if jitter occurs due to high cpu load, reset timing
                 if (std::abs(timeDeviationUs) > 500) {
+                    resyncs++;
                     next = std::chrono::steady_clock::now() + std::chrono::microseconds(minUsDelay);
                 }
                 
@@ -124,6 +127,12 @@
                     checkLimits(); // limit switch triggered?
                     std::this_thread::sleep_until(next);
                     gpiod_line_set_value(step_line, curStep);
+                    if (StepObserver fn = stepObserver.load()) {
+                        fn(stepObserverCtx,
+                           std::chrono::duration_cast<std::chrono::nanoseconds>(next.time_since_epoch()).count(),
+                           std::chrono::duration_cast<std::chrono::nanoseconds>(
+                               std::chrono::steady_clock::now().time_since_epoch()).count());
+                    }
                 }
             }
         }
@@ -402,6 +411,31 @@ curSpeed = 0;
         }
         bool Axis::isStopped(){
             return curSpeed == 0;
+        }
+        void Axis::setStepObserver(StepObserver fn, void* ctx){
+            stepObserver = nullptr;
+            stepObserverCtx = ctx;   // published by the store below
+            stepObserver = fn;
+        }
+        std::uint32_t Axis::getResyncCount(){
+            return resyncs;
+        }
+        bool Axis::configureRealtime(int priority, int cpu){
+            if(!thread.joinable()) return false;
+            sched_param sp{};
+            sp.sched_priority = priority;
+            if(pthread_setschedparam(thread.native_handle(), SCHED_FIFO, &sp) != 0) return false;
+            if(cpu >= 0){
+                cpu_set_t set;
+                CPU_ZERO(&set);
+                CPU_SET(cpu, &set);
+                if(pthread_setaffinity_np(thread.native_handle(), sizeof(set), &set) != 0) return false;
+            }
+            return true;
+        }
+        void Axis::setPositionReference(int newPos, int newEndPos){
+            endPos = newEndPos;
+            pos = newPos;
         }
         
         bool Axis::isCalibrating(){

@@ -8,10 +8,16 @@
 #include <iostream>
 #include <stdexcept>
 #include <atomic>
+#include <cstdint>
 #include "SafeQueue.h"
 
 
 class Axis { 
+public:
+    // Called by the step thread right after each STEP edge (instrumentation, Stage 0.5).
+    // Times are CLOCK_MONOTONIC ns. Must be real-time safe (no allocation, locks or I/O).
+    using StepObserver = void (*)(void* ctx, std::int64_t scheduledNs, std::int64_t actualNs);
+
 private:
     enum class MotorState {
         POS,                // go to position as fast as possible
@@ -63,6 +69,9 @@ private:
     bool enableAtStart = true;              // false in bring-up mode: EN stays 1 until enableDriver()
     std::atomic<bool> driverEnabled{false}; // mirrors EN (true = EN low = driver on)
     std::atomic<bool> halted{false};        // set by halt(); the step thread then only brakes
+    std::atomic<StepObserver> stepObserver{nullptr};
+    void* stepObserverCtx = nullptr;
+    std::atomic<std::uint32_t> resyncs{0};  // times the loop fell > 500 us behind and reset its schedule
 
     // --- internal loop ---
     void eventLoop();
@@ -118,6 +127,12 @@ public:
     // Shutdown: brake to standstill at maxAcceleration and ignore all further tasks
     void halt();
     bool isStopped();
+
+    // Instrumentation and set-up for the pendctl runtime (Stage 0.5)
+    void setStepObserver(StepObserver fn, void* ctx);   // nullptr to remove
+    std::uint32_t getResyncCount();
+    bool configureRealtime(int priority, int cpu);      // SCHED_FIFO priority, pin to cpu (-1: no pin)
+    void setPositionReference(int newPos, int newEndPos); // declare position and track length, no motion
 
     // Getter
     double getEndPos();
