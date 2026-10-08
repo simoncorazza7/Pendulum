@@ -127,3 +127,8 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   - 0.4 done: ring log, run dirs + meta, config, pendctl log-selftest, Makefile, unit tests 9/9, PC venv
     (Python 3.14, numpy 2.5.3, scipy 1.18.1, matplotlib 3.11.2). The SCHED_OTHER 500 Hz loop wakes ~56 µs
     late (timer slack). Next: 0.5 timing.
+  - 0.5 in progress: four 10-min timing-probe runs started 2026-10-08 ~14:44 Pi time under nohup
+    (accel-stream/speed × idle/load, mock chip). Output: Pi `~/Pendel-main/build/timing_all.out` and
+    `logs/*timing-probe*`. Then: fetch, `py/timing_report.py`, write `docs/stage0_5_timing.md`.
+  - 0.6 tooling committed locally (e1d75cc, not yet pushed/built): `pendctl --mode encoder-log`,
+    `py/encoder_report.py`. Next: scope check of GPIO18 (needs a go) and the 0.6 hand tests.
