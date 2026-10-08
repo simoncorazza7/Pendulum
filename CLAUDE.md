@@ -94,5 +94,15 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   - Git set up on the Pi and the PC (see Code sync). 1 A fuse on VMOT confirmed by Simon, so it limits 0.9.
   - 0.2: the Pi copy builds with 0 warnings (`build/main_asis`); upstream fails (2 errors). Simon made
     the fixes and built/ran the old `main`.
-  - **At Gate A** (`docs/gateA_report.md`): waiting for Simon's approval of the architecture, the
-    handler behaviour and the test plan, plus answers on E-stop, rig connection, and RT privileges.
+  - Gate A answers (2026-10-08):
+    - Handlers: SIGINT/SIGTERM → ramp ≤ 0.5 s then EN = 1; fatal → EN = 1 at once; SIGPIPE ignored. OK'd.
+    - `main` default = safe (no homing, no plot unless `--home`/`--plot`).
+    - E-stop: the rocker is the only cut today; Simon will add a motor-only switch before motion tests.
+    - Rig is connected and the mount is usable.
+    - RT tests: run with `sudo` per run, no limits file. The Pi has NOPASSWD sudo, but still ask per brief.
+    - Python venv on the PC is approved. Spare GPIO for timing probes: BCM18 (pin 12), unconnected per
+      the schematic.
+  - The SIGPIPE path was reproduced standalone: killed at 4.96 s. Simon is unsure whether his `main` survived homing.
+  - Unclaimed GPIO24 boots as input pull-down → EN low → **driver enabled whenever no program owns
+    it**. Added `gpio=24=op,dh` to `/boot/firmware/config.txt` (backup `config.txt.bak-2026-10-08`);
+    takes effect after a reboot.
