@@ -132,3 +132,6 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
     `logs/*timing-probe*`. Then: fetch, `py/timing_report.py`, write `docs/stage0_5_timing.md`.
   - 0.6 tooling committed locally (e1d75cc, not yet pushed/built): `pendctl --mode encoder-log`,
     `py/encoder_report.py`. Next: scope check of GPIO18 (needs a go) and the 0.6 hand tests.
+  - Offline while the PC was on another network: `docs/model_derivation.md` (§3 confirmed + 3
+    refinements, `py/model_check.py` 9/9) and the 0.12 framework `py/pendel/{control,plant,sim,linear}.py`
+    with a placeholder-parameter preview (`docs/stage0_12_sim.md`). Not validated yet.
