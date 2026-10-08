@@ -93,6 +93,10 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 - Run (on Pi, HARDWARE ACTION): `./start.sh [--home] [--plot] [--chip NAME]`. The default is bring-up
   mode: no homing, no plot, EN = 1 until the first motion command. `--home` = original start-up
   (homes at once). SIGINT/SIGTERM → brake ≤ 0.5 s → EN = 1; crash → EN = 1.
+- `make` (Pi) → `build/main`, `build/pendctl`, `build/unit_tests`; `make test` runs the unit tests.
+  `pendctl --mode log-selftest` has no GPIO code. Runs go to `logs/<time>_<mode>/` (data.csv, meta.json
+  with the git commit, config_used.conf). PC: `.venv/Scripts/python py/fetch_runs.py`, then `py/plot_run.py`.
+  See `docs/stage0_4_instrumentation.md`.
 - Mock tests (no hardware): `sudo /sbin/modprobe gpio-mockup gpio_mockup_ranges=-1,28
   gpio_mockup_named_lines=1` (per boot), then `tests/mock/run_mock_tests.sh` (35 checks). See
   `docs/stage0_3_safe_bringup.md`.
@@ -119,4 +123,7 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   - Mechanics: the belt's supporting structure reaches the left switch before the cart does
     (shorter usable travel at that end). Measure in 0.8.
   - 0.3 done: atomics, bring-up mode, signal handlers; mock suite 35/35; 0.3b on the real chip passed
-    (EN stays high on SIGINT/TERM/SEGV; the real encoder counts). Now 0.4.
+    (EN stays high on SIGINT/TERM/SEGV; the real encoder counts).
+  - 0.4 done: ring log, run dirs + meta, config, pendctl log-selftest, Makefile, unit tests 9/9, PC venv
+    (Python 3.14, numpy 2.5.3, scipy 1.18.1, matplotlib 3.11.2). The SCHED_OTHER 500 Hz loop wakes ~56 µs
+    late (timer slack). Next: 0.5 timing.
