@@ -43,6 +43,8 @@ public:
     bool isCalibrating();
     bool setMaxSpeed(int stepsPerSecond);
     bool setMaxAcceleration(int stepsPerSecond2);
+    void emergencyOff();                     // EN = 1 only; async-signal-safe (fatal-signal path)
+    bool controlledStop(double timeout_s);   // brake to standstill (<= timeout), then EN = 1
     void consoleOut() const;
     void plotLoop() const;
     void startPlot();

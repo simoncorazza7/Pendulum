@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include "pendel.h"
+#include "safety.h"
 #include <queue>
 
 bool running;
@@ -68,7 +69,7 @@ std::string handleCommand(const std::string& line) {
     std::string response = "ERR";
     if(p->isCalibrating()){
 	response += " CALIBRATING\n";
-	send(client_fd, response.c_str(), response.size(), 0);
+	send(client_fd, response.c_str(), response.size(), MSG_NOSIGNAL);
 	return response;
     }
     try{
@@ -152,6 +153,7 @@ static void printUsage(const char* prog) {
 }
 
 int main(int argc, char** argv) {
+    safety::blockTerminationSignals(); // before any thread exists
     PendelOptions options;
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -164,6 +166,13 @@ int main(int argc, char** argv) {
               << (options.home ? "  HOMING NOW (cart moves to the right switch)" : "  bring-up mode: no homing, driver off")
               << (options.plot ? "  plot on" : "  plot off") << "\n";
     p = new Pendel(options);
+    safety::installFatalHandlers([] { if (p) p->emergencyOff(); });
+    safety::startTerminationWatcher([](int sig) {
+        std::cout << "\nSignal " << sig << ": braking to standstill, then driver off\n" << std::flush;
+        bool stopped = p->controlledStop(0.5);
+        std::cout << (stopped ? "Stopped. Driver off (EN = 1).\n"
+                              : "Not stopped within 0.5 s. Driver off (EN = 1) anyway.\n") << std::flush;
+    });
     sockaddr_in server_addr{}, client_addr{};
     socklen_t client_len = sizeof(client_addr);
 
@@ -225,7 +234,7 @@ int main(int argc, char** argv) {
 		    newlinePos = message.find('\n');
 		}
 	    }
-	    send(client_fd, response.c_str(), response.size(), 0);
+	    send(client_fd, response.c_str(), response.size(), MSG_NOSIGNAL);
 	    
 	}
     }

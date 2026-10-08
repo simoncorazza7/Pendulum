@@ -69,6 +69,20 @@
             bool Pendel::setMaxAcceleration(int stepsPerSecond2){
                 return axis->setMaxAcceleration(stepsPerSecond2);
             }
+            void Pendel::emergencyOff(){
+                axis->disableDriver();
+            }
+            bool Pendel::controlledStop(double timeout_s){
+                axis->halt();
+                auto deadline = std::chrono::steady_clock::now()
+                    + std::chrono::duration_cast<std::chrono::steady_clock::duration>(
+                          std::chrono::duration<double>(timeout_s));
+                while(!axis->isStopped() && std::chrono::steady_clock::now() < deadline)
+                    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+                bool stopped = axis->isStopped();
+                axis->disableDriver();
+                return stopped;
+            }
             void Pendel::consoleOut() const{
                 std::cout << "\rPos: " << getPos()
                 << "   Winkel: " << getAngle()

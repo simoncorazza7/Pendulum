@@ -30,6 +30,7 @@
                     waitedUs += minUsDelay;
                 }
                 auto maybeTask = tasks.frontIfExists();
+                if(halted) maybeTask = MotorTask{MotorState::HALT, 0}; // shutdown overrides the queue
                 if(!maybeTask)continue; // no tasks? next loop
                 MotorTask curTask = *maybeTask;
                 //std::cout << minUsDelay << "\n";
@@ -91,6 +92,19 @@
                         maxDecelerate(curTask.arg);
                         if(curSpeed == curTask.arg)tasks.pop();
                         break;
+                    case MotorState::HALT:
+                    {
+                        // constant decel at maxAcceleration (no speed-dependent cap), never overshoots 0
+                        int usSinceLast = usDelay-waitedUs <= 2* minUsDelay ? usDelay-waitedUs : minUsDelay;
+                        double a = maxAcceleration * usSinceLast * 1e-6;
+                        if(std::abs(curSpeed) <= a){
+                            curSpeed = 0;
+                            accumulatedAcceleration = 0;
+                        }else{
+                            accelerate(curSpeed > 0 ? -a : a);
+                        }
+                        break;
+                    }
                     default:
                         break;
                 }
@@ -102,7 +116,8 @@
                 || curTask.state == MotorState::SPEED 
                 || curTask.state == MotorState::BRAKEPOS 
                 || curTask.state == MotorState::BRAKESPEED
-                || curTask.state == MotorState::ACCELERATE)
+                || curTask.state == MotorState::ACCELERATE
+                || curTask.state == MotorState::HALT)
                 {
                     curStep = curStep == 1? 0: 1;         // set value of gpio-pin (0/1 -> low/high)
                     pos += direction * curStep; // count total number of steps  
@@ -381,6 +396,12 @@ curSpeed = 0;
         }
         bool Axis::isDriverEnabled(){
             return driverEnabled;
+        }
+        void Axis::halt(){
+            halted = true;
+        }
+        bool Axis::isStopped(){
+            return curSpeed == 0;
         }
         
         bool Axis::isCalibrating(){

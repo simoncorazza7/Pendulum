@@ -19,7 +19,8 @@ private:
         ACCELERATE,         // accelerate
         BRAKEPOS, 
         BRAKESPEED, 
-        CHANGEDIRECTION
+        CHANGEDIRECTION,
+        HALT                // shutdown: ignore the queue, brake to standstill
         };
     
     struct MotorTask {
@@ -61,6 +62,7 @@ private:
 
     bool enableAtStart = true;              // false in bring-up mode: EN stays 1 until enableDriver()
     std::atomic<bool> driverEnabled{false}; // mirrors EN (true = EN low = driver on)
+    std::atomic<bool> halted{false};        // set by halt(); the step thread then only brakes
 
     // --- internal loop ---
     void eventLoop();
@@ -112,6 +114,10 @@ public:
     void enableDriver();
     void disableDriver();
     bool isDriverEnabled();
+
+    // Shutdown: brake to standstill at maxAcceleration and ignore all further tasks
+    void halt();
+    bool isStopped();
 
     // Getter
     double getEndPos();
