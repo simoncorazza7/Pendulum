@@ -114,19 +114,15 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 
 ## Status (details: `docs/session_log.md`)
 - Claude runs on Simon's Windows PC, drives the Pi over SSH (host key ED25519
-  SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM). PC tests: `bash tests/unit/run_pc.sh` (46/46).
+  SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (62/62).
 - Done: 0.1–0.5 (scope check passed 2026-10-09), Gate A. GPIO24 held high from boot (`gpio=24=op,dh`).
 - E-stop: Simon accepted the rocker switch (cuts motor AND Pi) for the slow 0.8 tests; a motor-only
   switch (with a bulk cap at VMOT) is to be added before the aggressive 0.9 runs.
 - **New PCB expected week of 2026-10-12** (better 5 V buck): pin map may change, so read pins from config.
-- 0.5 done except the scope check (`docs/stage0_5_timing.md`): SCHED_FIFO loop p99 6 µs idle / 35 µs
-  load, max 0.33 ms, no overruns; step edges p99 ≤ 12 µs, rare 0.1–0.3 ms bursts (step-loss risk, check
-  in 0.9). **Pi reaches 82.7 °C under load (soft throttling): needs heatsink + fan.** MCU not required by timing.
-- All commits pushed 2026-10-09; on the Pi `make` clean and `make test` 46/46 (golden matches on ARM).
-- Built offline, validated on synthetic data only: §3 derivation (`docs/model_derivation.md`), 0.12
-  sim/analysis (`docs/stage0_12_sim.md`), 0.11 estimators (provisional BD + 2nd-order LP ~30 Hz,
-  `docs/stage0_11_estimators.md`), C++ core (pid, supervisor, units, swingfit; golden vs Python),
-  0.7/0.10 fit scripts (`docs/stage0_7_0_10_fits.md`), hw::Hardware + SimHw (golden vs Python).
+- 0.5 (`docs/stage0_5_timing.md`): loop p99 6/35 µs idle/load, max 0.33 ms; step edges p99 ≤ 12 µs, rare
+  0.1–0.3 ms bursts (check in 0.9). Pi hit 82.7 °C under load; SoC heatsink fitted 2026-10-09 (41–46 °C idle).
+- C++ core mirrors Python with golden tests (pid, supervisor, units, swingfit, estimator, SimHw); derivation
+  `docs/model_derivation.md`, sim `docs/stage0_12_sim.md`, fits `docs/stage0_7_0_10_fits.md`.
 - **c_bottom must be re-found after every program start** (no index): small swing + `core::fitOffset`.
 - 2026-10-09 hand tests done (`docs/stage0_6_7_10_results.md`): CPR = 2400 exact, no drift, no lost
   edges in normal reading (lost only at reader startup, fixed). c_bottom repeatable ±0.13 counts.
