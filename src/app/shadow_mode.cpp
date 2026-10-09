@@ -93,7 +93,9 @@ int runShadow(const Config& cfg, const std::string& configPath, const std::strin
                      "upright; tilt the top toward the LEFT switch (+x): a_cmd must be > 0.\n"
                   << std::flush;
         const double t0 = clk.seconds();
-        double nextStatus = t0 + statusPeriod, nextArm = t0;
+        // First arm request after 0.2 s: the estimator reads 0 on its first sample, which would pass
+        // the "hanging still" check while the pendulum still swings (seen in the mock run).
+        double nextStatus = t0 + statusPeriod, nextArm = t0 + 0.2;
         int lastEvent = -1, lastMode = -1;
         while (!flags.stop && clk.seconds() - t0 < duration) {
             const std::int64_t late = clk.wait();

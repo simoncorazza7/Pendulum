@@ -56,7 +56,7 @@ reset_inputs; trace_start; swing 12
 run shadow --set shadow.duration=4
 wait
 check "S2 exit 0" 0 "$RC"
-check "S2 calib accepted" 1 "$(grep -c 'calib: accepted' $OUT)"
+check "S2 calib accepted" 1 "$(grep -c '^calib: accepted' $OUT)"
 cb=$(meta shadow c_bottom_fit_counts)
 check "S2 |c_bottom| < 0.3 counts (generator centre 0)" 1 "$(python3 -c "print(int(abs($cb) < 0.3))")"
 check "S2 motor commands ignored 0" 0 "$(meta shadow motor_commands_ignored)"
