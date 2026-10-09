@@ -24,7 +24,7 @@ TEST(params_load_from_the_rig_config) {
     CHECK(b.pid.kp > g);
     CHECK_NEAR(b.pid.ki, g * 4 * w0 * w0 * 0.5 * w0 / (w0 * w0), 1e-9);
     CHECK_NEAR(b.sup.theta_abort, 22 * 3.141592653589793 / 180, 1e-12);
-    CHECK(b.sup.axis_a > 50);                                 // Axis cap far above the controller's range
+    CHECK(b.sup.axis_a > 4 * b.pid.a_max);                    // Axis cap (15 m/s^2 at 13333/m) far above a_max
 
     const rt::DampConfig d = rt::dampFrom(cfg);
     CHECK_NEAR(d.gain, (2 * 0.2 * w0 - cfg.getDouble("plant.bJ")) * g / (w0 * w0), 1e-12);

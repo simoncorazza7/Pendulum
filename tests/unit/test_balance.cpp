@@ -5,11 +5,14 @@
 #include <algorithm>
 #include <cmath>
 #include <functional>
+#include <iostream>
 #include <vector>
 
 #include "check.h"
 #include "hw/sim_hw.h"
+#include "common/config.h"
 #include "runtime/balance.h"
+#include "runtime/params.h"
 
 namespace {
 
@@ -21,7 +24,8 @@ struct Rig {
     hw::SimHw sim;
     rt::BalanceConfig cfg;
 
-    explicit Rig(double theta0 = kPi, double x0 = 0.0) : hp(), sim(hp, theta0, 0.0, x0) {
+    explicit Rig(double theta0 = kPi, double x0 = 0.0) : Rig(hw::SimHwParams(), theta0, x0) {}
+    Rig(const hw::SimHwParams& p, double theta0 = kPi, double x0 = 0.0) : hp(p), sim(hp, theta0, 0.0, x0) {
         cfg.calib = hp.truth;
         cfg.calib.c_bottom = sim.trueCBottomRelative();   // as the start-up swing fit would find it
         const auto g = core::designGains(hp.w0, hp.bJ, 2 * hp.w0, 0.7, 0.5 * hp.w0);
@@ -197,4 +201,54 @@ TEST(balance_bdlp2_estimator_also_balances) {
     CHECK(engaged > 0);
     CHECK(firstEvent(recs, core::Reason::ThetaAbort) < 0);
     CHECK(maxAbs(recs, engaged + 500, 1500, &rt::TickRecord::theta) < 1.0 * kPi / 180);
+}
+
+// Stage 0.11 on the identified plant with the rig's own config (gains, limits, supervisor): the
+// estimator chosen from real data (BD+LP2 20 Hz, py/estimator_real.py) against the one the shadow run
+// used (BD+LP1 30 Hz, +-2.4 m/s^2 Kd*omega spikes per count step). Both must balance; LP2 20 Hz must
+// cut the command noise in the quantisation limit cycle. (Both drift ~0.2 m in 8 s: angle-only control.)
+TEST(balance_identified_plant_bdlp2_20hz_cuts_command_noise) {
+    struct Out { double a_rms, a_p99, th_rms; bool ok; };
+    auto run1 = [](core::VelocityEstimator::Kind kind, double fc) {
+        hw::SimHwParams p;
+        p.w0 = 4.931; p.bJ = 0.024; p.coulomb = 0.0117;           // 0.10
+        p.axis_a = 400000.0 / (2 * 13333.3); p.axis_v = 120000.0 / (2 * 13333.3);   // config axis.max_*
+        Rig rig(p);
+        rig.cfg = rt::balanceFrom(Config::fromFile("config/pendctl.conf"));
+        rig.cfg.calib = p.truth;
+        rig.cfg.calib.c_bottom = rig.sim.trueCBottomRelative();
+        rig.cfg.est_kind = kind;
+        rig.cfg.est_fc = fc;
+        rt::BalanceRuntime rt(rig.cfg);
+        auto recs = run(rig, rt, 2200, [](int k, rt::BalanceRuntime& r, hw::SimHw& s) { armLiftRelease(k, r, s); });
+        const int e = firstEvent(recs, core::Reason::EngagedEvent);
+        std::vector<double> a;
+        double th2 = 0;
+        bool ok = e > 0;
+        // 1 s to 3.5 s after engage: the limit cycle, before the angle-only drift reaches a soft limit
+        const std::size_t from = static_cast<std::size_t>(std::max(e, 0) + 500), to = from + 1250;
+        for (std::size_t i = from; i < to && i < recs.size(); ++i) {
+            if (ok && recs[i].mode != static_cast<int>(core::Mode::Engaged))
+                std::cout << "    left ENGAGED at tick " << i << ": " << core::reasonName(static_cast<core::Reason>(recs[i].event))
+                          << ", x " << recs[i].x << " m" << std::endl;
+            ok = ok && recs[i].mode == static_cast<int>(core::Mode::Engaged);
+            a.push_back(std::fabs(recs[i].a_cmd));
+            th2 += recs[i].theta * recs[i].theta;
+        }
+        double a2 = 0;
+        for (double v : a) a2 += v * v;
+        std::sort(a.begin(), a.end());
+        const double n = static_cast<double>(a.size());
+        return Out{std::sqrt(a2 / n), a[static_cast<std::size_t>(0.99 * n)], std::sqrt(th2 / n) * 180 / kPi, ok};
+    };
+    const Out lp1 = run1(core::VelocityEstimator::Kind::BdLp1, 30.0);
+    const Out lp2 = run1(core::VelocityEstimator::Kind::BdLp2, 20.0);
+    std::cout << "    BD+LP1 30 Hz: RMS a " << lp1.a_rms << ", p99 " << lp1.a_p99 << " m/s^2, RMS theta " << lp1.th_rms
+              << " deg" << "\n";
+    std::cout << "    BD+LP2 20 Hz: RMS a " << lp2.a_rms << ", p99 " << lp2.a_p99 << " m/s^2, RMS theta " << lp2.th_rms
+              << " deg" << "\n";
+    CHECK(lp1.ok && lp2.ok);                                     // both balance for 4 s
+    CHECK(lp2.a_rms < 0.7 * lp1.a_rms);
+    CHECK(lp2.a_p99 < 0.7 * lp1.a_p99);
+    CHECK(lp2.th_rms < 0.2 && lp1.th_rms < 0.2);
 }

@@ -142,6 +142,8 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   mock 21/21. On the rig: **shadow** (theta sign at upright confirmed by Simon), **0.10 pulse** (input gain 93 %,
   combined sign confirmed), **hanging damping** (decay 1.02 vs design 0.99 1/s, gain 103 %; cart ended ~72 mm
   left, Simon: visually consistent). Stage 1 steps 1-2 done (ahead of Gate B, Simon's OK).
-- Open for Gate B: velocity estimator (one count step -> Kd*omega ~ +-2.4 m/s^2 spikes); 0.9 with the new PCB
-  (fixes the intermittent step mode); 0.6b; 0.11/0.12 on the real logs. Then the Gate B report.
+- 0.11 decided on real data: BD+LP2 20 Hz (spikes 2.4x lower, CL noise halved, -6 ms delay tolerance;
+  `docs/stage0_11_estimators.md`). Angle-only drift ~0.2 m in 8 s bounds runs to ~4-5 s (Gate B topic).
+- Open for Gate B: 0.9 with the new PCB
+  (fixes the intermittent step mode); 0.6b; 0.12 validated on the real logs; LP2 in linear.py. Then Gate B.
 - Cart re-centred after the damp run (`13-57-11_move`, -957 steps = exact reverse).
