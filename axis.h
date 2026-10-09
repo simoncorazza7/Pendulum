@@ -72,6 +72,8 @@ private:
     std::atomic<StepObserver> stepObserver{nullptr};
     void* stepObserverCtx = nullptr;
     std::atomic<std::uint32_t> resyncs{0};  // times the loop fell > 500 us behind and reset its schedule
+    std::atomic<bool> rawPosition{false};   // pendctl: only count steps, no pos rewriting, no stopOnLimit
+    std::atomic<int> activeState{-1};       // MotorState the step thread last executed (-1: none)
 
     // --- internal loop ---
     void eventLoop();
@@ -133,6 +135,14 @@ public:
     std::uint32_t getResyncCount();
     bool configureRealtime(int priority, int cpu);      // SCHED_FIFO priority, pin to cpu (-1: no pin)
     void setPositionReference(int newPos, int newEndPos); // declare position and track length, no motion
+
+    // pendctl runtime (Stage 1): with raw position on, the Axis only counts steps. It no longer sets
+    // pos = 250 at the right switch, clamps pos near either end, or brakes via stopOnLimit(); the
+    // caller owns all limits. Off by default, so main is unchanged.
+    void setRawPosition(bool on);
+    bool isAccelerating();        // the step thread is executing an ACCELERATE task
+    bool limitRightPressed();     // switch at the low-pos end (GPIO2 on the rig), read now
+    bool limitLeftPressed();      // switch at the high-pos end (GPIO9)
 
     // Getter
     double getEndPos();

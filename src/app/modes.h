@@ -22,6 +22,7 @@ extern std::atomic<Axis*> activeAxis;     // the fatal-signal handler sets its E
 int runSelftest(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 int runTimingProbe(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 int runEncoderLog(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
+int runMove(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 
 }
 

@@ -6,6 +6,8 @@
 //                  (Stage 0.5). Refuses any chip but gpio-mockup unless probe.allow_real_chip=true.
 //   encoder-log    records every raw encoder edge event (Stage 0.6); inputs only. Refuses the real
 //                  chip unless enc.allow_real_chip=true.
+//   move           point-to-point bring-up move (Stage 0.8/0.9); refuses the real chip unless
+//                  move.allow_real_chip=true.
 // Usage:
 //   pendctl --mode MODE [--config config/pendctl.conf] [--set key=value ...]
 //
@@ -47,7 +49,7 @@ void onTerminate(int sig) {
 }
 
 void usage() {
-    std::cout << "Usage: pendctl --mode log-selftest|timing-probe|encoder-log [--config FILE] [--set key=value ...]\n";
+    std::cout << "Usage: pendctl --mode log-selftest|timing-probe|encoder-log|move [--config FILE] [--set key=value ...]\n";
 }
 
 }
@@ -79,6 +81,7 @@ int main(int argc, char** argv) {
         if (mode == "log-selftest") rc = app::runSelftest(cfg, configPath, cmdLine);
         else if (mode == "timing-probe") rc = app::runTimingProbe(cfg, configPath, cmdLine);
         else if (mode == "encoder-log") rc = app::runEncoderLog(cfg, configPath, cmdLine);
+        else if (mode == "move") rc = app::runMove(cfg, configPath, cmdLine);
         else usage();
     } catch (const std::exception& e) {
         std::cerr << "pendctl: " << e.what() << "\n";

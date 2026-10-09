@@ -34,8 +34,9 @@
                 }
                 auto maybeTask = tasks.frontIfExists();
                 if(halted) maybeTask = MotorTask{MotorState::HALT, 0}; // shutdown overrides the queue
-                if(!maybeTask)continue; // no tasks? next loop
+                if(!maybeTask){ activeState = -1; continue; } // no tasks? next loop
                 MotorTask curTask = *maybeTask;
+                activeState = static_cast<int>(curTask.state);
                 //std::cout << minUsDelay << "\n";
                 int remainingDistance;
                 switch(curTask.state){
@@ -59,13 +60,13 @@
                         }
                         break;
                     case MotorState::SPEED:
-                        stopOnLimit();
+                        if(!rawPosition) stopOnLimit();
                         if(abs(curSpeed) == abs(curTask.arg))break;
                         maxAccelerate(curTask.arg);
                         break;
                     case MotorState::ACCELERATE:
                     {
-                        stopOnLimit();
+                        if(!rawPosition) stopOnLimit();
                         int usSinceLast = usDelay-waitedUs <= 2* minUsDelay ? usDelay-waitedUs : minUsDelay;
                         double maxA = maxAcceleration * usSinceLast * 1e-6 * (maxSpeed - std::abs(curSpeed)) * inverseMaxSpeed;
                         double setA = curTask.arg * usSinceLast * 1e-6;
@@ -153,15 +154,15 @@
                 setSpeed(2000);
             }
             if (currentRightLimitValue != lastRightLimitValue) { // limit triggered
-                pos = 250;
+                if(!rawPosition) pos = 250;
                 lastRightLimitValue = currentRightLimitValue;
             }
-            if(pos < 250 && currentRightLimitValue != 0){ // if should be at limit but switch is not triggered
+            if(!rawPosition && pos < 250 && currentRightLimitValue != 0){ // if should be at limit but switch is not triggered
                 pos = 250; // reset position
             }
             
             
-            if(pos > (endPos-250) && currentLeftLimitValue != 0 && !isHoming){ // if should be at limit but switch is not triggered
+            if(!rawPosition && pos > (endPos-250) && currentLeftLimitValue != 0 && !isHoming){ // if should be at limit but switch is not triggered
                 pos = (endPos - 250); // reset position
             }
             if(currentLeftLimitValue == 0 && lastLeftLimitValue == 1 && isHoming) { 
@@ -432,6 +433,18 @@ curSpeed = 0;
                 if(pthread_setaffinity_np(thread.native_handle(), sizeof(set), &set) != 0) return false;
             }
             return true;
+        }
+        void Axis::setRawPosition(bool on){
+            rawPosition = on;
+        }
+        bool Axis::isAccelerating(){
+            return activeState == static_cast<int>(MotorState::ACCELERATE);
+        }
+        bool Axis::limitRightPressed(){
+            return gpiod_line_get_value(right_limit_line) == 0;   // NO switch to GND, pulled up
+        }
+        bool Axis::limitLeftPressed(){
+            return gpiod_line_get_value(left_limit_line) == 0;
         }
         void Axis::setPositionReference(int newPos, int newEndPos){
             endPos = newEndPos;
