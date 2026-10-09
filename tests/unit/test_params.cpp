@@ -16,7 +16,7 @@ TEST(params_load_from_the_rig_config) {
 
     const rt::SwingCalibParams s = rt::swingCalibFrom(cfg);
     CHECK_NEAR(s.amp_min, 2 * 2400.0 / 360, 1e-9);
-    CHECK_NEAR(s.amp_max, 9 * 2400.0 / 360, 1e-9);
+    CHECK_NEAR(s.amp_max, 20 * 2400.0 / 360, 1e-9);
 
     // wc = 2 w0, zeta 0.7, p = 0.5 w0: Kp = g (1 + (4 + 1.4)) = 6.4 g
     const rt::BalanceConfig b = rt::balanceFrom(cfg);

@@ -21,13 +21,14 @@ def main():
     ap.add_argument("--line-a", type=int, default=10)
     ap.add_argument("--line-b", type=int, default=19)
     ap.add_argument("--amp-deg", type=float, default=5.0)
-    ap.add_argument("--w", type=float, default=4.913)        # rad/s (calib.swing_w)
+    ap.add_argument("--w0", type=float, default=4.931)       # rad/s (plant.w0); w = w0 (1 - A^2/16)
     ap.add_argument("--sigma", type=float, default=0.03)     # 1/s
     ap.add_argument("--centre", type=float, default=0.0)     # counts
     ap.add_argument("--duration", type=float, default=10.0)  # s
     a = ap.parse_args()
 
     amp = a.amp_deg * 2400 / 360
+    w = a.w0 * (1 - math.radians(a.amp_deg) ** 2 / 16)
     fa = os.open(os.path.join(a.dbg, str(a.line_a)), os.O_WRONLY)
     fb = os.open(os.path.join(a.dbg, str(a.line_b)), os.O_WRONLY)
     lv = [0, 0]
@@ -38,7 +39,7 @@ def main():
         t = time.monotonic() - t0
         if t > a.duration:
             break
-        target = math.floor(a.centre + amp * math.exp(-a.sigma * t) * math.sin(a.w * t))
+        target = math.floor(a.centre + amp * math.exp(-a.sigma * t) * math.sin(w * t))
         while count != target:
             count += 1 if target > count else -1
             na, nb = GRAY[count % 4]

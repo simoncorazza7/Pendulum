@@ -38,7 +38,8 @@ core::Calib calibFrom(const Config& cfg) {
 SwingCalibParams swingCalibFrom(const Config& cfg) {
     SwingCalibParams p;
     const double countsPerDeg = static_cast<double>(cfg.getInt("encoder.counts_per_rev")) / 360.0;
-    p.w = cfg.getDouble("calib.swing_w");
+    p.w0 = cfg.getDouble("plant.w0");
+    p.cpr = static_cast<int>(cfg.getInt("encoder.counts_per_rev"));
     p.sigma = cfg.getDouble("calib.swing_sigma");
     p.window = cfg.getDouble("calib.window");
     p.amp_min = cfg.getDouble("calib.amp_min_deg") * countsPerDeg;

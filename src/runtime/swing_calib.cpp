@@ -58,7 +58,9 @@ void SwingCalibrator::fitNow(std::int64_t t_ns) {
 
     tf_.resize(n);
     for (std::size_t i = 0; i < n; ++i) tf_[i] = static_cast<double>(t_[i] - t_.front()) * 1e-9;
-    st_.fit = core::fitOffset(tf_.data(), u_.data(), n, p_.w, p_.sigma);
+    const double aRad = st_.amplitude * 2 * 3.141592653589793 / p_.cpr;
+    st_.w = p_.w0 * (1 - aRad * aRad / 16);   // pendulum period lengthens with amplitude
+    st_.fit = core::fitOffset(tf_.data(), u_.data(), n, st_.w, p_.sigma);
     if (!st_.fit.ok) return reject("fit singular");
     if (st_.fit.rms > p_.rms_max) return reject("not a free swing (hand contact?)");
     if (st_.fit.se > p_.se_max) return reject("fit too uncertain");

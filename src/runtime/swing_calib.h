@@ -9,9 +9,12 @@
 
 // Start-up upright reference (Stage 0.7 procedure, run at every program start: the encoder has no
 // index). Simon gives the hanging pendulum a small swing and lets go; this collects the edge
-// crossings and repeatedly fits u = c + e^{-sigma t}(a cos wt + b sin wt) (core::fitOffset, w and
-// sigma from identification) over the last `window` seconds. It accepts c_bottom when
-//   - the swing amplitude is within [amp_min, amp_max] (small: the fit uses a fixed w),
+// crossings and repeatedly fits u = c + e^{-sigma t}(a cos wt + b sin wt) (core::fitOffset, sigma
+// from identification) over the last `window` seconds, with the pendulum's amplitude-dependent
+// frequency w = w0 (1 - A^2/16) for the window's amplitude A (rad). On the 2026-10-09 free decay
+// (exact edges) this keeps c within ~0.13 counts up to 20 deg (fixed w: 0.6 counts at 20-30 deg).
+// It accepts c_bottom when
+//   - the swing amplitude is within [amp_min, amp_max],
 //   - the residual RMS is below rms_max (a hand on the pendulum breaks the free-swing model),
 //   - the standard error of c is below se_max, and
 //   - two consecutive fits (`interval` apart) agree within `agree`.
@@ -19,15 +22,16 @@
 namespace rt {
 
 struct SwingCalibParams {
-    double w = 4.913;          // rad/s, damped frequency of small swings (config calib.swing_w)
+    double w0 = 4.931;         // rad/s, small-angle hanging frequency (config plant.w0)
     double sigma = 0.03;       // 1/s, small-swing decay rate (calib.swing_sigma)
     double window = 3.0;       // s of edges per fit (~2.3 periods)
     double interval = 0.5;     // s between fits
     double amp_min = 13.0;     // counts (2 deg)
-    double amp_max = 60.0;     // counts (9 deg)
-    double rms_max = 1.0;      // counts
+    double amp_max = 133.3;    // counts (20 deg)
+    double rms_max = 2.0;      // counts (free decay: <= 1.2 up to 20 deg; hand contact: 7-27)
     double se_max = 0.05;      // counts
     double agree = 0.2;        // counts, consecutive fits
+    int cpr = 2400;            // counts/rev (amplitude in rad for the frequency correction)
 };
 
 struct SwingCalibStatus {
@@ -35,6 +39,7 @@ struct SwingCalibStatus {
     double c_bottom = 0;       // counts (continuous position of the hanging equilibrium), valid if done
     core::OffsetFit fit{false, 0, 0, 0};   // last fit
     double amplitude = 0;      // counts, half the peak-to-peak range in the last window
+    double w = 0;              // rad/s, frequency used in the last fit
     int n_edges = 0;           // edges in the last window
     const char* why = "waiting for edges";   // reason the last fit was not accepted
 };

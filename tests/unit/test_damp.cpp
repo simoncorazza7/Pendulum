@@ -26,9 +26,9 @@ hw::SimHwParams plant() {
     return p;
 }
 
-rt::SwingCalibParams calibParams(double amp) {
+rt::SwingCalibParams calibParams(double /*amp*/) {
     rt::SwingCalibParams c;
-    c.w = 4.931 * (1 - amp * amp / 16);   // small-swing frequency at this amplitude
+    c.w0 = 4.931;                         // the calibrator corrects w for the amplitude
     c.sigma = 0.03;
     return c;
 }
@@ -116,8 +116,16 @@ TEST(swing_calib_waits_while_the_hand_is_on_the_pendulum) {
     CHECK_NEAR(cbErr(cal.status().c_bottom, sim.trueCBottomRelative()), 0.0, 0.05);
 }
 
+TEST(swing_calib_accepts_a_15_deg_swing) {
+    const double amp = 15 * kDeg;
+    hw::SimHw sim(plant(), kPi + amp);
+    rt::SwingCalibrator cal(calibParams(amp));
+    CHECK(calibrate(sim, cal, 5000) > 0);
+    CHECK_NEAR(cbErr(cal.status().c_bottom, sim.trueCBottomRelative()), 0.0, 0.15);
+}
+
 TEST(swing_calib_rejects_a_swing_that_is_too_large) {
-    const double amp = 20 * kDeg;
+    const double amp = 30 * kDeg;
     hw::SimHw sim(plant(), kPi + amp);
     rt::SwingCalibrator cal(calibParams(5 * kDeg));
     CHECK(calibrate(sim, cal, 3000) < 0);
