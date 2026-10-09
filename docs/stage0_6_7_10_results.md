@@ -73,3 +73,21 @@ pendulum hangs (needs motion and a go).
   To be finalised at Gate B with the actuator data (0.9).
 - The encoder path is sound for Stage 1 speeds once the startup order is right. The 7.3 ms stall is
   the remaining open point for high-speed edge reading.
+
+## θ sign (hand test, `10-31-06`, 2026-10-09)
+Convention (CLAUDE.md): θ from upright, + when the top leans toward +x (+x = toward the LEFT switch).
+The rod direction pivot→bob is (sin θ, cos θ) in (x, up). Hanging is θ = π; a bob displaced toward +x
+has sin θ > 0 and cos θ < 0, so θ = π − ε: **pushing the hanging bob toward +x lowers θ.**
+
+Simon pushed the hanging bob slowly toward the left switch, held it for ~3 s and released it:
+the count fell monotonically by 249 counts (37°) during the push, held at −228 counts (34°) and, after the release,
+swung symmetrically about the start (±33° decaying to ±12° when the recording ended). 27 883 events,
+0 same-type repeats, 0 dropped, max batch 1. All three decoders (original `Encoder`, `EdgeReader`, Python)
+use the same table, so their counts share this sign.
+
+Δθ < 0 with Δcounts < 0 → **`calib.theta_sign = +1`** (the `Calib` default; now explicit in the config).
+![sign test](img/theta_sign_test.png)
+
+This relies on the push direction as reported. The end-to-end check is the 0.10 pulse test: a cart
+acceleration toward +x must make the hanging bob lag toward −x, i.e. θ (and the counts) rise first.
+The runtime's supervisor also aborts on a sign error (`test_balance`, inverted theta_sign case).

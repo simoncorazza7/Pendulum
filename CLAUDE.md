@@ -33,14 +33,16 @@ Explain the reasoning behind design choices.
 - Git: branch `control-dev`, small descriptive commits.
 - **+x = increasing Axis step count = toward the LEFT switch** (as Simon stands at the rig front),
   established physically on 2026-10-09 (`calib.x_sign = 1`). The right switch (GPIO2) is at the low-pos end,
-  as the code assumes. θ = angle from upright, + when the top leans toward +x; the encoder sign
-  (`theta_sign`) is still to be established.
+  as the code assumes. θ = angle from upright, + when the top leans toward +x. **`theta_sign = +1`**
+  (hand test 2026-10-09: bob pushed toward +x lowered the counts, i.e. θ fell from π). The 0.10 pulse
+  test must confirm the combined sign before any balancing.
   ```
      LEFT switch (GPIO9)                                   RIGHT switch (GPIO2)
      pos high  |<========== +x (pos increasing) ==========|  pos low
                |<------------ ~0.5 m, 1536 steps --------->|
   ```
 - **Steps/m ≈ 3072** (measured, rough), not the thesis 13333: probably half-step (MS2 not effective?).
+  Simon accepts half-step until the new PCB; 0.8b (precise steps/m) and 0.9 wait for it.
 - German identifiers: Winkel = angle, Flanke = edge, Drehgeber = encoder, Endschalter = limit switch.
 
 ## System facts (✱ = unverified; see "Status" for what has been verified)
@@ -131,8 +133,9 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   Open: a 7.3 ms reader stall during a fast spin (cause unknown).
 - 2026-10-09 first motion (0.8, runs A/B/C, `pendctl --mode move`): right switch at low pos, switches
   1526 steps apart (~0.5 m); cart centred. No encoder faults during motion (one startup false alarm, fixed).
-- Next on the rig (each needs a go): θ sign (hand), 0.8b precise steps/m, 0.6b, 0.9, 0.10 pulse test.
-  0.8b/0.9 may be better after the new PCB (microstepping/wiring may change).
+- 2026-10-09: θ sign by hand (`10-31-06`, theta_sign = +1). EN verified: 3.3 V at the A4988 ENABLE pin
+  with GPIO24 high (driver off is real).
+- Next on the rig (each needs a go): 0.6b, 0.10 pulse test. After the new PCB: 0.8b precise steps/m, 0.9.
 - Runtime tick `rt::BalanceRuntime` on hw::Hardware + closed-loop tests on SimHw done
   (`docs/stage1_runtime.md`); PC tests 46/46. Next in software (needs the Pi): PiHw adapter, pendctl
   shadow/balance modes with start-up swing calibration.
