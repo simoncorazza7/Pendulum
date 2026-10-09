@@ -143,7 +143,11 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   combined sign confirmed), **hanging damping** (decay 1.02 vs design 0.99 1/s, gain 103 %; cart ended ~72 mm
   left, Simon: visually consistent). Stage 1 steps 1-2 done (ahead of Gate B, Simon's OK).
 - 0.11 decided on real data: BD+LP2 20 Hz (spikes 2.4x lower, CL noise halved, -6 ms delay tolerance;
-  `docs/stage0_11_estimators.md`). Angle-only drift ~0.2 m in 8 s bounds runs to ~4-5 s (Gate B topic).
+  `docs/stage0_11_estimators.md`).
+- Drift (`docs/stage1_drift.md`): v_inf = v + L_eq*theta' + g*int(theta) at engage. Dominant on the rig: a hand on
+  the rod after ENGAGED (~90 mm/s per 50 ms). Fixed (config): engage on release (two edges away from upright
+  after a still hold), integrator pre-load theta'/w0^2 from a two-edge free-motion fit, i_delay 0 -> residual
+  +-5 mm/s in sim. Left: reference offset (quantisation +-6, calibration +-8 mm/s^2) -> ~5-7 s runs; trim.
 - Open for Gate B: 0.9 with the new PCB
   (fixes the intermittent step mode); 0.6b; 0.12 validated on the real logs; LP2 in linear.py. Then Gate B.
 - Cart re-centred after the damp run (`13-57-11_move`, -957 steps = exact reverse).

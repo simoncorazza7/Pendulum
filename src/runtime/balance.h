@@ -28,6 +28,13 @@ struct BalanceConfig {
     double est_fc = 30.0;                      // Hz
     int delay_samples = 0;                     // Stage 2a delay on the controller output
     bool actuate = true;                       // false = shadow mode: compute, never enable or command
+    // Release detection and momentum pre-load (docs/stage1_drift.md). `released` (supervisor input) is true
+    // when the two newest encoder edges step the same way, away from upright, the first one after
+    // >= release_quiet s without edges (the still hold) and the newest one <= release_fresh s old.
+    double release_quiet = 0.15;               // s
+    double release_fresh = 0.1;                // s
+    double w0 = 0.0;                           // rad/s; > 0: at engage the integrator is pre-loaded with
+                                               // theta'/w0^2 from the two release edges (free-motion fit)
 };
 
 struct TickRecord {
@@ -52,6 +59,8 @@ struct TickRecord {
     bool axis_accelerating = false;
     bool driver_enabled = false;
     double integral = 0;            // rad*s, controller integrator
+    bool released = false;          // release detected this sample (supervisor input)
+    double omega_release = 0;       // rad/s, free-motion velocity from the two release edges (at engage)
 };
 
 class BalanceRuntime {
@@ -76,6 +85,15 @@ private:
     std::atomic<bool> arm_{false}, stop_{false};
     bool driver_on_ = false;
     bool sent_prev_ = false;
+    struct EdgeTheta { std::int64_t ts_ns; double theta; };   // edge time, boundary angle (rad)
+    EdgeTheta e1_{0, 0}, e2_{0, 0};      // the two newest edges (e2_ newest)
+    int n_edges_seen_ = 0;
+    std::int64_t gap_e1_ = 0, gap_e2_ = 0;   // ns without edges before e1_ / e2_
+    std::int64_t last_edge_ns_ = 0, prev_count_ = 0;
+    bool has_count_ = false;
+    void trackEdges(const hw::Sample& s);
+    bool released(std::int64_t t_ns) const;
+    double omegaFree(std::int64_t t_ns) const;
 };
 
 }

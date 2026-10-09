@@ -90,7 +90,7 @@ int runShadow(const Config& cfg, const std::string& configPath, const std::strin
         bc.calib.pos_center = 0;
         rt::BalanceRuntime brt(bc);
         std::cout << "shadow: arming automatically whenever IDLE and the pendulum hangs still. Then lift it to "
-                     "upright; tilt the top toward the LEFT switch (+x): a_cmd must be > 0.\n"
+                     "upright; with sup.engage_on_release it engages only after you let go (catch it). Top toward the LEFT switch (+x): a_cmd > 0.\n"
                   << std::flush;
         const double t0 = clk.seconds();
         // First arm request after 0.2 s: the estimator reads 0 on its first sample, which would pass
@@ -136,15 +136,15 @@ int runShadow(const Config& cfg, const std::string& configPath, const std::strin
     const std::string dir = runlog::makeRunDir(logDir, "shadow");
     writeCsv(log, dir + "/data.csv",
              "tick,late_ns,calibrating,t_ns,counts,n_edges,theta,omega,mode,event,a_ctrl,a_cmd,saturated,overrun,"
-             "lim_l,lim_r,integral",
+             "lim_l,lim_r,integral,released,omega_release",
              [](std::ostream& o, const ShadowRec& x) {
                  const rt::TickRecord& r = x.r;
                  char b[320];
-                 std::snprintf(b, sizeof b, "%u,%lld,%u,%lld,%lld,%d,%.7f,%.6f,%d,%d,%.6f,%.6f,%d,%d,%d,%d,%.7f", x.tick,
+                 std::snprintf(b, sizeof b, "%u,%lld,%u,%lld,%lld,%d,%.7f,%.6f,%d,%d,%.6f,%.6f,%d,%d,%d,%d,%.7f,%d,%.5f", x.tick,
                                static_cast<long long>(x.late_ns), x.calibrating, static_cast<long long>(r.t_ns),
                                static_cast<long long>(r.counts), r.n_edges, r.theta, r.omega, r.mode, r.event, r.a_ctrl,
                                r.a_cmd, r.saturated ? 1 : 0, r.overrun ? 1 : 0, r.limit_left ? 1 : 0,
-                               r.limit_right ? 1 : 0, r.integral);
+                               r.limit_right ? 1 : 0, r.integral, r.released ? 1 : 0, r.omega_release);
                  o << b;
              });
     const rt::SwingCalibStatus& st = cal.status();

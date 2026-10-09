@@ -219,6 +219,8 @@ TEST(balance_identified_plant_bdlp2_20hz_cuts_command_noise) {
         rig.cfg.calib.c_bottom = rig.sim.trueCBottomRelative();
         rig.cfg.est_kind = kind;
         rig.cfg.est_fc = fc;
+        rig.cfg.sup.engage_on_release = false;                    // engage while held, released on engage
+        rig.cfg.w0 = 0;
         rt::BalanceRuntime rt(rig.cfg);
         auto recs = run(rig, rt, 2200, [](int k, rt::BalanceRuntime& r, hw::SimHw& s) { armLiftRelease(k, r, s); });
         const int e = firstEvent(recs, core::Reason::EngagedEvent);
@@ -251,4 +253,94 @@ TEST(balance_identified_plant_bdlp2_20hz_cuts_command_noise) {
     CHECK(lp2.a_rms < 0.7 * lp1.a_rms);
     CHECK(lp2.a_p99 < 0.7 * lp1.a_p99);
     CHECK(lp2.th_rms < 0.2 && lp1.th_rms < 0.2);
+}
+
+// Drift budget (docs/stage1_drift.md): the operator's hand still on the rod after ENGAGED. The rigid-hand
+// model (SimHw::holdAt) keeps the pendulum at the lift angle while the controller accelerates the cart;
+// that momentum stays after the release. Prints the residual cart velocity for hold times and the
+// integrator enable delay; checks only the sanity case (immediate release, i_delay 0).
+TEST(balance_drift_budget_hand_hold) {
+    auto residual = [](double hold, double iDelay, double* xAt) {
+        hw::SimHwParams p;
+        p.w0 = 4.931; p.bJ = 0.024; p.coulomb = 0.0117;
+        p.axis_a = 400000.0 / (2 * 13333.3); p.axis_v = 120000.0 / (2 * 13333.3);
+        Rig rig(p);
+        rig.cfg = rt::balanceFrom(Config::fromFile("config/pendctl.conf"));
+        rig.cfg.calib = p.truth;
+        rig.cfg.calib.c_bottom = rig.sim.trueCBottomRelative();
+        rig.cfg.pid.i_delay = iDelay;
+        rig.cfg.sup.engage_on_release = false;                    // the old logic: engage while held
+        rig.cfg.w0 = 0;
+        rig.cfg.sup.x_min = -0.27; rig.cfg.sup.x_max = 0.27;      // inside the simulated switches
+        rt::BalanceRuntime rt(rig.cfg);
+        int engagedAt = -1, releasedAt = -1;
+        auto recs = run(rig, rt, 2500, [&](int k, rt::BalanceRuntime& r, hw::SimHw& s) {
+            if (k == 10) r.requestArm();
+            if (k == 50) s.holdAt(0.04);
+            if (engagedAt < 0 && r.mode() == core::Mode::Engaged) engagedAt = k;
+            if (s.held() && engagedAt >= 0 && k >= engagedAt + static_cast<int>(hold / kTs)) { s.release(); releasedAt = k; }
+        });
+        if (releasedAt < 0) return 1e9;
+        double v = 0;
+        int n = 0;
+        for (int i = releasedAt + 500; i < releasedAt + 1000 && i < static_cast<int>(recs.size()); ++i, ++n)
+            v += recs[static_cast<std::size_t>(i)].v;
+        const int iEnd = std::min(releasedAt + 1000, static_cast<int>(recs.size()) - 1);
+        *xAt = recs[static_cast<std::size_t>(iEnd)].x;
+        return n ? v / n : 1e9;
+    };
+    std::cout << "    hold after engage | i_delay 0.1: v (mm/s), x(+2 s) (mm) | i_delay 0: v, x(+2 s)\n";
+    double v0sane = 0;
+    for (double hold : {0.0, 0.05, 0.1, 0.2, 0.3}) {
+        double xa = 0, xb = 0;
+        const double va = residual(hold, 0.1, &xa), vb = residual(hold, 0.0, &xb);
+        if (hold == 0.0) v0sane = vb;
+        std::cout << "    " << hold << " s | " << va * 1e3 << ", " << xa * 1e3 << " | " << vb * 1e3 << ", " << xb * 1e3 << "\n";
+    }
+    CHECK(std::fabs(v0sane) < 0.02);   // immediate release + full integration: residual < 20 mm/s
+}
+
+// The fix (docs/stage1_drift.md): engage on release + momentum pre-load + i_delay 0 (the rig config).
+// The hand lifts the pendulum to 1 or 2 deg and holds it still for 1 s: the runtime must not engage and
+// the cart must not move while it is held; after the release it engages within 0.25 s, the two-edge
+// estimate matches the true theta' and the cart keeps no momentum.
+TEST(balance_engage_on_release_leaves_no_cart_momentum) {
+    for (double lift : {0.0175, 0.035}) {
+        hw::SimHwParams p;
+        p.w0 = 4.931; p.bJ = 0.024; p.coulomb = 0.0117;
+        p.axis_a = 400000.0 / (2 * 13333.3); p.axis_v = 120000.0 / (2 * 13333.3);
+        Rig rig(p);
+        rig.cfg = rt::balanceFrom(Config::fromFile("config/pendctl.conf"));
+        rig.cfg.calib = p.truth;
+        rig.cfg.calib.c_bottom = rig.sim.trueCBottomRelative();
+        rig.cfg.sup.x_min = -0.27; rig.cfg.sup.x_max = 0.27;
+        CHECK(rig.cfg.sup.engage_on_release && rig.cfg.w0 > 0 && rig.cfg.pid.i_delay == 0);
+        rt::BalanceRuntime rt(rig.cfg);
+        const int releaseAt = 50 + 200 + 500;                     // lift 0.4 s, hold 1 s
+        int engagedAt = -1;
+        double trueOmega = 0, estOmega = 0;
+        auto recs = run(rig, rt, 2500, [&](int k, rt::BalanceRuntime& r, hw::SimHw& s) {
+            if (k == 10) r.requestArm();
+            if (k == 50) s.holdAt(lift);
+            if (k == releaseAt) s.release();
+            if (engagedAt < 0 && r.mode() == core::Mode::Engaged) { engagedAt = k; trueOmega = s.thetadot(); }
+        });
+        double xHeld = 0;
+        for (int i = 0; i < releaseAt; ++i) xHeld = std::max(xHeld, std::fabs(recs[static_cast<std::size_t>(i)].x));
+        for (const auto& rec : recs) if (rec.event == static_cast<int>(core::Reason::EngagedEvent)) estOmega = rec.omega_release;
+        double v = 0;
+        int n = 0;
+        for (int i = engagedAt + 500; engagedAt > 0 && i < engagedAt + 1000 && i < static_cast<int>(recs.size()); ++i, ++n)
+            v += recs[static_cast<std::size_t>(i)].v;
+        v = n ? v / n : 1e9;
+        std::cout << "    lift " << lift * 180 / kPi << " deg: engaged " << (engagedAt - releaseAt) * kTs * 1e3
+                  << " ms after release, theta' true " << trueOmega << " est " << estOmega << " rad/s, residual v "
+                  << v * 1e3 << " mm/s" "\n";
+        CHECK(engagedAt > releaseAt);                                 // never while held
+        CHECK((engagedAt - releaseAt) * kTs < 0.25);
+        CHECK(xHeld == 0.0);                                          // the cart did not move while held
+        CHECK(std::fabs(estOmega - trueOmega) < 0.01);
+        CHECK(std::fabs(v) < 0.015);
+        CHECK(recs.back().mode == static_cast<int>(core::Mode::Engaged));
+    }
 }

@@ -53,6 +53,7 @@ SupervisorParams paramsFrom(const Csv& c, const std::vector<std::string>& r) {
     p.overrun_streak = static_cast<int>(g("overrun_streak")); p.max_run_time = g("max_run_time");
     p.v_stopped = g("v_stopped"); p.stop_timeout = g("stop_timeout"); p.hang_tol = g("hang_tol");
     p.omega_hang = g("omega_hang"); p.x_center = g("x_center"); p.center_tol = g("center_tol");
+    p.engage_on_release = g("engage_on_release") != 0;
     return p;
 }
 
@@ -63,10 +64,10 @@ SupervisorParams paramsFrom(const Csv& c, const std::vector<std::string>& r) {
 TEST(supervisor_golden_matches_python) {
     Csv pc = readCsv("tests/golden/supervisor_params.csv");
     Csv g = readCsv("tests/golden/supervisor_golden.csv");
-    CHECK_EQ(pc.header.size(), 20u);   // case + 19 parameters: a new field must be added here too
+    CHECK_EQ(pc.header.size(), 21u);   // case + 20 parameters: a new field must be added here too
     std::map<std::string, SupervisorParams> params;
     for (const auto& r : pc.rows) params[r[0]] = paramsFrom(pc, r);
-    CHECK_EQ(params.size(), 8u);
+    CHECK_EQ(params.size(), 9u);
 
     std::map<std::string, SupervisorState> state;
     std::map<int, int> eventsSeen;
@@ -78,6 +79,7 @@ TEST(supervisor_golden_matches_python) {
         in.theta = d("theta"); in.omega = d("omega"); in.x = d("x"); in.v = d("v");
         in.limit_pressed = b("limit_pressed"); in.axis_accelerating = b("axis_accelerating");
         in.overrun = b("overrun"); in.encoder_fault = b("encoder_fault"); in.arm = b("arm"); in.stop = b("stop");
+        in.released = b("released");
         auto res = supervisorStep(params.at(r[0]), state[r[0]], in, d("dt"));
         state[r[0]] = res.state;
         const auto& o = res.out;
@@ -185,4 +187,28 @@ TEST(supervisor_brake_command_never_overshoots) {
 TEST(supervisor_names_cover_all_reasons) {
     for (int i = 0; i <= 15; ++i) CHECK(std::string(reasonName(static_cast<Reason>(i))) != "?");
     CHECK_EQ(std::string(modeName(Mode::Stopping)), std::string("STOPPING"));
+}
+
+TEST(supervisor_engage_on_release_needs_the_release) {
+    SupervisorParams p;
+    p.engage_on_release = true;
+    SupervisorState st;
+    SupervisorInputs in;
+    in.theta = 3.141592653589793;                                 // hanging, still: arm
+    in.arm = true;
+    st = supervisorStep(p, st, in, 0.002).state;
+    CHECK(st.mode == Mode::Armed);
+    in.arm = false;
+    in.theta = 0.02;                                              // near upright and still, but held
+    for (int k = 0; k < 200; ++k) st = supervisorStep(p, st, in, 0.002).state;
+    CHECK(st.mode == Mode::Armed);                                // the old rule would have engaged
+    in.released = true;
+    in.theta = 0.09;                                              // released, but beyond theta_engage
+    st = supervisorStep(p, st, in, 0.002).state;
+    CHECK(st.mode == Mode::Armed);
+    in.theta = 0.03;
+    const SupervisorResult r = supervisorStep(p, st, in, 0.002);
+    CHECK(r.state.mode == Mode::Engaged);
+    CHECK(r.out.reset_controller);
+    CHECK(r.out.event == Reason::EngagedEvent);
 }

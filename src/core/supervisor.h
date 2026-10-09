@@ -51,6 +51,8 @@ struct SupervisorParams {
     double omega_hang = 0.3;                    // rad/s, to arm
     double x_center = 0.0;                      // m
     double center_tol = 0.02;                   // m, to arm
+    bool engage_on_release = false;             // engage on the runtime's release detection (free motion
+                                                // away from upright) instead of engage_samples still samples
 };
 
 struct SupervisorInputs {
@@ -64,6 +66,7 @@ struct SupervisorInputs {
     bool encoder_fault = false;
     bool arm = false;               // operator request (one sample)
     bool stop = false;              // operator request (one sample)
+    bool released = false;          // runtime: the pendulum moves freely away from upright after a still hold
 };
 
 struct SupervisorState {

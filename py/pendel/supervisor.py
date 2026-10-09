@@ -62,6 +62,8 @@ class SupervisorParams:
     omega_hang: float = 0.3                  # rad/s, to arm
     x_center: float = 0.0                    # m
     center_tol: float = 0.02                 # m, to arm
+    engage_on_release: bool = False          # engage on the runtime's release detection instead of
+                                             # engage_samples still samples (docs/stage1_drift.md)
 
 
 @dataclass(frozen=True)
@@ -76,6 +78,7 @@ class SupervisorInputs:
     encoder_fault: bool = False
     arm: bool = False              # operator request (one sample)
     stop: bool = False             # operator request (one sample)
+    released: bool = False         # runtime: free motion away from upright after a still hold
 
 
 @dataclass(frozen=True)
@@ -169,6 +172,9 @@ def supervisor_step(p: SupervisorParams, s: SupervisorState, i: SupervisorInputs
             event = Reason.SOFT_LIMIT
         if event != Reason.NONE:
             mode, t_mode = Mode.STOPPING, 0.0
+        elif p.engage_on_release:
+            if i.released and abs(i.theta) < p.theta_engage:
+                mode, t_mode, reset, event = Mode.ENGAGED, 0.0, True, Reason.ENGAGED_EVENT
         else:
             near = abs(i.theta) < p.theta_engage and abs(i.omega) < p.omega_engage
             ec = ec + 1 if near else 0

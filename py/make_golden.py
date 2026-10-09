@@ -64,7 +64,7 @@ def cases():
 
 SUP_PARAM_FIELDS = [f.name for f in fields(SupervisorParams)]
 SUP_IN_FIELDS = ["theta", "omega", "x", "v", "limit_pressed", "axis_accelerating", "overrun", "encoder_fault",
-                 "arm", "stop"]
+                 "arm", "stop", "released"]
 
 
 def supervisor_cases():
@@ -73,7 +73,7 @@ def supervisor_cases():
     base = SupervisorParams()
     hang = math.pi - 0.01
 
-    def lift_then(engaged_fn, stopping_v_decay=True):
+    def lift_then(engaged_fn, stopping_v_decay=True, release_k=None):
         st = {"v": 0.0, "x": 0.0, "t_eng": None}
 
         def scen(k, out):
@@ -93,7 +93,8 @@ def supervisor_cases():
                 if k < 220:                                                     # lifting by hand, 0.4 s
                     th = hang - (k - 20) / 200 * (hang - 0.02)
                     return SupervisorInputs(theta=th, omega=-7.8, x=0.0, v=0.0)
-                return SupervisorInputs(theta=0.02 + 0.005 * math.sin(40 * t), omega=0.1, x=0.0, v=0.0)
+                rel = release_k is not None and k >= release_k                  # held still until release_k
+                return SupervisorInputs(theta=0.02 + 0.005 * math.sin(40 * t), omega=0.1, x=0.0, v=0.0, released=rel)
             if mode == Mode.ENGAGED:
                 if st["t_eng"] is None:
                     st["t_eng"] = t
@@ -143,6 +144,7 @@ def supervisor_cases():
     yield "max_run_time", replace(base, max_run_time=0.5), lift_then(long_run)
     yield "manual_stop", base, lift_then(manual)
     yield "stop_timeout", replace(base, stop_timeout=0.3), lift_then(stuck, stopping_v_decay=False)
+    yield "engage_on_release", replace(base, engage_on_release=True), lift_then(fall, release_k=600)
 
 
 def _fmt(x):

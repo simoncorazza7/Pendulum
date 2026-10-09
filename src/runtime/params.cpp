@@ -92,6 +92,10 @@ BalanceConfig balanceFrom(const Config& cfg) {
     s.omega_hang = cfg.getDouble("sup.omega_hang");
     s.x_center = 0.0;
     s.center_tol = cfg.getDouble("sup.center_tol");
+    s.engage_on_release = cfg.getBool("sup.engage_on_release");
+    b.release_quiet = cfg.getDouble("sup.release_quiet");
+    b.release_fresh = cfg.getDouble("sup.release_fresh");
+    b.w0 = cfg.getBool("ctrl.preload") ? w0 : 0.0;
     return b;
 }
 

@@ -21,8 +21,11 @@ class SimParams:
 
 def simulate(pid: PidParams, theta0: float, thetadot0: float, t_end: float,
              plant: PlantParams = PlantParams(), act: ActuatorParams = ActuatorParams(),
-             sens: SensorParams = SensorParams(), sp: SimParams = SimParams(), estimator=None) -> dict:
+             sens: SensorParams = SensorParams(), sp: SimParams = SimParams(), estimator=None,
+             integral0: float = 0.0) -> dict:
     """Engaged at t = 0 with the cart at rest at x = 0. Returns per-sample arrays and an end reason.
+
+    integral0: controller integrator state at engage (rad*s), e.g. the momentum pre-load theta'/w0^2.
 
     estimator: optional object with update(t, count, events) -> rad/s (py/pendel/estimators.py); it
     then replaces the controller's built-in velocity filter. Edge times come from the RK4 substeps.
@@ -32,7 +35,7 @@ def simulate(pid: PidParams, theta0: float, thetadot0: float, t_end: float,
     d_sub = int(round(act.compute_delay / h))            # compute delay in substeps (< one period)
     th, thd, x, v = theta0, thetadot0, 0.0, 0.0
     a_applied = 0.0
-    state = PidState()
+    state = PidState(integral=integral0)
     delay = DelayLine(sp.delay_samples)
     rec = {k: np.full(n, np.nan) for k in
            ("t", "theta", "thetadot", "x", "v", "a_cmd", "a_real", "theta_meas", "vel_f", "counts", "sat")}

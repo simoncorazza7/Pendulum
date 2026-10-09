@@ -74,6 +74,12 @@ SupervisorResult supervisorStep(const SupervisorParams& p, const SupervisorState
             if (event == Reason::None && softLimit(p, in)) event = Reason::SoftLimit;
             if (event != Reason::None) {
                 mode = Mode::Stopping; t_mode = 0;
+            } else if (p.engage_on_release) {
+                // Engage only once the pendulum moves freely (docs/stage1_drift.md): the cart never
+                // accelerates while a hand still holds the rod, which would stay as cart momentum.
+                if (in.released && std::fabs(in.theta) < p.theta_engage) {
+                    mode = Mode::Engaged; t_mode = 0; reset = true; event = Reason::EngagedEvent;
+                }
             } else {
                 const bool near = std::fabs(in.theta) < p.theta_engage && std::fabs(in.omega) < p.omega_engage;
                 ec = near ? ec + 1 : 0;
