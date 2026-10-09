@@ -41,8 +41,9 @@ Explain the reasoning behind design choices.
      pos high  |<========== +x (pos increasing) ==========|  pos low
                |<------------ ~0.5 m, 1536 steps --------->|
   ```
-- **Steps/m ≈ 3072** (measured, rough), not the thesis 13333: probably half-step (MS2 not effective?).
-  Simon accepts half-step until the new PCB; 0.8b (precise steps/m) and 0.9 wait for it.
+- **Step mode is intermittent** (2026-10-09): morning half-step (1526 steps ≈ 0.5 m track, 3072/m), afternoon
+  1/8 step (307 steps → ~23 mm, ≈ 13 300/m = thesis value; config 13333). Suspect a loose MS1/MS2 wire. A flip to
+  half-step makes every move 4.3× longer/faster: check a short move's distance before motion runs. New PCB fixes it.
 - German identifiers: Winkel = angle, Flanke = edge, Drehgeber = encoder, Endschalter = limit switch.
 
 ## System facts (✱ = unverified; see "Status" for what has been verified)

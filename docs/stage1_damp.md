@@ -62,3 +62,18 @@ linear model, driven by the commanded (and, separately, realised) acceleration; 
 | larger | 1.0 | 0.25 | 62 mm | 0.25 m/s | 8° |
 
 Swing amplitude ≈ (ω₀/g)·aT·2 sin(ω₀T/2). Today's moves reached ~0.43 m/s² and ~85 mm/s physically.
+
+## Rig results 2026-10-09 afternoon
+- Mock chip (`run_stage1_mock.sh`): 21/21; Pi unit tests 58/58. Found and fixed on the Pi: `TickClock::seconds()`
+  before the first tick wrapped (calibration never timed out); shadow armed on the estimator's first (zero) sample.
+- First real shadow run timed out: natural hand-started swings are 10–20°, the 9° cap rejected them. Fixed with the
+  amplitude-corrected frequency (validated on the 09-32-26 free decay), accept 2–20°.
+- **Shadow (`13-36-33_shadow`)**: c_bottom −0.50 counts (se 0.04, 19.6° swing). Armed only when hanging still,
+  engaged at +3.9°, aborted at +22.1°, re-armed. θ > 0 with the top toward the LEFT switch and θ < 0 toward the
+  right (Simon confirmed): **θ sign at upright confirmed**; a_cmd had θ's sign 100 %, chain check 0.02 m/s².
+  0 motor commands. **Gate B item:** one count step kicks ω by ~0.36 rad/s → Kd·ω ≈ ±2.4 m/s² command spikes.
+- **Pulse (`13-40-12_move`)**: 61 steps out/back in 0.4 s; response 3–4 counts, counts rose first (sign OK).
+  The 100 mm check (`13-44-03_move`, 307 steps) moved ~23 mm: the driver was in **1/8 step** (≈13 300/m), not
+  the morning's half-step, so the cart moved ~4.6 mm and the predicted swing is 4.0 counts (measured ~3.5–4).
+  The whole-record fit (k = 0.25 → 1.08 1/m after rescaling) is biased low at this amplitude by Coulomb friction
+  (−0.73 counts per period) and quantisation: repeat with a larger swing.

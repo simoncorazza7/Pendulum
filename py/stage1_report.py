@@ -23,11 +23,19 @@ from scipy.linalg import expm
 from scipy.optimize import curve_fit
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).parent))
-from pendel.runs import latest_run, load_run  # noqa: E402
+from pendel.runs import latest_run, load_run, parse_conf  # noqa: E402
 
 G = 9.81
 DEG = 180 / math.pi
 MODES = {0: "IDLE", 1: "ARMED", 2: "ENGAGED", 3: "STOPPING"}
+
+
+def pcfg(run, key: str) -> float:
+    """Config value used by the run; keys the mode never read come from its config_source.conf copy."""
+    if key in run.config:
+        return float(run.config[key])
+    src = parse_conf((run.path / "config_source.conf").read_text(encoding="utf-8"))
+    return float(src[key])
 
 
 def segments(mask: np.ndarray) -> list[tuple[int, int]]:
@@ -172,8 +180,8 @@ def responses(t: np.ndarray, a: np.ndarray, w0: float, bJ: float) -> np.ndarray:
 def pulse(run) -> None:
     d = run.data
     t = (d["t_ns"] - d["t_ns"][0]) * 1e-9
-    w0, bJ = run.cfg("plant.w0"), run.cfg("plant.bJ")
-    sgn = int(run.cfg("calib.theta_sign")) if "calib.theta_sign" in run.config else 1
+    w0, bJ = pcfg(run, "plant.w0"), pcfg(run, "plant.bJ")
+    sgn = int(pcfg(run, "calib.theta_sign"))
     kc = 2 * math.pi / 2400
     u = d["counts"] + 0.5
     a_real = np.gradient(d["v"], t)
