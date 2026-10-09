@@ -22,7 +22,8 @@ public:
     std::int64_t wait();                      // sleeps until the next deadline; returns the lateness, ns
     std::uint32_t tick() const { return k_ - 1; }   // index of the tick that wait() just started
     bool overrun() const { return late_ > period_; }
-    double seconds() const { return (k_ - 1) * period_ * 1e-9; }   // since the first tick
+    // s since the first tick; 0 before the first wait() (k_ - 1 would wrap: unsigned)
+    double seconds() const { return k_ == 0 ? 0.0 : static_cast<double>(k_ - 1) * period_ * 1e-9; }
 
 private:
     std::int64_t period_, start_ = 0, late_ = 0;

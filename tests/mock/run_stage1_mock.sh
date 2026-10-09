@@ -35,7 +35,7 @@ check() { # name expected actual
 OUT=build/stage1_mock.out
 run() { # mode, overrides...; sets RC, output in $OUT
     local mode=$1; shift
-    sudo stdbuf -oL ./build/pendctl --mode "$mode" --set "$mode.chip=$MOCK" "$@" > $OUT 2>&1
+    sudo timeout -s INT 60 stdbuf -oL ./build/pendctl --mode "$mode" --set "$mode.chip=$MOCK" "$@" > $OUT 2>&1
     RC=$?
 }
 lastdir() { ls -td logs/*_"$1" | head -1; }
