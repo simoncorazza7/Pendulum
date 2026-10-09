@@ -55,7 +55,11 @@ and fan on the Pi**, since the enclosure also holds the motor driver.
   off the RT cores and trim the load tail. PREEMPT_RT is not justified by these numbers.
 - CPU governor `performance` during experiments (it is `ondemand`; frequency switches add jitter).
 
-## Still open in 0.5
-- **Scope check** (needs a go): the probe on the real chip with STEP routed to the spare GPIO18 (pin 12),
-  to confirm the pin edges against the logged timestamps.
-- The control loop and step thread with the real Axis on STEP (27) are measured implicitly in 0.9 (motion).
+## Scope check (2026-10-09, go from Simon)
+`timing-probe` on the real chip with STEP routed to the spare GPIO18 (pin 12), constant 10 000
+toggles/s; EN stayed high, GPIO27 untouched. Simon's scope showed the expected 5 kHz square wave (100 µs
+high / 100 µs low) with a narrow jitter band and rare late edges, "basically exactly" as described.
+About 7–10 s into the run the scope's ground clip touched a header pin: the Pi reset (unclean; kernel
+reported undervoltage at the next boot, `throttled=0x50000`), so the program's own log of that run is lost
+(zero-length files). Undervoltage is attributed to the old hand-wired 5 V supply; the new PCB (expected
+the week of 2026-10-12) gets a better buck converter. Simon: no undervoltage monitoring needed.

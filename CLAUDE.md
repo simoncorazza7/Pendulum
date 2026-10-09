@@ -104,7 +104,10 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 ## Status (details: `docs/session_log.md`)
 - Claude runs on Simon's Windows PC, drives the Pi over SSH (host key ED25519
   SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM). PC tests: `bash tests/unit/run_pc.sh` (46/46).
-- Done: 0.1–0.4, Gate A. GPIO24 held high from boot (`gpio=24=op,dh`). Simon will add a motor-only E-stop.
+- Done: 0.1–0.5 (scope check passed 2026-10-09), Gate A. GPIO24 held high from boot (`gpio=24=op,dh`).
+- E-stop: Simon accepted the rocker switch (cuts motor AND Pi) for the slow 0.8 tests; a motor-only
+  switch (with a bulk cap at VMOT) is to be added before the aggressive 0.9 runs.
+- **New PCB expected week of 2026-10-12** (better 5 V buck): pin map may change, so read pins from config.
 - 0.5 done except the scope check (`docs/stage0_5_timing.md`): SCHED_FIFO loop p99 6 µs idle / 35 µs
   load, max 0.33 ms, no overruns; step edges p99 ≤ 12 µs, rare 0.1–0.3 ms bursts (step-loss risk, check
   in 0.9). **Pi reaches 82.7 °C under load (soft throttling): needs heatsink + fan.** MCU not required by timing.
