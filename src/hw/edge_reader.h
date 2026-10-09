@@ -50,6 +50,7 @@ private:
     std::thread thread_;
     std::atomic<bool> running_{false};
     int state_[2] = {0, 0};                            // current levels of A and B (decoder state)
+    std::int64_t initNs_ = 0;                          // CLOCK_MONOTONIC when the start levels were read
     std::atomic<std::int32_t> count_{0};               // +-2.1e9 counts; 64-bit atomics are not lock-free here
     std::atomic<bool> fault_{false};
     std::atomic<std::uint32_t> events_{0}, sameType_{0}, fullBatches_{0};

@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <ctime>
 #include <poll.h>
 #include <pthread.h>
 #include <sched.h>
@@ -37,6 +38,9 @@ bool EdgeReader::start(int prio, int cpu, std::string* err) {
     }
     state_[0] = gpiod_line_get_value(a_) == 1 ? 1 : 0;
     state_[1] = gpiod_line_get_value(b_) == 1 ? 1 : 0;
+    timespec now{};
+    clock_gettime(CLOCK_MONOTONIC, &now);
+    initNs_ = toNs(now);   // edges before this are already in the start levels
     running_ = true;
     thread_ = std::thread(&EdgeReader::loop, this);
     if (prio > 0) {
@@ -96,7 +100,7 @@ void EdgeReader::loop() {
             const int prev = 2 * state_[0] + state_[1];
             state_[evs[j].line] = evs[j].type == GPIOD_LINE_EVENT_RISING_EDGE ? 1 : 0;
             const int cur = 2 * state_[0] + state_[1];
-            if (cur == prev) {
+            if (cur == prev && evs[j].ts > initNs_) {   // earlier: already in the start levels
                 sameType_++;
                 fault_ = true;
             }
