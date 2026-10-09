@@ -114,8 +114,12 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   `docs/stage0_11_estimators.md`), C++ core (pid, supervisor, units, swingfit; golden vs Python),
   0.7/0.10 fit scripts (`docs/stage0_7_0_10_fits.md`), hw::Hardware + SimHw (golden vs Python).
 - **c_bottom must be re-found after every program start** (no index): small swing + `core::fitOffset`.
-- Next on the rig (each needs a go): scope check of GPIO18 (timing-probe, `probe.allow_real_chip`),
-  0.6 encoder hand tests (`pendctl --mode encoder-log`, `enc.allow_real_chip`), 0.7, 0.8 (first motion).
+- 2026-10-09 hand tests done (`docs/stage0_6_7_10_results.md`): CPR = 2400 exact, no drift, no lost
+  edges in normal reading (lost only at reader startup, fixed). c_bottom repeatable ±0.13 counts.
+  **Plant: ω₀ = 4.931 rad/s (L_eq 0.4035 m), b/J 0.024 1/s, Coulomb 0.0117 rad/s²** (config `plant.*`).
+  Open: a 7.3 ms reader stall during a fast spin (cause unknown).
+- Next on the rig (each needs a go): scope check of GPIO18, 0.8 first motion (needs the motor-only
+  E-stop), 0.6b encoder with the stepper running, 0.9, the 0.10 pulse test.
 - Runtime tick `rt::BalanceRuntime` on hw::Hardware + closed-loop tests on SimHw done
   (`docs/stage1_runtime.md`); PC tests 46/46. Next in software (needs the Pi): PiHw adapter, pendctl
   shadow/balance modes with start-up swing calibration.
