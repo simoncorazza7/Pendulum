@@ -45,3 +45,11 @@ Detailed per-session notes moved out of CLAUDE.md to keep it short.
   - Supervisor + units core (`src/core/supervisor`, `units`, mirrors in py/pendel) and swing fits for
     0.7/0.10 (`docs/stage0_7_0_10_fits.md`). **c_bottom must be re-found after every program start** (no
     index): small swing + `core::fitOffset` with w, sigma from 0.10. PC unit tests 30/30.
+
+## 2026-10-09 afternoon: Stage 1 steps 1-2 on the rig
+- Built offline while the Pi was off: SwingCalibrator, DampRuntime, SensorHw, shadow/damp modes, params,
+  stage1_report.py, mock script (`docs/stage1_damp.md`). Pi: 58/58, mock 21/21 after two fixes (TickClock wrap,
+  shadow arming on the estimator's first sample) and one calibration change (amplitude-corrected w, 2-20 deg).
+- Rig: shadow `13-36-33` (signs, logic), pulse `13-40-12` (wrong scale) and `13-48-40` (k 93 %), distance check
+  `13-44-03` (307 steps -> ~23 mm: 1/8 step; morning was half-step -> intermittent MS wire), damping `13-50-13`
+  (decay 1.02 vs 0.99 1/s, gain 103 %). SoC heatsink fitted: 41-46 C idle/light load.

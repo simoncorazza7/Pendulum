@@ -86,7 +86,8 @@ Swing amplitude ≈ (ω₀/g)·aT·2 sin(ω₀T/2). Today's moves reached ~0.43 
   |φ'| 1.29 rad/s, a saturated 1 % of the time). **Decay rate 1.019 ± 0.001 1/s vs design ζ_hω₀ = 0.986**
   (open loop 0.012); implied input gain **103 % of ω₀²/g** (pulse: 93 %). Swing gone in ~2.5 s; normal stop,
   driver off. Cart: out to +66 mm (left), settled ~+55 mm, then crept left ~7 mm/s (count-quantised ω
-  spikes, as in the shadow run) to +72 mm (957 steps at 13 333/m). Simon's visual estimate was ~20 mm: ruler check pending.
+  spikes, as in the shadow run) to +72 mm (957 steps at 13 333/m). Simon first guessed ~20 mm; on a second look
+  the final position lined up with +72 mm (no ruler). The damping rate also implies the cart followed the steps.
 - **Status:** Stage 1 steps 1 (shadow) and 2 (hanging damping) done, signs/delay/input gain confirmed on the rig.
   Catches (step 3) wait for Gate B, i.e. 0.9 with the new PCB (step mode fixed), and the velocity-estimator choice
   (Kd·ω spikes of ±2.4 m/s² per count step).
