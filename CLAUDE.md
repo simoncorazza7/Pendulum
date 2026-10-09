@@ -105,9 +105,10 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 - Claude runs on Simon's Windows PC, drives the Pi over SSH (host key ED25519
   SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM). PC tests: `bash tests/unit/run_pc.sh` (46/46).
 - Done: 0.1–0.4, Gate A. GPIO24 held high from boot (`gpio=24=op,dh`). Simon will add a motor-only E-stop.
-- **0.5 in progress on the Pi** (started ~14:44 under nohup, mock chip): fetch `logs/*timing-probe*` +
-  `build/timing_all.out`, run `py/timing_report.py`, write `docs/stage0_5_timing.md`.
-- **Unpushed local commits** (PC was on another network): push to the Pi, then `make && make test` there.
+- 0.5 done except the scope check (`docs/stage0_5_timing.md`): SCHED_FIFO loop p99 6 µs idle / 35 µs
+  load, max 0.33 ms, no overruns; step edges p99 ≤ 12 µs, rare 0.1–0.3 ms bursts (step-loss risk, check
+  in 0.9). **Pi reaches 82.7 °C under load (soft throttling): needs heatsink + fan.** MCU not required by timing.
+- All commits pushed 2026-10-09; on the Pi `make` clean and `make test` 46/46 (golden matches on ARM).
 - Built offline, validated on synthetic data only: §3 derivation (`docs/model_derivation.md`), 0.12
   sim/analysis (`docs/stage0_12_sim.md`), 0.11 estimators (provisional BD + 2nd-order LP ~30 Hz,
   `docs/stage0_11_estimators.md`), C++ core (pid, supervisor, units, swingfit; golden vs Python),
