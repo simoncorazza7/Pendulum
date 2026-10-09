@@ -81,3 +81,12 @@ Swing amplitude ≈ (ω₀/g)·aT·2 sin(ω₀T/2). Today's moves reached ~0.43 
   first swing predicted ±17.2 counts, measured ±16; whole-record fit **k = +2.32 1/m = 93 % of ω₀²/g**, positive.
   The remaining few % are consistent with Coulomb friction (linear decay ~1 count/period, faster than the model's
   viscous term). **Input gain and the combined sign θ_sign·x_sign confirmed end to end** (0.10 done).
+- **Hanging active damping (`13-50-13_damp`), first closed-loop motion:** calibration from a 15° swing
+  (c_bottom +0.78 counts, se 0.04), engaged at the zero crossing 0.59 s after the driver came on (swing ~11°,
+  |φ'| 1.29 rad/s, a saturated 1 % of the time). **Decay rate 1.019 ± 0.001 1/s vs design ζ_hω₀ = 0.986**
+  (open loop 0.012); implied input gain **103 % of ω₀²/g** (pulse: 93 %). Swing gone in ~2.5 s; normal stop,
+  driver off. Cart: out to +66 mm (left), settled ~+55 mm, then crept left ~7 mm/s (count-quantised ω
+  spikes, as in the shadow run) to +72 mm (957 steps at 13 333/m). Simon's visual estimate was ~20 mm: ruler check pending.
+- **Status:** Stage 1 steps 1 (shadow) and 2 (hanging damping) done, signs/delay/input gain confirmed on the rig.
+  Catches (step 3) wait for Gate B, i.e. 0.9 with the new PCB (step mode fixed), and the velocity-estimator choice
+  (Kd·ω spikes of ±2.4 m/s² per count step).
