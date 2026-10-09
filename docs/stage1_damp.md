@@ -77,3 +77,7 @@ Swing amplitude ≈ (ω₀/g)·aT·2 sin(ω₀T/2). Today's moves reached ~0.43 
   the morning's half-step, so the cart moved ~4.6 mm and the predicted swing is 4.0 counts (measured ~3.5–4).
   The whole-record fit (k = 0.25 → 1.08 1/m after rescaling) is biased low at this amplitude by Coulomb friction
   (−0.73 counts per period) and quantisation: repeat with a larger swing.
+- **Pulse repeated at the right scale (`13-48-40_move`, 266 steps = 20 mm measured by Simon, 1/8 step held):**
+  first swing predicted ±17.2 counts, measured ±16; whole-record fit **k = +2.32 1/m = 93 % of ω₀²/g**, positive.
+  The remaining few % are consistent with Coulomb friction (linear decay ~1 count/period, faster than the model's
+  viscous term). **Input gain and the combined sign θ_sign·x_sign confirmed end to end** (0.10 done).
