@@ -8,6 +8,10 @@
 //                  chip unless enc.allow_real_chip=true.
 //   move           point-to-point bring-up move (Stage 0.8/0.9); refuses the real chip unless
 //                  move.allow_real_chip=true.
+//   shadow         Stage 1 step 1: balance runtime on the real sensors, motor lines never requested;
+//                  refuses the real chip unless shadow.allow_real_chip=true.
+//   damp           Stage 1 step 2: hanging active-damping test (moves the cart); refuses the real
+//                  chip unless damp.allow_real_chip=true.
 // Usage:
 //   pendctl --mode MODE [--config config/pendctl.conf] [--set key=value ...]
 //
@@ -49,7 +53,8 @@ void onTerminate(int sig) {
 }
 
 void usage() {
-    std::cout << "Usage: pendctl --mode log-selftest|timing-probe|encoder-log|move [--config FILE] [--set key=value ...]\n";
+    std::cout << "Usage: pendctl --mode log-selftest|timing-probe|encoder-log|move|shadow|damp [--config FILE] "
+                 "[--set key=value ...]\n";
 }
 
 }
@@ -82,6 +87,8 @@ int main(int argc, char** argv) {
         else if (mode == "timing-probe") rc = app::runTimingProbe(cfg, configPath, cmdLine);
         else if (mode == "encoder-log") rc = app::runEncoderLog(cfg, configPath, cmdLine);
         else if (mode == "move") rc = app::runMove(cfg, configPath, cmdLine);
+        else if (mode == "shadow") rc = app::runShadow(cfg, configPath, cmdLine);
+        else if (mode == "damp") rc = app::runDamp(cfg, configPath, cmdLine);
         else usage();
     } catch (const std::exception& e) {
         std::cerr << "pendctl: " << e.what() << "\n";

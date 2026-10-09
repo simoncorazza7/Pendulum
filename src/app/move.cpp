@@ -13,6 +13,7 @@
 #include <iostream>
 
 #include "app/modes.h"
+#include "app/rig.h"
 #include "common/runlog.h"
 #include "core/profile.h"
 #include "core/units.h"
@@ -32,20 +33,6 @@ struct MoveRecord {
     std::uint8_t phase, lim_r, lim_l, axis_acc, enc_fault, n_edges;
     double x, v, x_ref, v_ref, a_cmd;
 };
-
-hw::PiPins pinsFrom(const Config& c) {
-    hw::PiPins p;
-    p.step = static_cast<unsigned>(c.getInt("pins.step", p.step));
-    p.dir = static_cast<unsigned>(c.getInt("pins.dir", p.dir));
-    p.en = static_cast<unsigned>(c.getInt("pins.en", p.en));
-    p.limit_right = static_cast<unsigned>(c.getInt("pins.limit_right", p.limit_right));
-    p.limit_left = static_cast<unsigned>(c.getInt("pins.limit_left", p.limit_left));
-    p.ms1 = static_cast<unsigned>(c.getInt("pins.ms1", p.ms1));
-    p.ms2 = static_cast<unsigned>(c.getInt("pins.ms2", p.ms2));
-    p.enc_a = static_cast<unsigned>(c.getInt("pins.enc_a", p.enc_a));
-    p.enc_b = static_cast<unsigned>(c.getInt("pins.enc_b", p.enc_b));
-    return p;
-}
 
 }
 

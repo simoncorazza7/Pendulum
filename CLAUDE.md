@@ -136,6 +136,8 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 - 2026-10-09: θ sign by hand (`10-31-06`, theta_sign = +1). EN verified: 3.3 V at the A4988 ENABLE pin
   with GPIO24 high (driver off is real).
 - Next on the rig (each needs a go): 0.6b, 0.10 pulse test. After the new PCB: 0.8b precise steps/m, 0.9.
-- Runtime tick `rt::BalanceRuntime` on hw::Hardware + closed-loop tests on SimHw done
-  (`docs/stage1_runtime.md`); PC tests 46/46. Next in software (needs the Pi): PiHw adapter, pendctl
-  shadow/balance modes with start-up swing calibration.
+- Runtime tick `rt::BalanceRuntime` + SimHw closed-loop tests (`docs/stage1_runtime.md`).
+- 2026-10-09 (Pi off, NOT yet built on the Pi): start-up swing calibration `rt::SwingCalibrator`,
+  `pendctl --mode shadow` (SensorHw: motor lines never requested), `--mode damp` (hanging active damping,
+  moves the cart), config `calib.* ctrl.* sup.* shadow.* damp.*`, `py/stage1_report.py shadow|damp|pulse`
+  (`docs/stage1_damp.md`). PC tests 57/57. First on the Pi: `make`, `make test`, `tests/mock/run_stage1_mock.sh`.

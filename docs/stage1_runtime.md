@@ -13,6 +13,7 @@ PLACEHOLDER plant parameters**. Gains and limits are designed at Gate B from mea
 | Controller | `src/core/pid.*` | pure pidStep, optional external velocity; golden vs Python |
 | Supervisor | `src/core/supervisor.*` | IDLE/ARMED/ENGAGED/STOPPING, reasons, braking distance with the Axis cap; golden vs Python |
 | Runtime tick | `src/runtime/balance.*` | one control period on any hw::Hardware (below) |
+| Start-up calibration, damping, params | `src/runtime/swing_calib.*`, `damp.*`, `params.*` | see `docs/stage1_damp.md` |
 
 The runtime is portable (no threads, clocks or I/O). On the Pi, pendctl will call `tick()` from the
 SCHED_FIFO 500 Hz loop and push the records into the ring log. On the PC it runs in a plain loop with

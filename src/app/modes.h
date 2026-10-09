@@ -23,6 +23,8 @@ int runSelftest(const Config& cfg, const std::string& configPath, const std::str
 int runTimingProbe(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 int runEncoderLog(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 int runMove(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
+int runShadow(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
+int runDamp(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 
 }
 
