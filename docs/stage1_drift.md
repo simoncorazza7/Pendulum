@@ -65,3 +65,30 @@ trim experiment addresses (fit x = x0 + v0 t + ½ a_d t², δ ≈ a_d/g).
   counts), or measure the fractional part once precisely and let the start-up fit pick only the integer.
 - Saturation hold at larger catches (3°): revisit with a_max from 0.9.
 - Release detection on the real rig: hand tremor while holding; check with shadow mode first.
+
+## Rig check: shadow run 2026-10-09T14-38-54 (release detection, sensors only)
+- **Both engages were false**: the hand was still holding (θ stayed at −0.4…−1.0° for 4 s after the first;
+  moved back toward upright after the second). Hand creep near upright makes single-count steps 0.1–0.35 s
+  apart, and two of them "away from upright" after a ≥ 0.15 s gap satisfied the 2-edge rule.
+- Offline replay of both shadow logs (edges at 2 ms tick resolution), genuine falls = |θ| from < 4° to 15°
+  within 1.2 s:
+
+| detector | latest run: detections (true / false) | earlier run | note |
+|---|---|---|---|
+| v1: 2 edges away after a quiet gap (implemented) | 8 (≈2 / 6) | 19 (mostly false) | rejected |
+| v2: + 3rd edge on the 2-edge prediction, quiet gap | 0 | 3 (1 / 2) | misses releases: the hand creeps up to the release |
+| v3: 3 edges, consistent, |θ̇| ≥ 0.06, no gap | 18 (≈5 / 13) | 6 (3 / 3) | hand adjustments 0.1–0.2 rad/s look the same |
+| v4: newest 6 edges ≥ 0.15 s, LS free-motion fit | 6 (4 / 2) | 1 (1 / 0) | self-defeating for fast falls (6 edges span less and less) |
+| v5: whole run away from upright, ≥ 6 edges, ≥ 0.15 s (C++ now) | 10 (6 / 4–5) | 2 (1 / 1) | catches all falls |
+
+- Conclusion: from the encoder alone, a hand adjusting the rod near upright looks like a release for the first
+  ~0.1–0.2 s; with 2 ms edge timing and a ±0.3-count reference uncertainty the free-motion fit does not
+  separate them. **`sup.engage_on_release = false` until it is tuned on labelled data with exact edge
+  timestamps** (shadow now logs `edges.csv`: every edge with its kernel timestamp). The longer window also
+  engages later (2° release → engage at ~3.5°, where a_max 3 saturates: 44 mm/s residual in the C++ test).
+- `i_delay = 0` stays (clear win in every test). The pre-load and the detector stay in the code (tested).
+- Same run: two **"encoder fault" aborts while lifting** were a bug in `EdgeReader::drainEdges`: an edge
+  arriving during the drain counted as overflow (race at ~2000 edges/s). Fixed: overflow only when edges
+  were lost or the sample's list is full.
+- Next shadow session (labelled): N holds with deliberate small adjustments (no release) and N clean
+  releases from ~1° and ~2°, announced in chat; then tune the detector on `edges.csv`.

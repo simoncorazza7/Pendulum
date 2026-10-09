@@ -93,9 +93,13 @@ BalanceConfig balanceFrom(const Config& cfg) {
     s.x_center = 0.0;
     s.center_tol = cfg.getDouble("sup.center_tol");
     s.engage_on_release = cfg.getBool("sup.engage_on_release");
-    b.release_quiet = cfg.getDouble("sup.release_quiet");
+    b.release_edges = static_cast<int>(cfg.getInt("sup.release_edges"));
+    b.release_span = cfg.getDouble("sup.release_span");
+    b.release_rms = cfg.getDouble("sup.release_rms");
+    b.release_omega_min = cfg.getDouble("sup.release_omega_min");
     b.release_fresh = cfg.getDouble("sup.release_fresh");
-    b.w0 = cfg.getBool("ctrl.preload") ? w0 : 0.0;
+    b.w0 = w0;
+    b.preload = cfg.getBool("ctrl.preload");
     return b;
 }
 

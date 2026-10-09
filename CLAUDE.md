@@ -141,9 +141,9 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 - 0.11 decided on real data: BD+LP2 20 Hz (spikes 2.4x lower, CL noise halved, -6 ms delay tolerance;
   `docs/stage0_11_estimators.md`).
 - Drift (`docs/stage1_drift.md`): v_inf = v + L_eq*theta' + g*int(theta) at engage. Dominant on the rig: a hand on
-  the rod after ENGAGED (~90 mm/s per 50 ms). Fixed (config): engage on release (two edges away from upright
-  after a still hold), integrator pre-load theta'/w0^2 from a two-edge free-motion fit, i_delay 0 -> residual
-  +-5 mm/s in sim. Left: reference offset (quantisation +-6, calibration +-8 mm/s^2) -> ~5-7 s runs; trim.
+  the rod after ENGAGED (~90 mm/s per 50 ms). i_delay 0 (on). Engage on release + momentum pre-load built and
+  sim-tested, but OFF: shadow 14-38-54 showed hand adjustments look like releases (both engages false); tune
+  on labelled shadow data (edges.csv, exact timestamps). Left: reference offset (+-6/+-8 mm/s^2) -> trim.
 - Open for Gate B: 0.9 with the new PCB
   (fixes the intermittent step mode); 0.6b; 0.12 validated on the real logs; LP2 in linear.py. Then Gate B.
 - Cart re-centred after the damp run (`13-57-11_move`, -957 steps = exact reverse).

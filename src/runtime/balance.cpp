@@ -10,7 +10,7 @@ const double kPi = 3.141592653589793;
 }
 
 // Each edge is an exact crossing of a count boundary: raising the count to n happened at u = n,
-// lowering it to n at u = n + 1 (docs/stage0_7_0_10_fits.md). Keep the two newest as (time, angle).
+// lowering it to n at u = n + 1 (docs/stage0_7_0_10_fits.md). Keep the newest as (time, angle).
 void BalanceRuntime::trackEdges(const hw::Sample& s) {
     if (!has_count_) {                       // first sample: start from its count, ignore its edges
         prev_count_ = s.counts;
@@ -25,37 +25,59 @@ void BalanceRuntime::trackEdges(const hw::Sample& s) {
         const double u = static_cast<double>(step > 0 ? e.count_after : e.count_after + 1);
         const core::Calib& c = c_.calib;
         const double th = core::wrap(c.theta_sign * (u - c.c_bottom - c.cpr / 2.0) * 2 * kPi / c.cpr);
-        e1_ = e2_;
-        gap_e1_ = gap_e2_;
-        e2_ = EdgeTheta{e.ts_ns, th};
-        gap_e2_ = n_edges_seen_ > 0 ? e.ts_ns - last_edge_ns_ : INT64_MAX;
-        last_edge_ns_ = e.ts_ns;
-        n_edges_seen_++;
+        hist_[head_] = EdgeTheta{e.ts_ns, th};
+        head_ = (head_ + 1) % kEdgeHist;
+        if (n_hist_ < kEdgeHist) n_hist_++;
     }
     prev_count_ = s.counts;
 }
 
-bool BalanceRuntime::released(std::int64_t t_ns) const {
-    if (n_edges_seen_ < 2) return false;
-    const double dth = e2_.theta - e1_.theta;   // same direction as the step before, away from upright
-    const bool away = dth * e2_.theta > 0 && std::fabs(e2_.theta) < kPi / 2;
-    return away && gap_e1_ >= static_cast<std::int64_t>(c_.release_quiet * 1e9) &&
-           t_ns - e2_.ts_ns <= static_cast<std::int64_t>(c_.release_fresh * 1e9);
+// Free motion near upright: theta(t) = A e^{w0 tau} + B e^{-w0 tau}, tau = t - t_newest. Least squares
+// over all newest edges of the current run away from upright (up to kEdgeHist; exact times, exact
+// boundary angles). Not the newest n only: a free fall accelerates, so a fixed number of edges spans
+// less and less time and would never reach release_span.
+bool BalanceRuntime::released(std::int64_t t_ns) {
+    if (c_.release_edges < 3 || n_hist_ < 2 || !(c_.w0 > 0)) return false;
+    auto at = [this](int back) { return hist_[(head_ - 1 - back + 2 * kEdgeHist) % kEdgeHist]; };   // 0 = newest
+    if (!(std::fabs(at(0).theta) < kPi / 2)) return false;
+    int n = 1;                               // edges in the run: every step away from upright
+    while (n < n_hist_ && (at(n - 1).theta - at(n).theta) * at(n - 1).theta > 0) ++n;
+    if (n < c_.release_edges) return false;
+    EdgeTheta e[kEdgeHist];
+    for (int i = 0; i < n; ++i) e[i] = at(n - 1 - i);   // oldest .. newest
+    const EdgeTheta& last = e[n - 1];
+    if (t_ns - last.ts_ns > static_cast<std::int64_t>(c_.release_fresh * 1e9)) return false;
+    if (last.ts_ns - e[0].ts_ns < static_cast<std::int64_t>(c_.release_span * 1e9)) return false;
+    const double w0 = c_.w0;
+    double sxx = 0, sxy = 0, syy = 0, sxt = 0, syt = 0;
+    for (int i = 0; i < n; ++i) {
+        const double tau = static_cast<double>(e[i].ts_ns - last.ts_ns) * 1e-9;
+        const double x = std::exp(w0 * tau), y = std::exp(-w0 * tau);
+        sxx += x * x; sxy += x * y; syy += y * y;
+        sxt += x * e[i].theta; syt += y * e[i].theta;
+    }
+    const double det = sxx * syy - sxy * sxy;
+    if (!(std::fabs(det) > 1e-12)) return false;
+    const double A = (sxt * syy - sxy * syt) / det, B = (sxx * syt - sxy * sxt) / det;
+    double ss = 0;
+    for (int i = 0; i < n; ++i) {
+        const double tau = static_cast<double>(e[i].ts_ns - last.ts_ns) * 1e-9;
+        const double r = e[i].theta - A * std::exp(w0 * tau) - B * std::exp(-w0 * tau);
+        ss += r * r;
+    }
+    const double q = 2 * kPi / c_.calib.cpr;
+    if (std::sqrt(ss / n) / q > c_.release_rms) return false;
+    if (!(A * last.theta > 0)) return false;                 // the growing mode carries it away from upright
+    if (std::fabs(w0 * (A - B)) < c_.release_omega_min) return false;
+    relA_ = A;
+    relB_ = B;
+    relT_ = last.ts_ns;
+    return true;
 }
 
-// Free motion near upright: theta(t) = A e^{w0 (t - t2)} + B e^{-w0 (t - t2)} through both edges
-// (exact times, exact boundary angles), so theta'(t) needs no filtering and no assumption about
-// how the hand let go.
-double BalanceRuntime::omegaFree(std::int64_t t_ns) const {
-    const double w0 = c_.w0;
-    const double d = static_cast<double>(e1_.ts_ns - e2_.ts_ns) * 1e-9;   // < 0
-    const double tau = static_cast<double>(t_ns - e2_.ts_ns) * 1e-9;      // >= 0
-    const double ep = std::exp(w0 * d), em = std::exp(-w0 * d);
-    const double det = em - ep;
-    if (!(std::fabs(det) > 1e-12)) return 0.0;
-    const double A = (e2_.theta * em - e1_.theta) / det;
-    const double B = (e1_.theta - e2_.theta * ep) / det;
-    return w0 * (A * std::exp(w0 * tau) - B * std::exp(-w0 * tau));
+double BalanceRuntime::omegaFit(std::int64_t t_ns) const {
+    const double tau = static_cast<double>(t_ns - relT_) * 1e-9;
+    return c_.w0 * (relA_ * std::exp(c_.w0 * tau) - relB_ * std::exp(-c_.w0 * tau));
 }
 
 BalanceRuntime::BalanceRuntime(const BalanceConfig& c)
@@ -110,9 +132,9 @@ TickRecord BalanceRuntime::tick(hw::Hardware& hw, bool overrun) {
         delay_.reset();
         // Momentum pre-load: v_inf = v_engage + L_eq theta'(engage) + g int theta dt, and the PID
         // equilibrium forces int theta = -I(0); I(0) = theta'/w0^2 cancels the pendulum's momentum
-        // (cart at rest at engage). Only with a detected release: the two edges then bracket free motion.
-        if (c_.w0 > 0 && r.released) {
-            r.omega_release = omegaFree(s.t_ns);
+        // (cart at rest at engage). Only with a detected release: the fitted edges then are free motion.
+        if (c_.preload && r.released) {
+            r.omega_release = omegaFit(s.t_ns);
             pid_.integral = r.omega_release / (c_.w0 * c_.w0);
         }
     }

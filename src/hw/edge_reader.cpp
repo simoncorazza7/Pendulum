@@ -75,7 +75,12 @@ int EdgeReader::drainEdges(Edge* out, int maxEdges, bool* overflow) {
         ++t;
     }
     tail_.store(t, std::memory_order_release);
-    if (overflow) *overflow = ringOverflow_.exchange(false) || t != head_.load(std::memory_order_acquire);
+    // Overflow = edges lost (the reader overwrote unread ones) or this sample's list is incomplete because
+    // `out` is full. An edge that arrives while draining is not lost: it is in the next sample. (Comparing
+    // t with the head unconditionally made that race an "encoder fault": shadow run 2026-10-09T14-38-54,
+    // two aborts while lifting fast with 1-4 edges per tick.)
+    if (overflow)
+        *overflow = ringOverflow_.exchange(false) || (n == maxEdges && t != head_.load(std::memory_order_acquire));
     return n;
 }
 

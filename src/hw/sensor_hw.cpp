@@ -50,6 +50,7 @@ Sample SensorHw::read() {
     s.axis_accelerating = false;
     s.encoder_fault = reader_->fault();
     s.driver_enabled = false;
+    last_ = s;
     return s;
 }
 

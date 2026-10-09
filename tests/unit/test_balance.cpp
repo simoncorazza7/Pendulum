@@ -220,7 +220,7 @@ TEST(balance_identified_plant_bdlp2_20hz_cuts_command_noise) {
         rig.cfg.est_kind = kind;
         rig.cfg.est_fc = fc;
         rig.cfg.sup.engage_on_release = false;                    // engage while held, released on engage
-        rig.cfg.w0 = 0;
+        rig.cfg.preload = false;
         rt::BalanceRuntime rt(rig.cfg);
         auto recs = run(rig, rt, 2200, [](int k, rt::BalanceRuntime& r, hw::SimHw& s) { armLiftRelease(k, r, s); });
         const int e = firstEvent(recs, core::Reason::EngagedEvent);
@@ -270,7 +270,7 @@ TEST(balance_drift_budget_hand_hold) {
         rig.cfg.calib.c_bottom = rig.sim.trueCBottomRelative();
         rig.cfg.pid.i_delay = iDelay;
         rig.cfg.sup.engage_on_release = false;                    // the old logic: engage while held
-        rig.cfg.w0 = 0;
+        rig.cfg.preload = false;
         rig.cfg.sup.x_min = -0.27; rig.cfg.sup.x_max = 0.27;      // inside the simulated switches
         rt::BalanceRuntime rt(rig.cfg);
         int engagedAt = -1, releasedAt = -1;
@@ -314,7 +314,8 @@ TEST(balance_engage_on_release_leaves_no_cart_momentum) {
         rig.cfg.calib = p.truth;
         rig.cfg.calib.c_bottom = rig.sim.trueCBottomRelative();
         rig.cfg.sup.x_min = -0.27; rig.cfg.sup.x_max = 0.27;
-        CHECK(rig.cfg.sup.engage_on_release && rig.cfg.w0 > 0 && rig.cfg.pid.i_delay == 0);
+        rig.cfg.sup.engage_on_release = true;                     // config default is off until validated
+        CHECK(rig.cfg.preload && rig.cfg.pid.i_delay == 0);
         rt::BalanceRuntime rt(rig.cfg);
         const int releaseAt = 50 + 200 + 500;                     // lift 0.4 s, hold 1 s
         int engagedAt = -1;
@@ -337,10 +338,34 @@ TEST(balance_engage_on_release_leaves_no_cart_momentum) {
                   << " ms after release, theta' true " << trueOmega << " est " << estOmega << " rad/s, residual v "
                   << v * 1e3 << " mm/s" "\n";
         CHECK(engagedAt > releaseAt);                                 // never while held
-        CHECK((engagedAt - releaseAt) * kTs < 0.25);
+        CHECK((engagedAt - releaseAt) * kTs < 0.35);
         CHECK(xHeld == 0.0);                                          // the cart did not move while held
-        CHECK(std::fabs(estOmega - trueOmega) < 0.01);
-        CHECK(std::fabs(v) < 0.015);
+        CHECK(std::fabs(estOmega - trueOmega) < 0.02);
+        // 2 deg: the longer release window engages at ~3.5 deg, where a_max 3 (PRIOR) saturates and the
+        // integrator hold leaves ~45 mm/s; 1 deg stays clear of saturation.
+        CHECK(std::fabs(v) < (lift < 0.02 ? 0.02 : 0.06));
         CHECK(recs.back().mode == static_cast<int>(core::Mode::Engaged));
     }
+}
+
+// Hand creep (shadow run 14-38-54: one count every 0.1-0.35 s while held) must never count as a release:
+// the hand moves the pendulum away from upright at ~0.02 rad/s for 2 s.
+TEST(balance_hand_creep_is_not_a_release) {
+    hw::SimHwParams p;
+    p.w0 = 4.931; p.bJ = 0.024; p.coulomb = 0.0117;
+    Rig rig(p);
+    rig.cfg = rt::balanceFrom(Config::fromFile("config/pendctl.conf"));
+    rig.cfg.calib = p.truth;
+    rig.cfg.calib.c_bottom = rig.sim.trueCBottomRelative();
+    rig.cfg.sup.engage_on_release = true;
+    rt::BalanceRuntime rt(rig.cfg);
+    bool released = false;
+    auto recs = run(rig, rt, 1800, [&](int k, rt::BalanceRuntime& r, hw::SimHw& s) {
+        if (k == 10) r.requestArm();
+        if (k == 50) s.holdAt(0.0175);                            // lift to 1 deg
+        if (k == 300) s.holdAt(0.0525, 2.0);                      // creep to 3 deg over 2 s
+    });
+    for (const auto& rec : recs) released = released || rec.released;
+    CHECK(!released);
+    CHECK(recs.back().mode == static_cast<int>(core::Mode::Armed));
 }

@@ -28,6 +28,12 @@
 namespace app {
 namespace {
 
+struct EdgeRec {
+    std::int64_t ts_ns;           // kernel edge timestamp (CLOCK_MONOTONIC)
+    std::int64_t count_after;     // cumulative count after the edge
+    std::uint32_t tick;           // control tick that read it
+};
+
 struct ShadowRec {
     std::uint32_t tick;
     std::int64_t late_ns;
@@ -55,6 +61,11 @@ int runShadow(const Config& cfg, const std::string& configPath, const std::strin
 
     const std::size_t capacity = static_cast<std::size_t>((duration + calTimeout + 10) / bc.ts);
     RingLog<ShadowRec> log(capacity);
+    RingLog<EdgeRec> edgeLog(2000000);                                 // every edge with its kernel timestamp
+    auto logEdges = [&edgeLog](const hw::Sample& s, std::uint32_t tick) {
+        for (int i = 0; i < s.n_edges; ++i)
+            edgeLog.push({s.edges[static_cast<std::size_t>(i)].ts_ns, s.edges[static_cast<std::size_t>(i)].count_after, tick});
+    };
     std::string err;
     if (lockMem && !rt::lockMemory(512 * 1024, &err)) std::cerr << "warning: " << err << "\n";
 
@@ -73,6 +84,7 @@ int runShadow(const Config& cfg, const std::string& configPath, const std::strin
 
     TickClock clk(bc.ts);
     const bool calibrated = calibrateAtStart(hw, cal, clk, calTimeout, [&](const hw::Sample& s, std::int64_t late) {
+        logEdges(s, clk.tick());
         ShadowRec rec{clk.tick(), late, 1, rt::TickRecord{}};
         rec.r.t_ns = s.t_ns;
         rec.r.counts = s.counts;
@@ -105,6 +117,7 @@ int runShadow(const Config& cfg, const std::string& configPath, const std::strin
                 nextArm = clk.seconds() + 0.5;
             }
             const rt::TickRecord r = brt.tick(hw, clk.overrun());
+            logEdges(hw.lastSample(), clk.tick());
             log.push({clk.tick(), late, 0, r});
             if (r.mode == static_cast<int>(core::Mode::Engaged)) maxAbsA = std::max(maxAbsA, std::fabs(r.a_cmd));
             if (r.event == static_cast<int>(core::Reason::EngagedEvent)) engagedCount++;
@@ -147,6 +160,12 @@ int runShadow(const Config& cfg, const std::string& configPath, const std::strin
                                r.limit_right ? 1 : 0, r.integral, r.released ? 1 : 0, r.omega_release);
                  o << b;
              });
+    writeCsv(edgeLog, dir + "/edges.csv", "ts_ns,count_after,tick", [](std::ostream& o, const EdgeRec& e) {
+        char b[96];
+        std::snprintf(b, sizeof b, "%lld,%lld,%u", static_cast<long long>(e.ts_ns), static_cast<long long>(e.count_after),
+                      e.tick);
+        o << b;
+    });
     const rt::SwingCalibStatus& st = cal.status();
     char num[64];
     auto f = [&num](double v) { std::snprintf(num, sizeof num, "%.4f", v); return std::string(num); };

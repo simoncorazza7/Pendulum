@@ -33,6 +33,7 @@ public:
     bool isStopped() override { return true; }
 
     std::uint32_t ignoredCommands() const { return ignored_.load(); }
+    const Sample& lastSample() const { return last_; }   // the sample the last read() returned
     EdgeReader& encoder() { return *reader_; }
     std::string chipLabel() const { return label_; }
 
@@ -44,6 +45,7 @@ private:
     gpiod_line* limL_ = nullptr;
     std::unique_ptr<EdgeReader> reader_;
     std::atomic<std::uint32_t> ignored_{0};
+    Sample last_;
 };
 
 }
