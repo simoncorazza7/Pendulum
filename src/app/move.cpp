@@ -58,6 +58,8 @@ int runMove(const Config& cfg, const std::string& configPath, const std::string&
     const double dwell = cfg.getDouble("move.dwell");            // s
     const bool doReturn = cfg.getBool("move.return");
     const bool stopAtSwitch = cfg.getBool("move.stop_at_switch");
+    const bool startOnSwitchOk = cfg.getBool("move.allow_start_on_switch");
+    const double releaseWithin = cfg.getDouble("move.release_within");   // m
     const double tol = cfg.getDouble("move.track_tol");          // m
     const double aBrake = cfg.getDouble("move.a_brake");         // m/s^2
     const double kp = cfg.getDouble("move.kp"), kv = cfg.getDouble("move.kv");   // 1/s^2, 1/s
@@ -99,11 +101,16 @@ int runMove(const Config& cfg, const std::string& configPath, const std::string&
     const hw::Sample s0 = hw.read();
     cal.pos_center = static_cast<double>(s0.pos_usteps);          // x = 0 where the cart starts
     const std::int64_t counts0 = s0.counts;
-    if (s0.limit_left || s0.limit_right) {
-        std::cerr << "move: a limit switch is already pressed at start; refusing\n";
+    // A switch pressed at start is ignored only until it releases; if it is still pressed after
+    // move.release_within of travel, the cart is driving into that end and the move aborts.
+    bool ignoreLeft = s0.limit_left, ignoreRight = s0.limit_right;
+    if ((ignoreLeft || ignoreRight) && !startOnSwitchOk) {
+        std::cerr << "move: a limit switch is already pressed at start; refusing "
+                     "(move.allow_start_on_switch=true to move away from it)\n";
         activeAxis = nullptr;
         return 2;
     }
+    std::int64_t releasePos = 0;
     core::TrapezoidProfile out(dist, vmax, amax), back(-dist, vmax, amax);
     std::cout << "move: " << dist * 1e3 << " mm (" << dist * cal.usteps_per_m << " usteps) at " << vmax * 1e3
               << " mm/s, " << amax << " m/s^2, " << out.duration() << " s each way" << (doReturn ? ", return" : "")
@@ -139,14 +146,20 @@ int runMove(const Config& cfg, const std::string& configPath, const std::string&
         // Safety checks (not while already braking).
         if (phase != kBrake) {
             std::string abortWhy;
-            const bool sw = s.limit_left || s.limit_right;
-            if (sw && stopAtSwitch && switchSide == 0) {
-                switchSide = s.limit_left ? +1 : -1;
+            if (ignoreLeft && !s.limit_left) { ignoreLeft = false; releasePos = s.pos_usteps; }
+            if (ignoreRight && !s.limit_right) { ignoreRight = false; releasePos = s.pos_usteps; }
+            const bool left = s.limit_left && !ignoreLeft, right = s.limit_right && !ignoreRight;
+            const bool sw = left || right;
+            if ((ignoreLeft || ignoreRight) && std::fabs(x) > releaseWithin) {
+                abortWhy = std::string("start switch (") + (ignoreLeft ? "left" : "right") +
+                           ") still pressed after " + std::to_string(std::fabs(x) * 1e3) + " mm: moving into the end";
+            } else if (sw && stopAtSwitch && switchSide == 0) {
+                switchSide = left ? +1 : -1;
                 switchPos = s.pos_usteps;
-                reason = std::string("switch reached (") + (s.limit_left ? "left" : "right") + ")";
+                reason = std::string("switch reached (") + (left ? "left" : "right") + ")";
                 phase = kBrake;
             } else if (sw && !stopAtSwitch) {
-                abortWhy = std::string("unexpected limit switch (") + (s.limit_left ? "left" : "right") + ")";
+                abortWhy = std::string("unexpected limit switch (") + (left ? "left" : "right") + ")";
             } else if ((phase == kDrive || phase == kReturn) && std::fabs(ref.x - x) > tol) {
                 abortWhy = "tracking error " + std::to_string((ref.x - x) * 1e3) + " mm";
             } else if (overruns >= 3) {
@@ -216,6 +229,8 @@ int runMove(const Config& cfg, const std::string& configPath, const std::string&
                        {"commanded_usteps", std::to_string(std::llround(dist * cal.usteps_per_m))},
                        {"switch_side", switchSide == 0 ? "none" : (switchSide > 0 ? "left" : "right")},
                        {"switch_pos_usteps", std::to_string(switchPos)},
+                       {"start_switch", s0.limit_left ? "left" : (s0.limit_right ? "right" : "none")},
+                       {"start_switch_release_pos_usteps", std::to_string(releasePos)},
                        {"max_tracking_error_m", std::to_string(maxErr)},
                        {"encoder_counts_delta", std::to_string(sEnd.counts - counts0)},
                        {"encoder_same_type", std::to_string(hw.encoder().sameType())},

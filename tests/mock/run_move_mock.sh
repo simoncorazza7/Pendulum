@@ -32,4 +32,9 @@ setin 9 0; run; setin 9 1
 echo "== M7: SIGINT mid-move (expect ABORT: signal)"
 (sleep 1.5; sudo pkill -INT -x pendctl) & run --set move.distance=0.2 --set move.return=false
 wait
+echo "== M8: start on the right switch, it releases after 5 mm (expect completed)"
+setin 2 0; (sleep 0.5; setin 2 1) & run --set move.allow_start_on_switch=true --set move.return=false
+wait
+echo "== M9: start on the right switch, it never releases (expect ABORT after 10 mm)"
+setin 2 0; run --set move.allow_start_on_switch=true --set move.return=false; setin 2 1
 sudo chown -R "$(id -un)":"$(id -gn)" logs
