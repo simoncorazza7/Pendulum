@@ -55,6 +55,16 @@ int runEncoderLog(const Config& cfg, const std::string& configPath, const std::s
         gpiod_chip_close(chip);
         return 2;
     }
+    // Allocate and lock memory and switch to RT *before* claiming the lines: edges that arrive
+    // between the request and the first read wait in the kernel's 16-event queue per line, and the
+    // ~0.15 s setup overflowed it once (recording 2026-10-09T09-20-36, pendulum still swinging).
+    RingLog<EdgeRecord> log(static_cast<std::size_t>(capacity));
+    std::string err;
+    if (lockMem && !rt::lockMemory(512 * 1024, &err)) std::cerr << "warning: " << err << "\n";
+    if (rtEnable && !rt::makeCurrentThreadRealtime(static_cast<int>(prio), static_cast<int>(cpu), &err))
+        std::cerr << "warning: " << err << "\n";
+    const std::string sched = rt::describeCurrentThread();
+
     gpiod_line* lines[2] = {gpiod_chip_get_line(chip, static_cast<unsigned>(lineA)),
                             gpiod_chip_get_line(chip, static_cast<unsigned>(lineB))};
     for (auto* l : lines) {
@@ -65,13 +75,6 @@ int runEncoderLog(const Config& cfg, const std::string& configPath, const std::s
         }
     }
 
-    std::string err;
-    if (lockMem && !rt::lockMemory(512 * 1024, &err)) std::cerr << "warning: " << err << "\n";
-    if (rtEnable && !rt::makeCurrentThreadRealtime(static_cast<int>(prio), static_cast<int>(cpu), &err))
-        std::cerr << "warning: " << err << "\n";
-    const std::string sched = rt::describeCurrentThread();
-
-    RingLog<EdgeRecord> log(static_cast<std::size_t>(capacity));
     LatencyHist readLatency;   // read_ns - ts_ns of every event
     const int startA = gpiod_line_get_value(lines[0]), startB = gpiod_line_get_value(lines[1]);
     pollfd fds[2] = {{gpiod_line_event_get_fd(lines[0]), POLLIN, 0}, {gpiod_line_event_get_fd(lines[1]), POLLIN, 0}};
