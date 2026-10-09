@@ -144,4 +144,4 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   left, Simon: visually consistent). Stage 1 steps 1-2 done (ahead of Gate B, Simon's OK).
 - Open for Gate B: velocity estimator (one count step -> Kd*omega ~ +-2.4 m/s^2 spikes); 0.9 with the new PCB
   (fixes the intermittent step mode); 0.6b; 0.11/0.12 on the real logs. Then the Gate B report.
-- Cart left ~72 mm left of centre after the damp run (re-centre with a move: needs a go).
+- Cart re-centred after the damp run (`13-57-11_move`, -957 steps = exact reverse).
