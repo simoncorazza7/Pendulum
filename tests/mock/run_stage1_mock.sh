@@ -42,7 +42,7 @@ lastdir() { ls -td logs/*_"$1" | head -1; }
 meta() { python3 -c "import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])" "$(lastdir "$1")/meta.json" "$2"; }
 swing() { sudo python3 tests/mock/swing_gen.py "$DBG" --amp-deg "${2:-5}" --duration "$1" > build/swing_gen.out & }
 
-rm -f build/pendctl && make -s build/pendctl || { echo "build failed"; exit 1; }
+make -s build/pendctl || { echo "build failed"; exit 1; }   # the recipe deletes the binary before linking
 
 echo "== S1 shadow, no swing: calibration times out, motor lines never touched"
 reset_inputs; trace_start
