@@ -147,3 +147,5 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 - Open for Gate B: 0.9 with the new PCB
   (fixes the intermittent step mode); 0.6b; 0.12 validated on the real logs; LP2 in linear.py. Then Gate B.
 - Cart re-centred after the damp run (`13-57-11_move`, -957 steps = exact reverse).
+- 2026-10-12: 0.12 validated on the rig data (`py/sim_validate.py`); **Gate B draft `docs/gateB_report.md`**
+  (PID wc=2w0, LP2 20 Hz: GM [0.25, 6.9], PM 50 deg, DM 48 ms; catch region set by actuator limits). PENDING 0.9.

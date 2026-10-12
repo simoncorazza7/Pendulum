@@ -2,8 +2,10 @@
 
 Exact ZOH discretisation of the linearised upright plant with a total input delay
 tau = fractional compute delay + N whole samples, closed with the same controller as
-control.pid_step (backward difference + 1st-order low-pass derivative, forward-Euler integral,
-no saturation). Margins are found directly from closed-loop eigenvalues:
+control.pid_step (forward-Euler integral, no saturation) and either derivative path:
+  est="lp1"  backward difference + 1st-order low-pass at pid.vel_fc (pid_step's built-in filter)
+  est="lp2"  backward difference + 2nd-order Butterworth (bilinear, prewarped) at est_fc, the runtime's
+             core::VelocityEstimator BdLp2 (estimators.BdLp2), passed to pid_step as vel_est. Margins are found directly from closed-loop eigenvalues:
   gain margins  : the interval [k_lo, k_hi] of gain multipliers k (all gains * k) that stay stable
   delay margin  : extra input delay (s) before instability
   phase margin  : from L(e^{jwT}) at |L| = 1 (all crossings)
@@ -56,7 +58,8 @@ class Loop:
         return out
 
 
-def build_loop(plant: PlantParams, pid: PidParams, ts: float, delay: float, eps_int: float = 0.0) -> Loop:
+def build_loop(plant: PlantParams, pid: PidParams, ts: float, delay: float, eps_int: float = 0.0,
+               est: str = "lp1", est_fc: float = 20.0) -> Loop:
     """delay: total input delay (s) from sampling to the acceleration taking effect."""
     w0, beta, g = plant.w0, plant.bJ, plant.g
     A = np.array([[0.0, 1.0], [w0**2, -beta]])
@@ -69,6 +72,8 @@ def build_loop(plant: PlantParams, pid: PidParams, ts: float, delay: float, eps_
     G1 = Phi @ Gd                                   # input u'_{k-1} acts on [kT, kT + d)
     G0, G1 = G0[:, 0], G1[:, 0]
 
+    if est == "lp2":
+        return _build_lp2(Phi_full, G0, G1, N, pid, ts, eps_int, est_fc)
     alpha = ts / (ts + 1.0 / (2 * math.pi * pid.vel_fc))
     # state: x1, x2, u_prev, d_1..d_N, I, vf, th_prev
     iu, idl = 2, 3
@@ -108,6 +113,56 @@ def build_loop(plant: PlantParams, pid: PidParams, ts: float, delay: float, eps_
     return Loop(A_ol, B_ol, C_ol, Bn, Dn, ts)
 
 
+def _plant_and_delay(A_ol, B_ol, Phi_full, G0, G1, N):
+    iu, idl = 2, 3
+    A_ol[0:2, 0:2] = Phi_full
+    A_ol[0:2, iu] = G1
+    if N == 0:
+        B_ol[0:2] = G0
+        B_ol[iu] = 1.0
+    else:
+        A_ol[0:2, idl + N - 1] = G0
+        A_ol[iu, idl + N - 1] = 1.0
+        B_ol[idl] = 1.0
+        for i in range(1, N):
+            A_ol[idl + i, idl + i - 1] = 1.0
+
+
+def _build_lp2(Phi_full, G0, G1, N, pid: PidParams, ts: float, eps_int: float, fc: float) -> Loop:
+    """Derivative from estimators.BdLp2: x_k = (th_k - th_{k-1})/T, y_k = b0 x_k + b1 x_{k-1} + b2 x_{k-2}
+    - a1 y_{k-1} - a2 y_{k-2}; u_k = Kp th_k + Ki I_k + Kd y_k."""
+    k = math.tan(math.pi * fc * ts)
+    n = 1 / (1 + math.sqrt(2) * k + k * k)
+    b0 = k * k * n
+    b1, b2 = 2 * b0, b0
+    a1 = 2 * (k * k - 1) * n
+    a2 = (1 - math.sqrt(2) * k + k * k) * n
+    # state: x1, x2, u_prev, d_1..d_N, I, th_prev, bx1, bx2, by1, by2
+    iI, itp, ix1, ix2, iy1, iy2 = 3 + N, 4 + N, 5 + N, 6 + N, 7 + N, 8 + N
+    dim = 9 + N
+    A_ol, B_ol, Bn = np.zeros((dim, dim)), np.zeros(dim), np.zeros(dim)
+    _plant_and_delay(A_ol, B_ol, Phi_full, G0, G1, N)
+    if pid.ki != 0.0:
+        A_ol[iI, iI] = 1.0 - eps_int
+        A_ol[iI, 0] = ts
+        Bn[iI] = ts
+    A_ol[itp, 0] = 1.0
+    Bn[itp] = 1.0
+    A_ol[ix1, 0], A_ol[ix1, itp], Bn[ix1] = 1 / ts, -1 / ts, 1 / ts
+    A_ol[ix2, ix1] = 1.0
+    A_ol[iy1, 0], A_ol[iy1, itp], Bn[iy1] = b0 / ts, -b0 / ts, b0 / ts
+    A_ol[iy1, ix1], A_ol[iy1, ix2], A_ol[iy1, iy1], A_ol[iy1, iy2] = b1, b2, -a1, -a2
+    A_ol[iy2, iy1] = 1.0
+    C_ol = np.zeros(dim)
+    C_ol[0] = pid.kp + pid.kd * b0 / ts
+    C_ol[iI] = pid.ki
+    C_ol[itp] = -pid.kd * b0 / ts
+    C_ol[ix1], C_ol[ix2] = pid.kd * b1, pid.kd * b2
+    C_ol[iy1], C_ol[iy2] = -pid.kd * a1, -pid.kd * a2
+    Dn = pid.kp + pid.kd * b0 / ts
+    return Loop(A_ol, B_ol, C_ol, Bn, Dn, ts)
+
+
 def _bisect(f_stable, lo: float, hi: float, iters: int = 60) -> float:
     """lo stable, hi unstable -> boundary."""
     for _ in range(iters):
@@ -119,8 +174,10 @@ def _bisect(f_stable, lo: float, hi: float, iters: int = 60) -> float:
     return 0.5 * (lo + hi)
 
 
-def margins(plant: PlantParams, pid: PidParams, ts: float, delay: float) -> dict:
-    loop = build_loop(plant, pid, ts, delay)
+def margins(plant: PlantParams, pid: PidParams, ts: float, delay: float, est: str = "lp1",
+            est_fc: float = 20.0) -> dict:
+    kw = {"est": est, "est_fc": est_fc}
+    loop = build_loop(plant, pid, ts, delay, **kw)
     res = {"stable": loop.stable(1.0)}
     if not res["stable"]:
         return res
@@ -132,13 +189,13 @@ def margins(plant: PlantParams, pid: PidParams, ts: float, delay: float) -> dict
     res["k_lo"] = _bisect(loop.stable, 1.0, below.max()) if len(below) else 0.0
     res["k_hi"] = _bisect(loop.stable, 1.0, above.min()) if len(above) else math.inf
     # delay margin (extra seconds)
-    stable_with = lambda extra: build_loop(plant, pid, ts, delay + extra).stable()
+    stable_with = lambda extra: build_loop(plant, pid, ts, delay + extra, **kw).stable()
     hi = 0.001
     while stable_with(hi) and hi < 1.0:
         hi *= 2
     res["delay_margin"] = _bisect(stable_with, 0.0, hi, 40) if hi < 1.0 else math.inf
     # phase margins at |L| = 1 crossings
-    loop_e = build_loop(plant, pid, ts, delay, eps_int=1e-9)
+    loop_e = build_loop(plant, pid, ts, delay, eps_int=1e-9, **kw)
     w = np.logspace(-2, math.log10(math.pi / ts * 0.999), 4000)
     Lw = loop_e.L(w)
     mag = np.abs(Lw)
@@ -155,9 +212,10 @@ def margins(plant: PlantParams, pid: PidParams, ts: float, delay: float) -> dict
     return res
 
 
-def noise_rms(plant: PlantParams, pid: PidParams, ts: float, delay: float, sigma: float) -> float:
+def noise_rms(plant: PlantParams, pid: PidParams, ts: float, delay: float, sigma: float, est: str = "lp1",
+              est_fc: float = 20.0) -> float:
     """RMS of the commanded acceleration (m/s^2) for white measurement noise of std sigma (rad)."""
-    loop = build_loop(plant, pid, ts, delay)
+    loop = build_loop(plant, pid, ts, delay, est=est, est_fc=est_fc)
     Acl = loop.closed()
     Bcl = loop.Bn + loop.B_ol * loop.Dn
     P = solve_discrete_lyapunov(Acl, np.outer(Bcl, Bcl) * sigma**2)
