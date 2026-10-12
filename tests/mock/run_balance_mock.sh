@@ -59,7 +59,7 @@ reset_inputs; trace_start
 start --set calib.timeout=3
 finish
 check "B1 exit 3" 3 "$RC"
-check "B1 calibration timeout" 1 "$(grep -c 'FAILED: calibration' $OUT)"
+check "B1 calibration timeout" 1 "$(grep -c '^FAILED: calibration' $OUT)"
 check "B1 EN never 0" 0 "$(sets $EN | tr ' ' '\n' | grep -c '^0$')"
 
 echo "== B2 swing, calibrated, q at WAIT_GO: ends, driver never enabled"
@@ -72,7 +72,7 @@ wait
 check "B2 exit 0" 0 "$RC"
 check "B2 finished" 1 "$(grep -c 'session finished' $OUT)"
 check "B2 EN never 0" 0 "$(sets $EN | tr ' ' '\n' | grep -c '^0$')"
-check "B2 no STEP writes" "" "$(sets $STEP)"
+check "B2 STEP never 1 (only the line request's 0)" 0 "$(sets $STEP | tr ' ' '\n' | grep -c '^1$')"
 
 echo "== B3 homing, the left switch closes far too early: span check fails, braked, driver off"
 reset_inputs; trace_start; swing 12
@@ -88,7 +88,7 @@ finish
 wait
 setin $LIM_L 1
 check "B3 exit 3" 3 "$RC"
-check "B3 span check failed" 1 "$(grep -c 'FAILED: track span' $OUT)"
+check "B3 span check failed" 1 "$(grep -c '^FAILED: track span' $OUT)"
 en=$(sets $EN)
 check "B3 EN enabled (0) then last write 1" "1 1" "$(echo " $en " | grep -c ' 0 ') ${en: -1}"
 check "B3 STEP toggled" 1 "$([ "$(sets $STEP | wc -w)" -gt 100 ] && echo 1 || echo 0)"
