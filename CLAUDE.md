@@ -145,4 +145,4 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   `rt::Mover` (homing: switch span 6104 usteps = 1/8-step check; moves accelerate for one period T0 = no swing;
   re-centre touches the nearer switch = step-loss audit), a_max 2 / v_max 0.3. `BalanceRuntime::keep_driver_on`
   fixes a latent issue (the Axis keeps its last brake command after STOPPING -> IDLE). Engage stays "still hold"
-  (let go ~1 s after the beep). PC 71/71; not yet built on the Pi or run on the rig.
+  (let go ~1 s after the beep). PC + Pi 71/71, balance mock 23/23, stage1 mock 21/21; not yet run on the rig.
