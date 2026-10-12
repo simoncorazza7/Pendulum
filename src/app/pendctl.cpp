@@ -12,6 +12,8 @@
 //                  refuses the real chip unless shadow.allow_real_chip=true.
 //   damp           Stage 1 step 2: hanging active-damping test (moves the cart); refuses the real
 //                  chip unless damp.allow_real_chip=true.
+//   balance        Stage 1 step 3: balance session (homes, balances, re-centres; interactive). Refuses
+//                  the real chip unless balance.allow_real_chip=true (demo.sh).
 // Usage:
 //   pendctl --mode MODE [--config config/pendctl.conf] [--set key=value ...]
 //
@@ -53,7 +55,7 @@ void onTerminate(int sig) {
 }
 
 void usage() {
-    std::cout << "Usage: pendctl --mode log-selftest|timing-probe|encoder-log|move|shadow|damp [--config FILE] "
+    std::cout << "Usage: pendctl --mode log-selftest|timing-probe|encoder-log|move|shadow|damp|balance [--config FILE] "
                  "[--set key=value ...]\n";
 }
 
@@ -89,6 +91,7 @@ int main(int argc, char** argv) {
         else if (mode == "move") rc = app::runMove(cfg, configPath, cmdLine);
         else if (mode == "shadow") rc = app::runShadow(cfg, configPath, cmdLine);
         else if (mode == "damp") rc = app::runDamp(cfg, configPath, cmdLine);
+        else if (mode == "balance") rc = app::runBalance(cfg, configPath, cmdLine);
         else usage();
     } catch (const std::exception& e) {
         std::cerr << "pendctl: " << e.what() << "\n";

@@ -3,6 +3,8 @@
     python py/stage1_report.py shadow [RUN]   sign/magnitude check of the would-be command (shadow mode)
     python py/stage1_report.py damp [RUN]     decay rate of the actively damped hanging swing (damp mode)
     python py/stage1_report.py pulse [RUN]    input gain w0^2/g and combined sign from a move-mode pulse
+    python py/stage1_report.py balance [RUN]  every run of a balance session: duration, end, RMS theta,
+                                              saturation, drift fit x0 + v0 t + a_d t^2/2 -> trim correction
 
 RUN defaults to the newest run of that mode under logs/. Plots are saved into the run directory.
 Conventions: CLAUDE.md (theta from upright, + toward +x; phi = theta - pi near hanging).
@@ -214,13 +216,83 @@ def pulse(run) -> None:
     print(f"  plot: {run.path / 'pulse.png'}")
 
 
+# --------------------------------------------------------------------------------------------- balance
+def balance(run) -> None:
+    """Brief §6 metrics per run (ENGAGED segment). Drift: x(t) = x0 + v0 t + a_d t^2/2 fitted from 1 s after
+    engage; a reference offset delta gives a_d = g delta (PID), and theta_meas = theta_true - delta with
+    delta = theta_sign (c_runtime - c_true) q, so encoder.trim should change by -theta_sign a_d / (g q)."""
+    d = run.data
+    t = (d["t_ns"] - d["t_ns"][0]) * 1e-9
+    m = run.meta
+    cpr, ts = pcfg(run, "encoder.counts_per_rev"), pcfg(run, "loop.ts")
+    th_sign = pcfg(run, "calib.theta_sign")
+    q = 2 * math.pi / cpr
+    print(f"{run.path.name}: {m['result']}; {m['attempts']} runs")
+    print(f"  c_bottom fit {m['c_bottom_fit_counts']} (se {m['c_bottom_se_counts']}), used {m['c_bottom_used_counts']} counts "
+          f"(trim {pcfg(run, 'encoder.trim'):+.2f}); Kp {float(m['kp']):.2f} Ki {float(m['ki']):.2f} "
+          f"Kd {float(m['kd']):.3f}; a_max {m['a_max']}, v_max {m['v_max']}")
+    span = int(m["span_usteps"])
+    print(f"  homing: switches at {m['pos_right_usteps']} / {m['pos_left_usteps']} usteps, span {span} "
+          f"({span / pcfg(run, 'axis.usteps_per_m'):.3f} m); re-centre touch errors (usteps): "
+          f"{m['touch_errors_usteps'] or 'none'}")
+    eng = d["mode"] == 2
+    segs = [(i0, i1) for i0, i1 in segments(eng) if i1 - i0 > 10]
+    if not segs:
+        print("  never ENGAGED")
+        return
+    print()
+    print("| run | balanced (s) | ended by | RMS theta after 1 s (deg) | saturated | peak abs a (m/s²) | "
+          "peak abs v (m/s) | v0 (mm/s) | a_d (mm/s²) | trim change (counts) |")
+    print("|---|---|---|---|---|---|---|---|---|---|")
+    fig, ax = plt.subplots(3, 1, sharex=True, figsize=(12, 8))
+    for i0, i1 in segs:
+        n = int(d["attempt"][i0])
+        tt = t[i0:i1] - t[i0]
+        th, x, a = d["theta"][i0:i1], d["x"][i0:i1], d["a_cmd"][i0:i1]
+        end = MODES_END.get(int(d["event"][i1]) if i1 < len(d) else -1, "?")
+        late = tt > 1.0
+        rms = np.sqrt(np.mean(th[late] ** 2)) * DEG if late.any() else float("nan")
+        v0 = a_d = dtrim = float("nan")
+        if late.sum() > 250:                                   # >= 0.5 s of balance after the first second
+            c = np.polyfit(tt[late], x[late], 2)
+            a_d, v0 = 2 * c[0], c[1]
+            dtrim = -th_sign * a_d / (G * q)
+            ax[1].plot(tt[late], np.polyval(c, tt[late]) * 1e3, "k--", lw=0.8)
+        print(f"| {n} | {tt[-1]:.2f} | {end} | {rms:.3f} | {np.mean(d['saturated'][i0:i1]):.0%} | "
+              f"{np.abs(a).max():.2f} | {np.abs(d['v'][i0:i1]).max():.3f} | {v0 * 1e3:+.0f} | {a_d * 1e3:+.1f} | "
+              f"{dtrim:+.2f} |")
+        ax[0].plot(tt, th * DEG, lw=0.7, label=f"run {n}")
+        ax[1].plot(tt, x * 1e3, lw=0.8)
+        ax[2].plot(tt, a, lw=0.5)
+    ax[0].set_ylabel("theta (deg from upright)")
+    ax[0].legend(fontsize=7, ncol=6)
+    ax[1].set_ylabel("cart x (mm from centre)")
+    ax[1].axhline(pcfg(run, "sup.x_max") * 1e3, color="r", lw=0.6)
+    ax[1].axhline(pcfg(run, "sup.x_min") * 1e3, color="r", lw=0.6)
+    ax[2].set_ylabel("a_cmd (m/s²)")
+    ax[2].set_xlabel("time since ENGAGED (s); dashed: drift fit from 1 s")
+    for a_ in ax:
+        a_.grid(True, lw=0.3)
+    out = run.path / "balance_runs.png"
+    fig.savefig(out, dpi=110, bbox_inches="tight")
+    print()
+    print(f"plot: {out}")
+    print("trim: a_d > 0 = drift toward +x (LEFT switch). Average the trim changes of the longer runs before "
+          "applying one (encoder.trim); expect a few mm/s² to remain (quantisation, docs/stage1_drift.md).")
+
+
+MODES_END = {6: "theta abort", 7: "soft limit", 1: "manual stop", 2: "limit switch", 3: "encoder fault",
+             4: "axis left ACCELERATE", 5: "overruns", 8: "max run time"}
+
+
 def main() -> None:
-    if len(sys.argv) < 2 or sys.argv[1] not in ("shadow", "damp", "pulse"):
+    sys.stdout.reconfigure(encoding="utf-8")
+    if len(sys.argv) < 2 or sys.argv[1] not in ("shadow", "damp", "pulse", "balance"):
         print(__doc__)
         sys.exit(2)
     what = sys.argv[1]
     path = sys.argv[2] if len(sys.argv) > 2 else latest_run("logs", "move" if what == "pulse" else what)
-    {"shadow": shadow, "damp": damp, "pulse": pulse}[what](load_run(path))
+    {"shadow": shadow, "damp": damp, "pulse": pulse, "balance": balance}[what](load_run(path))
 
 
 if __name__ == "__main__":

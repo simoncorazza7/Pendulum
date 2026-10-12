@@ -25,6 +25,7 @@ int runEncoderLog(const Config& cfg, const std::string& configPath, const std::s
 int runMove(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 int runShadow(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 int runDamp(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
+int runBalance(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 
 }
 

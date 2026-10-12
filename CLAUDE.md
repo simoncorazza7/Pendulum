@@ -109,43 +109,40 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   with the git commit, config_used.conf). PC: `.venv/Scripts/python py/fetch_runs.py`, then `py/plot_run.py`.
   See `docs/stage0_4_instrumentation.md`.
 - Mock tests (no hardware): `sudo /sbin/modprobe gpio-mockup gpio_mockup_ranges=-1,28
-  gpio_mockup_named_lines=1` (per boot), then `tests/mock/run_mock_tests.sh` (35 checks). See
-  `docs/stage0_3_safe_bringup.md`.
+  gpio_mockup_named_lines=1` (per boot), then `tests/mock/run_mock_tests.sh` (35), `run_stage1_mock.sh`,
+  `run_balance_mock.sh`. See `docs/stage0_3_safe_bringup.md`.
+- **Demo / Stage 1 step 3: `./demo.sh`** (checklist, build, `pendctl --mode balance` on the real chip; interactive,
+  Simon runs it in `ssh -t`). Procedure, messages, design: `docs/stage1_demo.md`. Claude runs it only with a go
+  (stdin through a FIFO, as in the balance mock).
 
 ## Status (details: `docs/session_log.md`)
 - Claude runs on Simon's Windows PC, drives the Pi over SSH (host key ED25519
-  SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (62/62).
+  SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (71).
 - Done: 0.1–0.5 (scope check passed 2026-10-09), Gate A. GPIO24 held high from boot (`gpio=24=op,dh`).
 - E-stop: Simon accepted the rocker switch (cuts motor AND Pi) for the slow 0.8 tests; a motor-only
   switch (with a bulk cap at VMOT) is to be added before the aggressive 0.9 runs.
 - **New PCB arrives Wed 2026-10-14** (better 5 V buck, fixes MS wiring): pin map may change, so read pins from config.
-- 0.5 (`docs/stage0_5_timing.md`): loop p99 6/35 µs idle/load, max 0.33 ms; step edges p99 ≤ 12 µs, rare
-  0.1–0.3 ms bursts (check in 0.9). Pi hit 82.7 °C under load; SoC heatsink fitted 2026-10-09 (41–46 °C idle).
-- C++ core mirrors Python with golden tests (pid, supervisor, units, swingfit, estimator, SimHw); derivation
-  `docs/model_derivation.md`, sim `docs/stage0_12_sim.md`, fits `docs/stage0_7_0_10_fits.md`.
+- 0.5 (`docs/stage0_5_timing.md`): loop p99 6/35 µs idle/load; step edges p99 ≤ 12 µs, rare 0.1–0.3 ms bursts.
+  SoC heatsink fitted 2026-10-09 (82.7 °C under load before; 41–46 °C idle after).
+- C++ core mirrors Python with golden tests (pid, supervisor, units, swingfit, estimator, SimHw); `docs/model_derivation.md`.
 - **c_bottom must be re-found after every program start** (no index): small swing + `core::fitOffset`.
-- 2026-10-09 hand tests done (`docs/stage0_6_7_10_results.md`): CPR = 2400 exact, no drift, no lost
-  edges in normal reading (lost only at reader startup, fixed). c_bottom repeatable ±0.13 counts.
-  **Plant: ω₀ = 4.931 rad/s (L_eq 0.4035 m), b/J 0.024 1/s, Coulomb 0.0117 rad/s²** (config `plant.*`).
-  Open: a 7.3 ms reader stall during a fast spin (cause unknown).
-- 2026-10-09 first motion (0.8, runs A/B/C, `pendctl --mode move`): right switch at low pos, switches
-  1526 steps apart (~0.5 m); cart centred. No encoder faults during motion (one startup false alarm, fixed).
-- 2026-10-09: θ sign by hand (`10-31-06`, theta_sign = +1). EN verified: 3.3 V at the A4988 ENABLE pin
-  with GPIO24 high (driver off is real).
-- Runtime tick `rt::BalanceRuntime` + SimHw closed-loop tests (`docs/stage1_runtime.md`).
+- 2026-10-09 (`docs/stage0_6_7_10_results.md`): CPR = 2400 exact, no lost edges, c_bottom repeatable ±0.13 counts.
+  **Plant: ω₀ = 4.931 rad/s (L_eq 0.4035 m), b/J 0.024 1/s, Coulomb 0.0117 rad/s²** (config `plant.*`). Open: 7.3 ms reader stall.
+- 2026-10-09 first motion (0.8, `pendctl --mode move`): right switch at low pos, switches 1526 steps apart (half step);
+  θ sign by hand (theta_sign = +1); EN verified (3.3 V at the A4988 ENABLE pin with GPIO24 high).
 - 2026-10-09 afternoon (`docs/stage1_damp.md`): start-up swing calibration (`rt::SwingCalibrator`, amplitude-
-  corrected w, 2-20 deg), `pendctl --mode shadow` (motor lines never requested) and `--mode damp`; Pi 58/58,
-  mock 21/21. On the rig: **shadow** (theta sign at upright confirmed by Simon), **0.10 pulse** (input gain 93 %,
-  combined sign confirmed), **hanging damping** (decay 1.02 vs design 0.99 1/s, gain 103 %; cart ended ~72 mm
-  left, Simon: visually consistent). Stage 1 steps 1-2 done (ahead of Gate B, Simon's OK).
-- 0.11 decided on real data: BD+LP2 20 Hz (spikes 2.4x lower, CL noise halved, -6 ms delay tolerance;
-  `docs/stage0_11_estimators.md`).
-- Drift (`docs/stage1_drift.md`): v_inf = v + L_eq*theta' + g*int(theta) at engage. Dominant on the rig: a hand on
-  the rod after ENGAGED (~90 mm/s per 50 ms). i_delay 0 (on). Engage on release + momentum pre-load built and
-  sim-tested, but OFF: shadow 14-38-54 showed hand adjustments look like releases (both engages false); tune
-  on labelled shadow data (edges.csv, exact timestamps). Left: reference offset (+-6/+-8 mm/s^2) -> trim.
-- Open for Gate B: 0.9 with the new PCB
-  (fixes the intermittent step mode); 0.6b; 0.12 validated on the real logs; LP2 in linear.py. Then Gate B.
-- Cart re-centred after the damp run (`13-57-11_move`, -957 steps = exact reverse).
+  corrected w, 2-20 deg), `pendctl --mode shadow` (motor lines never requested) and `--mode damp`. On the rig:
+  **shadow** (theta sign at upright confirmed), **0.10 pulse** (input gain 93 %, combined sign confirmed),
+  **hanging damping** (decay 1.02 vs design 0.99 1/s, gain 103 %). Stage 1 steps 1-2 done (ahead of Gate B, Simon's OK).
+- 0.11 decided on real data: BD+LP2 20 Hz (`docs/stage0_11_estimators.md`).
+- Drift (`docs/stage1_drift.md`): v_inf = v + L_eq*theta' + g*int(theta) at engage; i_delay 0. A hand holding the rod
+  after ENGAGED: rigid-in-angle model ~90 mm/s per 50 ms, hand still in space benign (`py/hand_hold.py`). Engage on
+  release + pre-load built but OFF (shadow 14-38-54: hand adjustments look like releases). Left: reference offset -> trim.
+- Open for Gate B: 0.9 with the new PCB (fixes the intermittent step mode); 0.6b. Then Gate B.
 - 2026-10-12: 0.12 validated on the rig data (`py/sim_validate.py`); **Gate B draft `docs/gateB_report.md`**
   (PID wc=2w0, LP2 20 Hz: GM [0.25, 6.9], PM 50 deg, DM 48 ms; catch region set by actuator limits). PENDING 0.9.
+- 2026-10-12: **balance session** for Simon's supervisor demo on Wed 10-14 (current hardware): `rt::Session` +
+  `rt::Mover` (homing: switch span 6104 usteps = 1/8-step check; moves accelerate for one period T0 = no swing;
+  re-centre touches the nearer switch = step-loss audit), a_max 2 / v_max 0.3. `BalanceRuntime::keep_driver_on`
+  fixes a latent issue (the Axis keeps its last brake command after STOPPING -> IDLE). Engage stays "still hold"
+  (let go ~1 s after the beep). PC 71/71; not yet built on the Pi or run on the rig.
