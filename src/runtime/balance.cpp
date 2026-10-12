@@ -1,5 +1,6 @@
 #include "runtime/balance.h"
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 
@@ -121,9 +122,10 @@ TickRecord BalanceRuntime::tick(hw::Hardware& hw, bool overrun) {
     r.mode = static_cast<int>(o.mode);
     r.event = static_cast<int>(o.event);
 
-    if (c_.actuate && o.driver_enabled != driver_on_) {
-        hw.enableDriver(o.driver_enabled);
-        driver_on_ = o.driver_enabled;
+    const bool driverWanted = c_.keep_driver_on || o.driver_enabled;
+    if (c_.actuate && driverWanted != driver_on_) {
+        hw.enableDriver(driverWanted);
+        driver_on_ = driverWanted;
     }
     r.driver_enabled = driver_on_;
 
@@ -133,7 +135,7 @@ TickRecord BalanceRuntime::tick(hw::Hardware& hw, bool overrun) {
         // Momentum pre-load: v_inf = v_engage + L_eq theta'(engage) + g int theta dt, and the PID
         // equilibrium forces int theta = -I(0); I(0) = theta'/w0^2 cancels the pendulum's momentum
         // (cart at rest at engage). Only with a detected release: the fitted edges then are free motion.
-        if (c_.preload && r.released) {
+        if (c_.preload && c_.sup.engage_on_release && r.released) {
             r.omega_release = omegaFit(s.t_ns);
             pid_.integral = r.omega_release / (c_.w0 * c_.w0);
         }
@@ -147,13 +149,15 @@ TickRecord BalanceRuntime::tick(hw::Hardware& hw, bool overrun) {
         a = r.a_ctrl;
     } else if (o.mode == core::Mode::Stopping) {
         a = o.a_brake_cmd;
+    } else if (o.mode == core::Mode::Idle && c_.keep_driver_on && r.v != 0.0) {
+        a = -std::copysign(std::min(c_.sup.a_brake, std::fabs(r.v) / c_.ts), r.v);   // hold
     }
     r.integral = pid_.integral;
     r.a_cmd = a;
     r.axis_arg = core::axisAccelArg(a, c_.calib);
 
     r.sent = false;
-    if (c_.actuate && o.mode != core::Mode::Idle) {
+    if (c_.actuate && (o.mode != core::Mode::Idle || c_.keep_driver_on)) {
         hw.commandAccel(r.axis_arg);
         r.sent = true;
     }

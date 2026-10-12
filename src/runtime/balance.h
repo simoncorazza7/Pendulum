@@ -28,6 +28,11 @@ struct BalanceConfig {
     double est_fc = 30.0;                      // Hz
     int delay_samples = 0;                     // Stage 2a delay on the controller output
     bool actuate = true;                       // false = shadow mode: compute, never enable or command
+    // Balance session (pendctl --mode balance): the driver stays on in IDLE and the runtime holds the cart
+    // there (a = -v/ts, |a| <= sup.a_brake, sent every tick). The Axis keeps executing its last command, so
+    // without this the last STOPPING brake command would keep decelerating it into reverse after IDLE
+    // (harmless only while the driver is off and the program ends, as in every mode before the session).
+    bool keep_driver_on = false;
     // Release detection (docs/stage1_drift.md). `released` (supervisor input) is true when the current run of
     // >= release_edges encoder edges away from upright spans >= release_span s, fits free motion near
     // upright (theta = A e^{w0 t} + B e^{-w0 t}, least squares) within release_rms counts with the growing
@@ -40,7 +45,8 @@ struct BalanceConfig {
     double release_omega_min = 0.06;           // rad/s (hand creep in the shadow runs: 0.01-0.02)
     double release_fresh = 0.1;                // s
     double w0 = 4.931;                         // rad/s, small-angle frequency (plant.w0) of the free-motion fit
-    bool preload = false;                      // at engage, pre-load the integrator with theta'/w0^2 (fit)
+    bool preload = false;                      // at engage, pre-load the integrator with theta'/w0^2 (fit);
+                                               // only with sup.engage_on_release (else engage is a still hold)
 };
 
 struct TickRecord {
