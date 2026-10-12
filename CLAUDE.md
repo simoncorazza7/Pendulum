@@ -145,4 +145,8 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   `rt::Mover` (homing: switch span 6104 usteps = 1/8-step check; moves accelerate for one period T0 = no swing;
   re-centre touches the nearer switch = step-loss audit), a_max 2 / v_max 0.3. `BalanceRuntime::keep_driver_on`
   fixes a latent issue (the Axis keeps its last brake command after STOPPING -> IDLE). Engage stays "still hold"
-  (let go ~1 s after the beep). PC + Pi 71/71, balance mock 23/23, stage1 mock 21/21; not yet run on the rig.
+  (let go ~1 s after the beep). PC + Pi 71/71, balance mock 23/23, stage1 mock 21/21.
+- 2026-10-12 **first closed-loop catches on the rig** (`15-30-52_balance`, Simon ran demo.sh): span 6099 (1/8 OK),
+  touch errors -11..+2 usteps (no step loss), 8 runs all ended at the soft limit. Runs 2-5: RMS theta 0.08 deg (= sim)
+  but 1.3-3.3 s (+x at 0.12-0.17 m/s: release momentum?); runs 6-8: 11/34/36 s but RMS 1.1-1.6 deg, v up to v_max
+  (sustained sway?). data.csv not yet fetched (Pi went off).
