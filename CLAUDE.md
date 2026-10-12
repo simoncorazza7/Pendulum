@@ -47,7 +47,7 @@ Explain the reasoning behind design choices.
 - German identifiers: Winkel = angle, Flanke = edge, Drehgeber = encoder, Endschalter = limit switch.
 
 ## System facts (✱ = unverified; see "Status" for what has been verified)
-- Pi 4 Model B Rev 1.5, 1 GB. Host `pendel`, user `pendel`, `pendel@pendel.local` = 192.168.0.100 (wired
+- Pi 4 Model B Rev 1.5, 1 GB. Host `pendel`, user `pendel`, `pendel@pendel.local` (DHCP: .100 on 10-09, .102 on 10-12; use the name) (wired
   eth0). Raspberry Pi OS bookworm, **32-bit armhf userland**, kernel 6.12 PREEMPT (not RT), RT throttling
   95 %, governor ondemand, desktop (labwc) running. libgpiod 1.6.3 (v1 API). g++ 12.2, Python 3.11.
   No gnuplot, no cmake. Full table in `docs/stage0_discovery.md`.
