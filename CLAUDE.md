@@ -1,6 +1,6 @@
 # CLAUDE.md: Pendel cart-pole controller
 
-Full spec: `CONTROL_BRIEF.md`. This file condenses it, so read it first every session.
+Full spec: `CONTROL_BRIEF.md`. This file condenses it, so read it first every session. Overview: `docs/explainer.md`.
 Derivations and long notes go in `docs/`. Keep this file under ~150 lines and update it whenever
 a value or convention is established, and at the end of every session.
 
