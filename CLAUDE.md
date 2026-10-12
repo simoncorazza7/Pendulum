@@ -118,7 +118,7 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 - Done: 0.1–0.5 (scope check passed 2026-10-09), Gate A. GPIO24 held high from boot (`gpio=24=op,dh`).
 - E-stop: Simon accepted the rocker switch (cuts motor AND Pi) for the slow 0.8 tests; a motor-only
   switch (with a bulk cap at VMOT) is to be added before the aggressive 0.9 runs.
-- **New PCB expected week of 2026-10-12** (better 5 V buck): pin map may change, so read pins from config.
+- **New PCB arrives Wed 2026-10-14** (better 5 V buck, fixes MS wiring): pin map may change, so read pins from config.
 - 0.5 (`docs/stage0_5_timing.md`): loop p99 6/35 µs idle/load, max 0.33 ms; step edges p99 ≤ 12 µs, rare
   0.1–0.3 ms bursts (check in 0.9). Pi hit 82.7 °C under load; SoC heatsink fitted 2026-10-09 (41–46 °C idle).
 - C++ core mirrors Python with golden tests (pid, supervisor, units, swingfit, estimator, SimHw); derivation

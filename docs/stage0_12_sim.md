@@ -52,3 +52,25 @@ Catches (cart at rest, run ends at |x| = 0.3 m or 6 s):
 - Add the chosen velocity estimator (0.11), and the original decoder's one-edge lag if it stays.
 - Model the Axis step-rate quantisation and lost steps if 0.9 shows them.
 - Supervisor (engage/abort) for the catch-region map over (θ₀, θ̇₀).
+
+## Validation against the rig (2026-10-12, `py/sim_validate.py`, plot `docs/img/sim_validation.png`)
+The brief requires validating the simulation against 0.9/0.10 data before designing with it. The 0.10 runs of
+2026-10-09 replayed through `py/pendel/simhw.py` (bit-identical to the C++ `SimHw`) with the identified plant
+(ω₀ 4.931, b/J 0.024, Coulomb 0.0117), the Axis cap from config, 1/8 step (the mode of those runs):
+
+| Test | Rig | Simulation |
+|---|---|---|
+| Pulse `13-48-40` (logged Axis commands, open loop): first-swing peak | 17 counts | 17 counts (100 %) |
+| Pulse: RMS difference over 6 s; Axis position | | 1.5 counts; within 2 steps |
+| Damping `13-50-13`, closed loop (law + BD+LP1 30 Hz as run): engage time | 0.586 s | 0.582 s |
+| Damping: decay rate after engage | 1.019 1/s | 1.022 1/s |
+| Damping: RMS φ difference over 5.5 s | | 0.12° |
+| Damping: cart, max / end | 71.3 / +71.3 mm | 72.3 / +72.3 mm |
+| Damping, logged commands open loop (start state from a swing fit) | | RMS φ 0.26°, decay 1.09 1/s |
+
+The closed loop reproduces the rig within the quantisation (0.15°/count) and to 1 mm of cart travel. The open-
+loop replay is slightly worse, as expected: its pendulum drifts out of phase with commands computed for the
+real swing. Late in the pulse decay (< 5 counts) the rig loses amplitude slightly faster than the model
+(small-amplitude pivot friction): irrelevant for balancing. **Conclusion: the simulation is validated for
+the plant, input gain, encoder quantisation, estimator and Axis path at these speeds and accelerations.**
+Still unvalidated: the actuator limits (step loss, Axis cap at high acceleration), which come from 0.9.
