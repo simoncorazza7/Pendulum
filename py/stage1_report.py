@@ -240,27 +240,39 @@ def balance(run) -> None:
     if not segs:
         print("  never ENGAGED")
         return
+    w0, bJ = pcfg(run, "plant.w0"), pcfg(run, "plant.bJ")
+    v_max, v_taper = pcfg(run, "balance.v_max"), pcfg(run, "ctrl.v_taper")
     print()
-    print("| run | balanced (s) | ended by | RMS theta after 1 s (deg) | saturated | peak abs a (m/s²) | "
-          "peak abs v (m/s) | v0 (mm/s) | a_d (mm/s²) | trim change (counts) |")
-    print("|---|---|---|---|---|---|---|---|---|---|")
-    fig, ax = plt.subplots(3, 1, sharex=True, figsize=(12, 8))
+    print("| run | balanced (s) | ended by | RMS theta after 1 s (deg) | theta peak freq (Hz) | saturated | "
+          "in v taper | peak abs a (m/s²) | peak abs v (m/s) | v0 (mm/s) | a_d (mm/s²) | trim change (counts) | "
+          "release dv (mm/s) | later external dv step in 0.3 s (mm/s) |")
+    print("|---|---|---|---|---|---|---|---|---|---|---|---|---|---|")
+    fig, ax = plt.subplots(4, 1, sharex=True, figsize=(12, 10))
     for i0, i1 in segs:
         n = int(d["attempt"][i0])
         tt = t[i0:i1] - t[i0]
-        th, x, a = d["theta"][i0:i1], d["x"][i0:i1], d["a_cmd"][i0:i1]
+        th, x, a, v = d["theta"][i0:i1], d["x"][i0:i1], d["a_cmd"][i0:i1], d["v"][i0:i1]
         end = MODES_END.get(int(d["event"][i1]) if i1 < len(d) else -1, "?")
         late = tt > 1.0
         rms = np.sqrt(np.mean(th[late] ** 2)) * DEG if late.any() else float("nan")
-        v0 = a_d = dtrim = float("nan")
+        v0 = a_d = dtrim = fpk = float("nan")
         if late.sum() > 250:                                   # >= 0.5 s of balance after the first second
             c = np.polyfit(tt[late], x[late], 2)
             a_d, v0 = 2 * c[0], c[1]
             dtrim = -th_sign * a_d / (G * q)
             ax[1].plot(tt[late], np.polyval(c, tt[late]) * 1e3, "k--", lw=0.8)
-        print(f"| {n} | {tt[-1]:.2f} | {end} | {rms:.3f} | {np.mean(d['saturated'][i0:i1]):.0%} | "
-              f"{np.abs(a).max():.2f} | {np.abs(d['v'][i0:i1]).max():.3f} | {v0 * 1e3:+.0f} | {a_d * 1e3:+.1f} | "
-              f"{dtrim:+.2f} |")
+            y = th[late] - th[late].mean()
+            spec, fr = np.abs(np.fft.rfft(y * np.hanning(len(y)))), np.fft.rfftfreq(len(y), ts)
+            fpk = fr[fr > 0.1][np.argmax(spec[fr > 0.1])]
+        r, rel_dv = external_dv(tt, th, d["omega"][i0:i1], v, w0, bJ)
+        lag, rl = max(1, int(round(0.3 / ts))), r[tt > 1.5]
+        jump = np.abs(rl[lag:] - rl[:-lag]).max() if len(rl) > lag else float("nan")
+        pushed = jump > PUSH_DV
+        ax[3].plot(tt, r * 1e3, lw=0.8)
+        print(f"| {n} | {tt[-1]:.2f} | {end} | {rms:.3f} | {fpk:.2f} | {np.mean(d['saturated'][i0:i1]):.0%} | "
+              f"{np.mean(np.abs(v) > (1 - v_taper) * v_max):.0%} | {np.abs(a).max():.2f} | {np.abs(v).max():.3f} | "
+              f"{v0 * 1e3:+.0f} | {a_d * 1e3:+.1f} | {dtrim:+.2f}{' (ignore)' if pushed else ''} | "
+              f"{rel_dv * 1e3:+.0f} | {jump * 1e3:.0f}{' PUSHED?' if pushed else ''} |")
         ax[0].plot(tt, th * DEG, lw=0.7, label=f"run {n}")
         ax[1].plot(tt, x * 1e3, lw=0.8)
         ax[2].plot(tt, a, lw=0.5)
@@ -270,7 +282,8 @@ def balance(run) -> None:
     ax[1].axhline(pcfg(run, "sup.x_max") * 1e3, color="r", lw=0.6)
     ax[1].axhline(pcfg(run, "sup.x_min") * 1e3, color="r", lw=0.6)
     ax[2].set_ylabel("a_cmd (m/s²)")
-    ax[2].set_xlabel("time since ENGAGED (s); dashed: drift fit from 1 s")
+    ax[3].set_ylabel("external dv (mm/s)")
+    ax[3].set_xlabel("time since ENGAGED (s); dashed: drift fit from 1 s; external dv: velocity no angle explains")
     for a_ in ax:
         a_.grid(True, lw=0.3)
     out = run.path / "balance_runs.png"
@@ -279,6 +292,32 @@ def balance(run) -> None:
     print(f"plot: {out}")
     print("trim: a_d > 0 = drift toward +x (LEFT switch). Average the trim changes of the longer runs before "
           "applying one (encoder.trim); expect a few mm/s² to remain (quantisation, docs/stage1_drift.md).")
+
+
+PUSH_DV = 0.02   # m/s: a larger external velocity step within 0.3 s, > 1.5 s after ENGAGED = something pushed the
+                 # pendulum (simulated clean runs: <= 10 mm/s; a 1.7 deg nudge: 42). Recheck on rig data.
+
+
+def external_dv(t, theta, omega, v, w0, bJ, smooth=0.25, settle=1.5):
+    """Cart velocity that the pendulum's own motion does not explain (docs/stage1_drift.md identity):
+    without an external torque v - v0 = g int(theta) - L_eq (theta' - theta'0) - L_eq (b/J)(theta - theta0).
+    The residual stays near a straight line (slope g delta from a reference offset delta, fitted out);
+    a hand pushing the pendulum adds a step. Smoothed over `smooth` s (the omega estimate is noisy).
+    The hand is on the rod for up to ~1 s after ENGAGED, so the line is fitted after `settle` s only.
+    Returns (residual minus that line, release dv = line at 0 minus the residual at 0: the cart velocity the
+    hold and the release gave; nan for runs too short to tell)."""
+    L = G / w0 ** 2
+    integ = np.concatenate(([0.0], np.cumsum(0.5 * (theta[1:] + theta[:-1]) * np.diff(t))))
+    r = (v - v[0]) - G * integ + L * (omega - omega[0]) + L * bJ * (theta - theta[0])
+    n = max(1, int(round(smooth / np.median(np.diff(t))))) if len(t) > 2 else 1
+    rs = np.convolve(r, np.ones(n) / n, mode="same")
+    if len(t) > 2 * n:
+        rs[:n], rs[-n:] = rs[n], rs[-n - 1]
+    after = t > settle
+    if after.sum() < 2 * n:
+        return rs - rs[0], float("nan")
+    c = np.polyfit(t[after], rs[after], 1)
+    return rs - np.polyval(c, t), float(np.polyval(c, 0.0) - rs[0])
 
 
 MODES_END = {6: "theta abort", 7: "soft limit", 1: "manual stop", 2: "limit switch", 3: "encoder fault",

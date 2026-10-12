@@ -137,3 +137,28 @@ This gives the operator procedure: a light fingertip hold with the hand still in
 4. From the report:
    - If the drift is consistent across runs, apply the average trim change (`encoder.trim`, or `./demo.sh --set encoder.trim=...`).
    - If runs end within about 1 s, the hand is closer to the rigid model. In that case, practise the release, or let go right at the beep.
+
+## First rig session, 2026-10-12 (`logs/2026-10-12T15-30-52_balance`, Simon ran `./demo.sh`)
+
+From `meta.json` (`data.csv` not yet fetched: the Pi was switched off right after):
+- Homing span 6099 µsteps (expected 6104): 1/8 step, the MS wire held. Seven re-centres, touch errors −11 … +2
+  µsteps (< 1 mm): no step loss.
+- 8 runs, all caught, all ended at the soft limit (none fell).
+
+| Runs | Balanced | RMS θ after 1 s | Peak \|v\| | Saturated | Ended at |
+|---|---|---|---|---|---|
+| 1 | 1.1 s | 1.6° | 0.30 m/s | 46 % | +139 mm (left) |
+| 2–5 | 1.3–3.3 s | 0.075–0.10° (simulation: 0.07°) | 0.12–0.17 m/s | 0–1.5 % | +139 mm (left) |
+| 6–8 | 11, 34, 36 s | 1.1–1.6° | 0.27–0.30 m/s (= v_max) | 4–9 % | −138, −138, +139 mm |
+
+- **Runs 2–5:** balanced exactly like the simulation, but they left in 1.3–3.3 s, always toward +x (the left switch). That is either release momentum or a reference offset (trim). The report's drift fit (v0 vs a_d) and its release Δv separate the two.
+- **Runs 6–8:** Simon confirms the cart visibly swayed. `py/sway_study.py` adds the missing rig effects one at a time.
+  - Extra delay up to 40 ms, input gain ×0.7–2.5, a belt resonance ≥ 12 Hz, and ×10 pivot friction leave the balance as quiet as the model.
+  - A belt resonance of 5–8 Hz gives a 5–7 Hz wobble that saturates.
+  - Drifting into v_max reproduces the runs 6–8 signature: RMS θ 1.4–3°, \|v\| at 0.30 m/s, about 10 % saturated. A 0.5–2 count reference offset or an input gain of ×0.5 gets it there.
+  - In simulation, though, the cart then runs away in one direction and the pendulum falls after 7–29 s. It never keeps reversing for 36 s within ±139 mm.
+  - Something on the rig reversed the drift. A hand nudging the pendulum would do exactly that.
+- `py/stage1_report.py balance` now tests this directly. The drift identity v − v₀ = g∫θ − L_eq Δθ̇ − L_eq (b/J) Δθ holds only without external torque, so a push shows as a step in its residual.
+  - The report gives the release Δv (the hold-and-release momentum) and later steps more than 1.5 s after ENGAGED (nudges).
+  - On simulated sessions: clean runs 4–5 mm/s, a 1.7° nudge 28–42 mm/s. A run above 20 mm/s is flagged and its trim advice ignored.
+  - It also prints the dominant θ frequency and the time spent in the v_max taper.
