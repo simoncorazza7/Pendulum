@@ -5,6 +5,7 @@
 #include "core/units.h"
 #include "runtime/balance.h"
 #include "runtime/damp.h"
+#include "runtime/session.h"
 #include "runtime/swing_calib.h"
 
 // Config -> runtime parameters (portable, unit-tested against config/pendctl.conf). Angles that a
@@ -18,6 +19,10 @@ SwingCalibParams swingCalibFrom(const Config& cfg);
 // Gains by pole placement from plant.* and ctrl.*; throws std::runtime_error if core::validate fails.
 BalanceConfig balanceFrom(const Config& cfg);
 DampConfig dampFrom(const Config& cfg);
+// Balance session (pendctl --mode balance): balanceFrom with the reduced balance.a_max / v_max, the
+// mover from balance.* and move.* (tracking), the homing checks. Throws on unusable values, and if the
+// soft limits plus braking distance do not fit inside the switches.
+SessionConfig sessionFrom(const Config& cfg);
 
 }
 

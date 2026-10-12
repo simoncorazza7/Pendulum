@@ -1,5 +1,6 @@
 #include "runtime/params.h"
 
+#include <cmath>
 #include <stdexcept>
 
 namespace rt {
@@ -129,6 +130,56 @@ DampConfig dampFrom(const Config& cfg) {
     if (d.a_max > cfg.getDouble("move.max_accel") || d.limits.a_brake > cfg.getDouble("move.max_accel"))
         throw std::runtime_error("damp.a_max / damp.a_brake above the move.max_accel typo guard");
     return d;
+}
+
+SessionConfig sessionFrom(const Config& cfg) {
+    SessionConfig s;
+    s.balance = balanceFrom(cfg);
+    core::PidParams& pid = s.balance.pid;
+    pid.a_max = cfg.getDouble("balance.a_max");
+    pid.v_max = cfg.getDouble("balance.v_max");
+    const std::string why = core::validate(pid);
+    if (!why.empty()) throw std::runtime_error("balance.a_max / balance.v_max: " + why);
+    const double capA = cfg.getDouble("move.max_accel"), capV = cfg.getDouble("move.max_speed");
+    if (pid.a_max > capA || pid.v_max > capV)
+        throw std::runtime_error("balance.a_max / balance.v_max above the move.max_accel / max_speed typo guards");
+
+    MoverConfig& m = s.mover;
+    m.ts = s.balance.ts;
+    m.calib = s.balance.calib;
+    m.w0 = cfg.getDouble("plant.w0");
+    m.a_max = cfg.getDouble("balance.move_a_max");
+    m.a_brake = cfg.getDouble("balance.a_brake");
+    m.kp = cfg.getDouble("move.kp");
+    m.kv = cfg.getDouble("move.kv");
+    m.track_tol = cfg.getDouble("move.track_tol");
+    m.release_within = cfg.getDouble("move.release_within");
+    m.overrun_streak = static_cast<int>(cfg.getInt("sup.overrun_streak"));
+
+    s.swing = swingCalibFrom(cfg);
+    s.trim = cfg.getDouble("encoder.trim");
+    s.calib_timeout = cfg.getDouble("calib.timeout");
+    s.v_seek = cfg.getDouble("balance.v_seek");
+    s.v_travel = cfg.getDouble("balance.v_travel");
+    s.seek_max = cfg.getDouble("balance.seek_max");
+    s.span_usteps = cfg.getDouble("balance.span_usteps");
+    s.span_tol = cfg.getDouble("balance.span_tol");
+    s.approach = cfg.getDouble("balance.approach");
+    s.touch_tol = cfg.getDouble("balance.touch_tol");
+    if (!(s.v_seek > 0 && s.v_travel > 0 && s.v_seek <= capV && s.v_travel <= capV))
+        throw std::runtime_error("balance.v_seek / v_travel must be in (0, move.max_speed]");
+    if (!(m.a_max > 0 && m.a_brake > 0 && m.a_max <= capA && m.a_brake <= capA))
+        throw std::runtime_error("balance.move_a_max / a_brake must be in (0, move.max_accel]");
+    if (!(s.span_usteps > 0 && s.span_tol > 0 && s.span_tol < 0.3 && s.approach > 0 && s.touch_tol > 0 && s.seek_max > 0))
+        throw std::runtime_error("balance.span_usteps / span_tol / approach / touch_tol / seek_max out of range");
+    // The soft limits (about the centre between the switches) plus the braking distance from v_max must stay
+    // inside the switches with room for touch_tol of step loss.
+    const core::SupervisorParams& sp = s.balance.sup;
+    const double half = 0.5 * s.span_usteps / s.balance.calib.usteps_per_m;
+    const double reach = std::max(sp.x_max, -sp.x_min) + core::stoppingDistance(sp, pid.v_max) + s.touch_tol;
+    if (!(reach < half))
+        throw std::runtime_error("sup.x_min/x_max + braking from balance.v_max + touch_tol reach beyond the switches");
+    return s;
 }
 
 }

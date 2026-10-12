@@ -54,6 +54,9 @@ public:
     void holdAt(double theta, double duration = 0.4);
     void release() { held_ = false; }
     bool held() const { return held_; }
+    // Test hook (C++ only): lost steps. From now on the reported Axis pos is the physical position
+    // + usteps (the switches and hard stops stay physical), as after steps the motor did not make.
+    void loseSteps(double usteps) { pos_offset_ += usteps; }
 
     // Ground truth for tests and logging.
     double theta() const { return th_; }     // rad from upright, unwrapped
@@ -77,6 +80,7 @@ private:
     bool has_pending_ = false;
     bool driver_ = false, halted_ = false, commanded_ = false, crashed_ = false, held_ = false;
     double lift_from_ = 0, lift_to_ = 0, lift_t0_ = 0, lift_T_ = 0;   // hand motion
+    double pos_offset_ = 0;                                           // usteps, loseSteps()
     std::int64_t u0_floor_, c_prev_;
     std::vector<Edge> edges_;
 };

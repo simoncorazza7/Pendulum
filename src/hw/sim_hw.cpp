@@ -37,7 +37,7 @@ Sample SimHw::read() {
     s.n_edges = static_cast<int>(std::min<std::size_t>(edges_.size(), Sample::kMaxEdges));
     for (int i = 0; i < s.n_edges; ++i) s.edges[static_cast<std::size_t>(i)] = edges_[static_cast<std::size_t>(i)];
     s.edges_overflow = edges_.size() > static_cast<std::size_t>(Sample::kMaxEdges);
-    s.pos_usteps = std::llround(ps);
+    s.pos_usteps = std::llround(ps + pos_offset_);
     s.speed_toggles = -std::llround(speedProtocol);
     s.limit_right = ps <= p_.pos_switch_right;
     s.limit_left = ps >= p_.pos_switch_left;
