@@ -162,3 +162,12 @@ From `meta.json` (`data.csv` not yet fetched: the Pi was switched off right afte
   - The report gives the release Δv (the hold-and-release momentum) and later steps more than 1.5 s after ENGAGED (nudges).
   - On simulated sessions: clean runs 4–5 mm/s, a 1.7° nudge 28–42 mm/s. A run above 20 mm/s is flagged and its trim advice ignored.
   - It also prints the dominant θ frequency and the time spent in the v_max taper.
+
+### Analysis of 15-30-52 (data fetched 2026-10-13)
+- **Reference offset:** 16 of 17 quiet stretches (runs 3, 6, 7, 8; no outside step; from 1.5 s after ENGAGED) drift toward +x at 49–61 mm/s². That is δ = +1.9 … +2.3 counts (median 2.09 counts, 0.31°).
+  - Runs 2–3 give the same from the cart position alone (a_d ≈ +60 mm/s²). This, not release momentum, ended runs 2–5 in 1.3–3.3 s.
+  - Proposed: `encoder.trim = −2.1` counts, to be checked first with `./demo.sh --set encoder.trim=-2.1`.
+  - One 9 s stretch (run 8, from 10.4 s) had zero drift, with the cart still at +45 mm. This is the quantisation branch effect from `docs/stage1_drift.md`.
+- **Runs 6–8:** between the stretches, the identity residual has sharp steps of 150–200 mm/s, always reversing the drift. These are outside pushes, Simon's hand acting as the position loop; that is why those runs lasted 11–36 s.
+- **Catch transients of runs 1 and 6:** a growing oscillation of about 2 Hz with a_cmd hitting ±2 m/s² for up to 4 s. The residual oscillates by ±400 mm/s, so the hand was still on the rod and fighting the controller. The real hand is stiffer than the "fixed in space" model. Procedure: let go cleanly soon after the beep; if the cart starts buzzing back and forth while you hold, let go at once.
+- **08-58-26:** `homing: switch not found before the give-up position`. The motor power was off (Simon), so the step count ran 0.55 m while the cart stood still, and the session stopped as designed.

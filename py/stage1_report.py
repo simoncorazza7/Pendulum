@@ -286,6 +286,14 @@ def balance(run) -> None:
     ax[3].set_xlabel("time since ENGAGED (s); dashed: drift fit from 1 s; external dv: velocity no angle explains")
     for a_ in ax:
         a_.grid(True, lw=0.3)
+    quiet = quiet_offsets(t, d, segs, w0, bJ)
+    if quiet:
+        sl = np.array([s for _, _, _, s in quiet])
+        med = float(np.median(sl))
+        print(f"\nreference offset from {len(quiet)} quiet stretches (>= 1 s, no external step, from 1.5 s after "
+              f"ENGAGED): residual slope g delta median {med * 1e3:+.1f} mm/s² (range {sl.min() * 1e3:+.1f} .. "
+              f"{sl.max() * 1e3:+.1f}) -> delta {th_sign * med / G / q:+.2f} counts -> encoder.trim change "
+              f"{-th_sign * med / G / q:+.2f} counts")
     out = run.path / "balance_runs.png"
     fig.savefig(out, dpi=110, bbox_inches="tight")
     print()
@@ -318,6 +326,35 @@ def external_dv(t, theta, omega, v, w0, bJ, smooth=0.25, settle=1.5):
         return rs - rs[0], float("nan")
     c = np.polyfit(t[after], rs[after], 1)
     return rs - np.polyval(c, t), float(np.polyval(c, 0.0) - rs[0])
+
+
+def quiet_offsets(t, d, segs, w0, bJ, min_len=1.0, step=0.03):
+    """Reference offset from every quiet stretch of every run: where the drift-identity residual has no step
+    (|change in 0.3 s| <= step m/s, 0.3 s margin, from 1.5 s after ENGAGED), its slope is g delta. Robust to
+    hand pushes, which end one stretch and start the next (rig 2026-10-12: 16 of 17 stretches 49-61 mm/s²).
+    Returns [(run, start s, length s, slope m/s^2)]."""
+    ts = float(np.median(np.diff(t)))
+    lag, k = max(1, int(round(0.3 / ts))), max(1, int(round(0.25 / ts)))
+    L = G / w0 ** 2
+    out = []
+    for i0, i1 in segs:
+        tt = t[i0:i1] - t[i0]
+        th, om, v = d["theta"][i0:i1], d["omega"][i0:i1], d["v"][i0:i1]
+        if len(tt) < 4 * lag:
+            continue
+        integ = np.concatenate(([0.0], np.cumsum(0.5 * (th[1:] + th[:-1]) * np.diff(tt))))
+        res = (v - v[0]) - G * integ + L * (om - om[0]) + L * bJ * (th - th[0])
+        rs = np.convolve(res, np.ones(k) / k, mode="same")
+        dr = np.zeros_like(rs)
+        dr[lag:] = rs[lag:] - rs[:-lag]
+        bad = np.convolve((np.abs(dr) > step).astype(float), np.ones(2 * lag), mode="same") > 0
+        bad |= tt < 1.5
+        bad[-k:] = True                                        # smoothing edge
+        e = np.flatnonzero(np.diff(np.concatenate(([0], (~bad).astype(int), [0]))))
+        for s0, s1 in zip(e[::2], e[1::2]):
+            if tt[s1 - 1] - tt[s0] >= min_len:
+                out.append((int(d["attempt"][i0]), tt[s0], tt[s1 - 1] - tt[s0], np.polyfit(tt[s0:s1], rs[s0:s1], 1)[0]))
+    return out
 
 
 MODES_END = {6: "theta abort", 7: "soft limit", 1: "manual stop", 2: "limit switch", 3: "encoder fault",
