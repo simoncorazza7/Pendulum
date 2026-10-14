@@ -228,3 +228,31 @@ From `meta.json` (`data.csv` not yet fetched: the Pi was switched off right afte
   - Proposed A/B on the rig: `./demo.sh --set ctrl.est_fc=14`. If the growth stops, the loop was pumping a
     drive-side resonance. A 28 Hz notch (needs code) would cost even less phase at crossover, once the mode is
     pinned down.
+
+### Filter A/B result and trim iterations (2026-10-14, `py/osc_compare.py`)
+
+| Velocity filter | Sessions | Runs where the 20–40 Hz band exceeded 1 count RMS | Quiet runs: counts / a_cmd band RMS |
+|---|---|---|---|
+| 20 Hz | 15-30-52, 10-20-52 | **3 of 17** (10-20-52 runs 3–5: 2.5–5.5 counts) | 0.12–0.62 / 0.17–0.89 m/s² |
+| 14 Hz | 11-02-59, 11-08-04 | **0 of 7** | 0.15–0.31 / 0.12–0.25 m/s² |
+
+- Not statistically decisive: the mode was rare at 20 Hz too, so 0 of 7 would have a ~25 % chance at the old rate.
+  But it agrees with the model (45 % less loop gain at 28 Hz) and with the lower buzz, and the margins stay
+  comfortable. **`ctrl.est_fc = 14` is now the default.**
+- Catch quality at 14 Hz: RMS θ 0.056–0.07° in clean runs, the same as at 20 Hz.
+
+Trim iterations (offset from the quiet stretches, `stage1_report.py balance`; untrimmed = residual minus the trim):
+
+| Session | Trim | Residual offset | Untrimmed offset | Longest untouched run |
+|---|---|---|---|---|
+| 2026-10-12 15-30-52 | 0 | +2.09 counts (+54 mm/s²) | +2.09 | 3.3 s |
+| 2026-10-13 10-15-19 | 0 | +0.70 (wide range, pushes) | +0.70 | — |
+| 2026-10-14 10-20-52 | −2.1 | −0.12 (−3 mm/s²) | +1.98 | 14.9 s |
+| 2026-10-14 11-02-59 | −2.1 | −0.78 (2 stretches) | +1.32 | — |
+| 2026-10-14 11-08-04 | −2.1 | −0.70 (12 stretches, −18 mm/s²) | +1.40 | 5.2 s |
+
+- The offset scatters by about ±0.5 counts from one program start to the next. That is the start-up calibration,
+  not the trim, and it limits what a fixed trim can do to about ±13 mm/s².
+- **`encoder.trim = −1.6`** (today's mean) is now the default.
+- Next for longer untouched runs: a cleaner release, since v0 was +80 … +100 mm/s in runs 1, 4 and 5 (always +x).
+  Engage on release is the systematic fix, and Stage 2 cart feedback the real one.

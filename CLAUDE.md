@@ -151,5 +151,6 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   16/17 stretches); long runs (36 s) = Simon's hand pushes (`stage1_report.py balance`).
 - 2026-10-14 `10-20-52_balance`: **trim -2.1 validated** (residual -3 mm/s^2, run 11 14.9 s untouched) -> config default.
   Open: **~28 Hz oscillation** (all runs peak 27-32 Hz; runs 2-6 grew, a_cmd saturated): suspected structural/actuator
-  resonance. Tap test (motor off): no ring -> likely drive side (cart rocking/belt while driven). est_fc 20->14 Hz
-  cuts the 28 Hz gain 45 % (PM 46, DM 43 ms): A/B with `--set ctrl.est_fc=14`. Swing-up notes: `docs/swingup_notes.md`.
+  resonance. Tap test (motor off): no ring -> likely drive side (cart rocking/belt while driven). **est_fc 20 -> 14 Hz
+  default** (0 of 7 runs grown vs 3 of 17; PM 46, DM 43 ms). **Trim -1.6** (5 sessions, start-to-start scatter ~0.5
+  counts). Limit now: release momentum (+80..100 mm/s). Swing-up notes: `docs/swingup_notes.md`.
