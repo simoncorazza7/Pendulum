@@ -195,3 +195,36 @@ From `meta.json` (`data.csv` not yet fetched: the Pi was switched off right afte
     motor off?), then an open-loop chirp of small cart accelerations while hanging. Fit the mode, then decide between
     a notch, a lower velocity-filter cut-off or less Kd.
   - Demo advice meanwhile: if a run starts rattling loudly, stop it (Enter) and catch again.
+
+### Tap test and the velocity-filter trade (2026-10-14, `py/tap_test.py`, `py/fc_study.py`)
+
+- **Tap test** (`logs/2026-10-14T10-58-02_encoder-log`): encoder-log only, motor off, taps on the bob, on the rod
+  near the pivot, on the cart, and front-to-back.
+  - On the swings the residual after a 6 Hz low-pass is pure quantisation (0.29 counts RMS = 1/√12).
+  - With the pendulum still, each tap gave only a 0.06–0.18 s flicker across one count boundary, at scattered
+    25–76 Hz. No sustained ring, no multi-count motion.
+  - So the pendulum and its coupling do not ring noticeably with the motor off. The encoder cannot see a mode
+    smaller than about 1 count, though.
+- **Where the 28 Hz then lives.** If several counts of encoder motion at 28 Hz were cart translation, it would take
+  X = θ·L_eq ≈ 5 mm at 28 Hz, i.e. > 150 m/s²; the command never exceeds 2 m/s². Likeliest: a mode that exists
+  only while the driver holds and drives the cart. Candidates are cart rocking (pitch) from the belt pulling off
+  the bearing axis with play in the rail bearings, or the encoder body on a compliant bracket.
+  - The test that discriminates: an open-loop chirp of small cart accelerations while hanging. Any visible
+    response near 28 Hz is the resonance, since the rigid response there is about 0.03 counts per m/s².
+    It needs a small new mode and a go.
+- **Mitigation independent of the cause:** cut the loop gain at 28 Hz, which is mostly Kd × the velocity estimate.
+
+| Velocity filter (`ctrl.est_fc`) | a_cmd per 1-count wobble at 28 Hz | \|L(28 Hz)\| | PM | DM | GM [lo, hi] | RMS a, quantisation | 2° catch: overshoot / settle |
+|---|---|---|---|---|---|---|---|
+| 20 Hz (now) | 1.49 m/s² | 0.045 | 50° | 48 ms | [0.25, 6.9] | 0.19 | 18 % / 0.71 s |
+| 16 Hz | 1.03 | 0.031 | 48° | 45 ms | [0.25, 5.7] | 0.15 | 15 % / 0.77 s |
+| **14 Hz** | **0.82** | 0.025 | 46° | 43 ms | [0.25, 5.1] | 0.13 | 13 % / 0.69 s |
+| 12 Hz | 0.63 | 0.019 | 44° | 40 ms | [0.25, 4.4] | 0.11 | 13 % / 0.77 s |
+| 10 Hz | 0.46 | 0.014 | 40° | 36 ms | [0.24, 3.6] | 0.10 | 12 % / 0.74 s |
+
+  - At 20 Hz a ±1.3-count wobble at 28 Hz already saturates the ±2 m/s² command, which is how readily it ran away in
+    runs 2–6.
+  - **14 Hz** cuts that by 45 % for 4° of phase margin and 5 ms of delay margin, and also lowers the buzz.
+  - Proposed A/B on the rig: `./demo.sh --set ctrl.est_fc=14`. If the growth stops, the loop was pumping a
+    drive-side resonance. A 28 Hz notch (needs code) would cost even less phase at crossover, once the mode is
+    pinned down.

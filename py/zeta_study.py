@@ -78,7 +78,7 @@ def pid_for(wc, zeta, p):
 
 def catch(pid, th0_deg, t_end=4.0):
     r = simulate(pid, math.radians(th0_deg), 0.0, t_end, PLANT, ACT, SensorParams(), SimParams(ts=TS, x_limit=5.0),
-                 estimator=BdLp2(TS, 20.0))
+                 estimator=BdLp2(TS, pid.vel_fc))
     t, th = r["t"], np.degrees(r["theta"])
     sgn = np.sign(th0_deg)
     over = max(0.0, -sgn * th.min() if sgn > 0 else th.max()) / abs(th0_deg)
