@@ -193,3 +193,36 @@ On the rig the variants are config overrides; each run needs Simon's go:
 - Mt stays above 1 even with real poles. An open-loop unstable plant forces some peaking, and so does the integrator's zero.
 - 0.7 takes the end of the flat optimum with the larger phase margin (50° against 46°). It is also the textbook
   1/√2: maximally flat, about 5 % overshoot of the pure pair, and the fastest settling into a 5 % band.
+
+### Continuous-time design, discrete controller: when is that valid? (`py/ts_study.py`)
+
+The gains come from pole placement on the continuous model. The controller runs every Ts with a zero-order hold
+and a compute delay τ = 0.5 ms (emulation design). Holding each command for a whole period acts like a delay of
+about Ts/2. Together with τ, that costs a phase of about (Ts/2 + τ)·ω at frequency ω.
+
+Criterion: the continuous design carries over when that loss at the gain-crossover frequency ω_gc is small
+compared with the phase margin, i.e. **ω_gc·Ts ≪ 1**. Common rules of thumb say to sample 20–30× the closed-loop
+bandwidth (ω_gc·Ts ≲ 0.2–0.3); below about 0.1 the discrete loop is practically the continuous one. The plant's
+fastest pole matters too: the unstable pole at ω₀ gives ω₀·Ts = 0.01. The same gains run in the exact discrete
+loop (ZOH, delay, BD+LP2 filter at min(20 Hz, f_s/10)):
+
+| Ts | f_s | ω_gc·Ts | ZOH + delay lag at ω_gc | PM | GM [lo, hi] | DM | Dominant poles s = ln z / Ts |
+|---|---|---|---|---|---|---|---|
+| 0.5 ms | 2000 Hz | 0.009 | 0.8° | 51° | [0.25, 8.3] | 49 ms | −2.5, −9.0±6.5j (≈ continuous limit) |
+| 1 ms | 1000 Hz | 0.018 | 1.0° | 50° | [0.25, 7.8] | 49 ms | −2.5, −9.1±6.4j |
+| **2 ms** | 500 Hz | **0.036** | **1.5°** | 50° | [0.25, 6.9] | 48 ms | −2.5, −9.3±6.4j |
+| 5 ms | 200 Hz | 0.091 | 3.1° | 47° | [0.25, 5.4] | 45 ms | −2.5, −10.0±6.2j |
+| 10 ms | 100 Hz | 0.196 | 6.2° | 33° | [0.25, 2.4] | 30 ms | filter at 10 Hz: −2.6, −8.2, −16.6±25.2j |
+| 20 ms | 50 Hz | 0.410 | 12.3° | 1° | [0.25, 1.0] | 0 | on the edge (filter at 5 Hz) |
+| 30–40 ms | ≤ 33 Hz | — | — | unstable | — | — | — |
+
+- At **Ts = 2 ms**, ω_gc·Ts = 0.036. The crossover is at 18 rad/s (2.9 Hz), sampled 175× faster. Sampling costs
+  1.5° of phase and 1 ms of delay margin, so the continuous design is justified with a wide margin.
+- The design breaks down around ω_gc·Ts ≈ 0.2 (10 ms). Part of that is the velocity filter, which has to move
+  down with the Nyquist frequency.
+- The larger approximation in the continuous design is not sampling but the **velocity filter**, which the pole
+  placement leaves out: 12° of lag at crossover. It moves the dominant pair from the designed −6.9±7.0j to about
+  −9±6.5j, which is the Ts → 0 limit above.
+- That is why the design is always checked on the exact discrete model with the filter and delay (margins
+  above, `py/gateb_design.py`), and on the nonlinear simulation and the C++ runtime. Design in s for insight
+  and closed-form gains (Kp > g, …); verify in z.
