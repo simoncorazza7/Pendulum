@@ -150,4 +150,7 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   (let go ~1 s after the beep). PC + Pi 71/71, balance mock 23/23, stage1 mock 21/21.
 - 2026-10-12 **first closed-loop catches on the rig** (`15-30-52_balance`): span 6099 (1/8 OK), no step loss, 8 runs to
   the soft limit. Quiet runs RMS 0.08 deg (= sim) but short: **reference offset +2.1 counts** (54 mm/s^2 toward +x,
-  16/17 stretches) -> try `encoder.trim=-2.1`; long runs (36 s) = Simon's hand pushes (`stage1_report.py balance`).
+  16/17 stretches); long runs (36 s) = Simon's hand pushes (`stage1_report.py balance`).
+- 2026-10-14 `10-20-52_balance`: **trim -2.1 validated** (residual -3 mm/s^2, run 11 14.9 s untouched) -> config default.
+  Open: **~28 Hz oscillation** (all runs peak 27-32 Hz; runs 2-6 grew, a_cmd saturated): suspected structural/actuator
+  resonance; next: sensors-only tap test, open-loop chirp. Swing-up (Stage 4) notes: `docs/swingup_notes.md`.

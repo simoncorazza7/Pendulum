@@ -171,3 +171,27 @@ From `meta.json` (`data.csv` not yet fetched: the Pi was switched off right afte
 - **Runs 6–8:** between the stretches, the identity residual has sharp steps of 150–200 mm/s, always reversing the drift. These are outside pushes, Simon's hand acting as the position loop; that is why those runs lasted 11–36 s.
 - **Catch transients of runs 1 and 6:** a growing oscillation of about 2 Hz with a_cmd hitting ±2 m/s² for up to 4 s. The residual oscillates by ±400 mm/s, so the hand was still on the rod and fighting the controller. The real hand is stiffer than the "fixed in space" model. Procedure: let go cleanly soon after the beep; if the cart starts buzzing back and forth while you hold, let go at once.
 - **08-58-26:** `homing: switch not found before the give-up position`. The motor power was off (Simon), so the step count ran 0.55 m while the cart stood still, and the session stopped as designed.
+
+## Session 2026-10-14 (`logs/2026-10-14T10-20-52_balance`, `--set encoder.trim=-2.1`)
+
+- **Trim validated.** 10 quiet stretches give a median residual drift of −3.1 mm/s² (range −11.7 … +2.3), down from
+  +54 mm/s², i.e. δ = −0.12 counts: inside the quantisation band. Run 11 balanced 14.9 s untouched (before: 1–3 s).
+  **`encoder.trim = −2.1` is now the config default.** Caveat: the untrimmed session `2026-10-13T10-15-19` gave +0.7
+  counts, but over a wide range (−3.6 … +56.6 mm/s², hand pushes); `15-30-52` gave 2.09 and today implies 1.98.
+  Re-check the offset whenever the report shows a consistent drift.
+- **Release momentum** is now the limit of untouched runs: v0 of +50 … +95 mm/s in runs 2, 4, 6 and 7 ran out of
+  track in 2–3 s. Release more cleanly (open the fingers, no push), or later, Stage 2 cart feedback.
+- **A ~28 Hz oscillation, open.** Every run's θ spectrum peaks at 27–32 Hz, in both sessions (the rigid-model
+  simulation puts its quantisation limit cycle at 10–16 Hz).
+  - In runs 2–6 today it grew to several counts, with a_cmd saturated at ±2 m/s² 16–73 % of the time, and the runs
+    ended in 1.6–3.9 s.
+  - The edges are clean: no invalid transitions, a minimum gap of 0.16–0.4 ms, no chatter. The shaft really moves up
+    to 5 counts per 2 ms tick, back and forth.
+  - A rigid pendulum cannot do that at 28 Hz with 2 m/s² (that needs ~1000 rad/s²). Hypothesis: a structural or
+    actuator resonance near 28 Hz inside the loop (rod bending, the shaft coupling, the cart or belt) that the
+    controller sometimes pumps up.
+  - The closed-loop cross-spectrum a_cmd → counts cannot identify it: in closed loop it returns about 1/|C|.
+  - Next, with a go: a sensors-only tap test on the hanging and the held-upright rod (does it ring at 28 Hz with the
+    motor off?), then an open-loop chirp of small cart accelerations while hanging. Fit the mode, then decide between
+    a notch, a lower velocity-filter cut-off or less Kd.
+  - Demo advice meanwhile: if a run starts rattling loudly, stop it (Enter) and catch again.
