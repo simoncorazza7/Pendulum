@@ -200,7 +200,7 @@ The gains come from pole placement on the continuous model. The controller runs 
 and a compute delay τ = 0.5 ms (emulation design). Holding each command for a whole period acts like a delay of
 about Ts/2. Together with τ, that costs a phase of about (Ts/2 + τ)·ω at frequency ω.
 
-Criterion: the continuous design carries over when that loss at the gain-crossover frequency ω_gc is small
+Criterion: the continuous design carries over when that loss at the gain-crossover frequency ω_gc is small (ω_gc: where the loop gain |L(jω)| = |C(jω) G(jω)| falls through 1; below it feedback dominates, above it the loop barely reacts; here 18 rad/s = 2.9 Hz)
 compared with the phase margin, i.e. **ω_gc·Ts ≪ 1**. Common rules of thumb say to sample 20–30× the closed-loop
 bandwidth (ω_gc·Ts ≲ 0.2–0.3); below about 0.1 the discrete loop is practically the continuous one. The plant's
 fastest pole matters too: the unstable pole at ω₀ gives ω₀·Ts = 0.01. The same gains run in the exact discrete
