@@ -166,7 +166,7 @@ Reading:
 - In absolute terms it is 0.25–0.4° on a 2° catch, about 1–1.5 counts, below what anyone sees on the rig.
 - **PD ζ = 1** is the textbook critically damped catch with no overshoot. It leaves the cart at +117 mm/s after a 2° catch, enough to reach the soft limit in about 1–1.5 s. This is the PD-versus-PID trade from brief §3.
 
-**Recommendation:** keep ζ = 0.7, ω_c = 2ω₀, p = 0.5ω₀. If a slightly calmer catch is wanted, p = 0.25ω₀ is the knob, not ζ.
+**Decision (Simon, 2026-10-14): keep ζ = 0.7**, ω_c = 2ω₀, p = 0.5ω₀. If a slightly calmer catch is wanted, p = 0.25ω₀ is the knob, not ζ.
 
 On the rig the variants are config overrides; each run needs Simon's go:
 - `./demo.sh --set ctrl.zeta=1.0` (margins fine; expect a louder buzz);

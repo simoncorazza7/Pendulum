@@ -141,6 +141,8 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 - Open for Gate B: 0.9 with the new PCB (fixes the intermittent step mode); 0.6b. Then Gate B.
 - 2026-10-12: 0.12 validated on the rig data (`py/sim_validate.py`); **Gate B draft `docs/gateB_report.md`**
   (PID wc=2w0, LP2 20 Hz: GM [0.25, 6.9], PM 50 deg, DM 48 ms; catch region set by actuator limits). PENDING 0.9.
+  2026-10-14 **zeta 0.7 kept (Simon)**: Ms minimal at 0.6-0.7; zeta 1 doesn't remove the catch overshoot (integrator);
+  Ts 2 ms: w_gc*Ts = 0.036 (Gate B appendix; py/zeta_study.py, zeta_sweep.py, ts_study.py).
 - 2026-10-12: **balance session** for Simon's supervisor demo on Wed 10-14 (current hardware): `rt::Session` +
   `rt::Mover` (homing: switch span 6104 usteps = 1/8-step check; moves accelerate for one period T0 = no swing;
   re-centre touches the nearer switch = step-loss audit), a_max 2 / v_max 0.3. `BalanceRuntime::keep_driver_on`
