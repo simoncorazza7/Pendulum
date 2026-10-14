@@ -132,3 +132,24 @@ First attempts, kept as lessons:
   before reaching in.
 - First run: watch the pumping phase. The energy line should climb to about 1.00 in 15–25 s and the cart should swing
   ±60–100 mm. If the hand-over or the catch fails, the runtime removes the energy by itself.
+
+## 7. First rig test (2026-10-14, `logs/2026-10-14T11-36-43_balance`, `py/swingup_report.py`)
+
+- **Swing-up works on the rig.** 7 of 7 runs pumped smoothly to the top in 18.1–19.5 s (SimHw: 16.7 s), with the
+  cart within −54 … +86 mm while pumping. 7 of 7 handed over: θ ±9.3–9.6°, u = θ + θ̇/ω₀ 1.4–4.0°, energy
+  0.995–0.997, cart within ±30 mm moving at 70–110 mm/s, always toward the lean side.
+- **Energy removal works.** Every run was brought down in 15–16 s, with the cart swinging about ±30 mm.
+- **The balance after the hand-over was short:** 0.25–0.47 s in 5 runs; 2.2 s and **11.6 s** in the two with u = 1.4°.
+  In the short runs the PID drove the cart to v_max and the soft limit.
+- **Why** (`py/catch_study.py`, which reproduces exactly which runs survive):
+  - Catching from the stable manifold needs no extra cart speed. Each degree of u costs about 35 mm/s, by the drift
+    identity (v∞ = v₀ + L_eq θ̇₀ + g∫θ). That comes on top of the 70–110 mm/s the cart already has from pumping.
+  - u ≥ 3° ran into the soft limit within 0.3–1.2 s.
+  - Neither a gentle first catch (a = 2g·u, the poles mirrored at −ω₀) nor a pre-load that also cancels v₀
+    (I(0) = v₀/g + θ̇₀/ω₀²) helped.
+  - With angle-only control the cart keeps about its hand-over speed, so even a perfect catch lasts only 2–5 s.
+- **Tuned for the next test:** `swingup.e_ref` 0.003 → **0.007**, because the rig lost about 0.6 % more energy on the
+  last approach than SimHw does. `swingup.u_sw_deg` 6 → **3**: hand over only on a good arrival, otherwise it comes
+  round again. Expect fewer instant soft-limit stops and balances of a few seconds.
+- **The real fix is Stage 2 cart feedback** (position and velocity in the balance law after the hand-over). Without
+  it, no catch from a moving cart lasts.

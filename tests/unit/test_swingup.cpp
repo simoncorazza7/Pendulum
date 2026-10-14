@@ -57,6 +57,7 @@ rt::SwingUpConfig rigSwing(const hw::SimHwParams& p) {
     rt::SwingUpConfig c = rt::swingUpFrom(Config::fromFile("config/pendctl.conf"));
     c.calib.c_bottom = 12.37 - std::floor(12.37 + 2400.0);   // the hanging start: SimHw counts begin at 0
     c.calib.pos_center = p.truth.pos_center;
+    c.e_ref = 0.003;            // SimHw loses less energy on the last approach than the rig (config is rig-tuned)
     return c;
 }
 
@@ -144,6 +145,7 @@ TEST(session_swingup_mode_home_ready_swing_quit) {
     const hw::SimHwParams p = swingSim();
     Config cfg = Config::fromFile("config/pendctl.conf");
     cfg.setFromAssignment("balance.swingup=true");
+    cfg.setFromAssignment("swingup.e_ref=0.003");                 // SimHw energy losses (see rigSwing)
     rt::Session ses(rt::sessionFrom(cfg));
     hw::SimHw sim(p, kPi - 0.14, 0.0, 0.03);
     bool ready = false, limit = false;

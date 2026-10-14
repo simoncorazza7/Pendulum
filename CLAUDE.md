@@ -157,3 +157,5 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   counts). Limit now: release momentum (+80..100 mm/s).
 - 2026-10-14 **swing-up built** (`rt::SwingUpRuntime`, session `balance.swingup`, `./swingup.sh`): energy from LP2(theta)
   (matched to the estimator; raw theta made E wobble ~8 %), hand-over 16.7 s in SimHw, energy out at the end. PC 76/76.
+  Rig 11-36-43: **7/7 swung up and handed over** (18-19.5 s), energy out 7/7; balance 0.25-0.5 s (5), 2.2, 11.6 s: the
+  cart moves 70-110 mm/s at hand-over, u >= 3 deg -> soft limit. Tuned e_ref 0.007, u_sw 3. Real fix: Stage 2 cart feedback.
