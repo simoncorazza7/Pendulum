@@ -172,3 +172,24 @@ On the rig the variants are config overrides; each run needs Simon's go:
 - `./demo.sh --set ctrl.zeta=1.0` (margins fine; expect a louder buzz);
 - `--set ctrl.p_over_w0=0.25` (slower integrator);
 - `--set ctrl.p_over_w0=0 --set ctrl.zeta=1.0` (PD: a visibly clean catch, then the cart runs off). This one is worth showing only as the contrast.
+
+### Why ζ = 0.7 (`py/zeta_sweep.py`: ζ swept at ω_c = 2ω₀, p = 0.5ω₀)
+
+| ζ | Kd | RMS a, quantisation | GM [lo, hi] | PM | DM | Ms = max\|S\| | Mt = max\|T\| | 2° catch: overshoot / settle |
+|---|---|---|---|---|---|---|---|---|
+| 0.4 | 4.17 | 0.13 | [0.33, 10.4] | 35° | 46 ms | 1.68 | 2.10 | 34 % / 0.50 s |
+| 0.5 | 4.96 | 0.15 | [0.30, 8.9] | 41° | 49 ms | 1.43 | 1.83 | 25 % / 0.53 s |
+| 0.6 | 5.76 | 0.17 | [0.27, 7.8] | 46° | 49 ms | **1.31** | 1.66 | 19 % / 0.58 s |
+| **0.7** | 6.56 | 0.19 | [0.25, 6.9] | 50° | 48 ms | **1.31** | 1.55 | 18 % / 0.71 s |
+| 0.8 | 7.35 | 0.22 | [0.23, 6.2] | 52° | 46 ms | 1.33 | 1.46 | 12 % / 0.87 s |
+| 1.0 | 8.94 | 0.27 | [0.20, 5.2] | 55° | 40 ms | 1.39 | 1.35 | 12 % / 1.04 s |
+| 1.2 | 10.53 | 0.32 | [0.18, 4.5] | 55° | 35 ms | 1.46 | 1.28 | 12 % / 1.14 s |
+
+- Ms is the largest amplification of any disturbance by the loop, and 1/Ms is how close the Nyquist curve comes to −1.
+  It is a single robustness number that covers gain and phase errors together. **It is smallest at ζ = 0.6–0.7**
+  (1.31, so the curve stays 0.76 away from −1).
+- **Below 0.6** the dominant pair rings: Mt rises to 2.1 and the phase margin falls to 35°.
+- **Above 0.8** the larger Kd raises the buzz, and the upper gain margin and the delay margin shrink, so Ms rises again.
+- Mt stays above 1 even with real poles. An open-loop unstable plant forces some peaking, and so does the integrator's zero.
+- 0.7 takes the end of the flat optimum with the larger phase margin (50° against 46°). It is also the textbook
+  1/√2: maximally flat, about 5 % overshoot of the pure pair, and the fastest settling into a 5 % band.
