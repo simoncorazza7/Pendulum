@@ -122,8 +122,7 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 - E-stop: Simon accepted the rocker switch (cuts motor AND Pi) for the slow 0.8 tests; a motor-only
   switch (with a bulk cap at VMOT) is to be added before the aggressive 0.9 runs.
 - **New PCB arrives Wed 2026-10-14** (better 5 V buck, fixes MS wiring): pin map may change, so read pins from config.
-- 0.5 (`docs/stage0_5_timing.md`): loop p99 6/35 µs idle/load; step edges p99 ≤ 12 µs, rare 0.1–0.3 ms bursts.
-  SoC heatsink fitted 2026-10-09 (82.7 °C under load before; 41–46 °C idle after).
+- 0.5 (`docs/stage0_5_timing.md`): loop p99 6/35 µs idle/load; step edges p99 ≤ 12 µs. SoC heatsink fitted 10-09.
 - C++ core mirrors Python with golden tests (pid, supervisor, units, swingfit, estimator, SimHw); `docs/model_derivation.md`.
 - **c_bottom must be re-found after every program start** (no index): small swing + `core::fitOffset`.
 - 2026-10-09 (`docs/stage0_6_7_10_results.md`): CPR = 2400 exact, no lost edges, c_bottom repeatable ±0.13 counts.
@@ -134,11 +133,10 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   corrected w, 2-20 deg), `pendctl --mode shadow` (motor lines never requested) and `--mode damp`. On the rig:
   **shadow** (theta sign at upright confirmed), **0.10 pulse** (input gain 93 %, combined sign confirmed),
   **hanging damping** (decay 1.02 vs design 0.99 1/s, gain 103 %). Stage 1 steps 1-2 done (ahead of Gate B, Simon's OK).
-- 0.11 decided on real data: BD+LP2 20 Hz (`docs/stage0_11_estimators.md`).
 - Drift (`docs/stage1_drift.md`): v_inf = v + L_eq*theta' + g*int(theta) at engage; i_delay 0. A hand holding the rod
   after ENGAGED: rigid-in-angle model ~90 mm/s per 50 ms, hand still in space benign (`py/hand_hold.py`). Engage on
   release + pre-load built but OFF (shadow 14-38-54: hand adjustments look like releases). Left: reference offset -> trim.
-- Open for Gate B: 0.9 with the new PCB (fixes the intermittent step mode); 0.6b. Then Gate B.
+- 0.11: BD+LP2 20 Hz (`docs/stage0_11_estimators.md`). Open for Gate B: 0.9 with the new PCB; 0.6b.
 - 2026-10-12: 0.12 validated on the rig data (`py/sim_validate.py`); **Gate B draft `docs/gateB_report.md`**
   (PID wc=2w0, LP2 20 Hz: GM [0.25, 6.9], PM 50 deg, DM 48 ms; catch region set by actuator limits). PENDING 0.9.
   2026-10-14 **zeta 0.7 kept (Simon)**: Ms minimal at 0.6-0.7; zeta 1 doesn't remove the catch overshoot (integrator);
