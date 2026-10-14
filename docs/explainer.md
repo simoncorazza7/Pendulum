@@ -57,6 +57,8 @@ seen directly; it's found by driving to a switch and comparing where it triggers
 Full derivations: `docs/model_derivation.md`. Here the ideas and the numbers.
 
 ### 2.1 Equation of motion
+Step-by-step derivation (cart frame, Newton–Euler, Lagrange): `docs/eom_derivation.md`.
+
 Angle θ from upright, positive when the top leans toward +x; pivot on the cart. For a rigid pendulum (mass
 m, pivot-to-centre-of-mass distance l, inertia J about the pivot, viscous pivot friction b) whose pivot is
 accelerated at a:

@@ -19,6 +19,8 @@ Numerical checks of all of this: `py/model_check.py`.
   steps), so cart mass, belt and motor torque drop out of the pendulum dynamics.
 
 ## 2. Equation of motion
+Step by step, three ways, with the force-input comparison: `docs/eom_derivation.md`.
+
 Lagrangian with x(t) prescribed. The COM velocity is (ẋ + l_c θ̇ cos θ, −l_c θ̇ sin θ), so
 
     T = ½ m ẋ² + m l_c ẋ θ̇ cos θ + ½ J θ̇²        V = m g l_c cos θ
