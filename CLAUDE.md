@@ -142,14 +142,9 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   (PID wc=2w0, LP2 20 Hz: GM [0.25, 6.9], PM 50 deg, DM 48 ms; catch region set by actuator limits). PENDING 0.9.
   2026-10-14 **zeta 0.7 kept (Simon)**: Ms minimal at 0.6-0.7; zeta 1 doesn't remove the catch overshoot (integrator);
   Ts 2 ms: w_gc*Ts = 0.036 (Gate B appendix; py/zeta_study.py, zeta_sweep.py, ts_study.py).
-- 2026-10-12: **balance session** for Simon's supervisor demo on Wed 10-14 (current hardware): `rt::Session` +
-  `rt::Mover` (homing: switch span 6104 usteps = 1/8-step check; moves accelerate for one period T0 = no swing;
-  re-centre touches the nearer switch = step-loss audit), a_max 2 / v_max 0.3. `BalanceRuntime::keep_driver_on`
-  fixes a latent issue (the Axis keeps its last brake command after STOPPING -> IDLE). Engage stays "still hold"
-  (let go ~1 s after the beep). PC + Pi 71/71, balance mock 23/23, stage1 mock 21/21.
-- 2026-10-12 **first closed-loop catches on the rig** (`15-30-52_balance`): span 6099 (1/8 OK), no step loss, 8 runs to
-  the soft limit. Quiet runs RMS 0.08 deg (= sim) but short: **reference offset +2.1 counts** (54 mm/s^2 toward +x,
-  16/17 stretches); long runs (36 s) = Simon's hand pushes (`stage1_report.py balance`).
+- 2026-10-12 **balance session** (`rt::Session` + `rt::Mover`, `./demo.sh`, `docs/stage1_demo.md`): homing with span check
+  (6104 usteps = 1/8 step), shaped moves (one period T0), switch-touch re-centre (step-loss audit), a_max 2 / v_max 0.3,
+  `keep_driver_on` hold. First rig catches 15-30-52: RMS theta 0.08 deg (= sim); drift from a +2.1-count offset; long runs = hand.
 - 2026-10-14 `10-20-52_balance`: **trim -2.1 validated** (residual -3 mm/s^2, run 11 14.9 s untouched) -> config default.
   Open: **~28 Hz oscillation** (all runs peak 27-32 Hz; runs 2-6 grew, a_cmd saturated): suspected structural/actuator
   resonance. Tap test (motor off): no ring -> likely drive side (cart rocking/belt while driven). **est_fc 20 -> 14 Hz
