@@ -132,3 +132,43 @@ trim reduces it only within a branch (discontinuous). Expected balanced runs: ~4
 - Approve the acceptance thresholds.
 - Engage logic: keep "still near upright" (release promptly), or a labelled shadow session to tune engage-on-release.
 - After 0.9: approve a_max, v_max, a_brake and the first-catch limits (brief: reduced a_max and v_max first).
+
+## Appendix: a critically damped controller? (2026-10-14, `py/zeta_study.py`)
+
+Question (Simon): tune the upright loop to be critically damped, ζ = 1 instead of 0.7.
+
+Pole placement gives (s² + 2ζω_c s + ω_c²)(s + p), so ζ = 1 makes the dominant pair a real double pole, and
+p = ω_c as well puts all three poles together. **But the angle still overshoots after a catch, whatever the poles.**
+- The PID only rests when Ki·∫θ = 0. The integrator starts at 0 at engage, so after a catch from +θ₀ the angle has
+  to spend as much area below zero as it spent above.
+- This is the same conservation that sets the cart velocity: v∞ = v₀ + L_eq θ̇₀ + g∫θ (`docs/stage1_drift.md`).
+- Only PD (Ki = 0) can approach upright monotonically. It then keeps the cart moving at g∫θ.
+
+Demo limits (a_max 2, v_max 0.3), BD+LP2 20 Hz, Ts 2 ms; catches in the validated nonlinear simulation:
+
+| Design | Kp / Ki / Kd | Poles (1/s) | GM [lo, hi] | PM | DM | RMS a, quantisation | 2° catch: overshoot / settle to 0.2° | Cart v after 3 s |
+|---|---|---|---|---|---|---|---|---|
+| **now**: ω_c 2ω₀, ζ 0.7, p 0.5ω₀ | 62.8 / 96.7 / 6.56 | −6.9±7.0j, −2.5 | [0.25, 6.9] | 50° | 48 ms | 0.19 | 18 % / 0.71 s | −4 mm/s |
+| ζ 1, same ω_c and p | 68.7 / 96.7 / 8.94 | −9.9 (×2), −2.5 | [0.20, 5.2] | 55° | 40 ms | 0.27 | 12 % / 1.04 s | +3 |
+| ζ 1, ω_c 1.40ω₀ (same Kd) | 42.8 / 47.4 / 6.56 | −6.9 (×2), −2.5 | [0.29, 7.2] | 57° | 59 ms | 0.19 | 19 % / 1.30 s | −13 |
+| triple pole at −1.10ω₀ (same Kd) | 45.4 / 64.4 / 6.56 | −5.4 (×3) | [0.30, 7.2] | 56° | 57 ms | 0.19 | 19 % / 1.14 s | −14 |
+| triple pole at −2ω₀ | 127.5 / 387 / 11.9 | −9.9 (×3) | [0.18, 3.7] | 48° | 25 ms | 0.39 | 13 % / 0.60 s | +4 |
+| PD, ζ 1, ω_c 2ω₀ | 49.1 / 0 / 7.95 | −9.9 (×2) | [0.20, 6.0] | 59° | 49 ms | 0.23 | **0 %** / 0.43 s | **+117** |
+| ζ 0.7, slower integrator p 0.25ω₀ | 55.9 / 48.4 / 6.06 | −6.9±7.0j, −1.2 | [0.23, 7.5] | 50° | 52 ms | 0.18 | 13 % / 0.90 s | −9 |
+| ζ 1, slower integrator p 0.25ω₀ | 58.9 / 48.4 / 8.45 | −9.9 (×2), −1.2 | [0.20, 5.6] | 57° | 44 ms | 0.25 | 11 % / 1.12 s | +6 |
+
+![catch from 2 deg, all candidates](img/zeta_study.png)
+
+Reading:
+- **ζ = 1 alone hardly changes the overshoot** (18 → 12 %) and settles slower. At the same bandwidth it raises Kd by 36 %: 40 % more quantisation buzz and 8 ms less delay margin.
+- At the same Kd (same buzz) it means a lower bandwidth: about the same overshoot, and slower.
+- The overshoot is set by the **integral pole p**. A slower integrator gives a shallower, longer undershoot (13 % at p = 0.25ω₀), at the price of a slower velocity correction (−9 mm/s after 3 s).
+- In absolute terms it is 0.25–0.4° on a 2° catch, about 1–1.5 counts, below what anyone sees on the rig.
+- **PD ζ = 1** is the textbook critically damped catch with no overshoot. It leaves the cart at +117 mm/s after a 2° catch, enough to reach the soft limit in about 1–1.5 s. This is the PD-versus-PID trade from brief §3.
+
+**Recommendation:** keep ζ = 0.7, ω_c = 2ω₀, p = 0.5ω₀. If a slightly calmer catch is wanted, p = 0.25ω₀ is the knob, not ζ.
+
+On the rig the variants are config overrides; each run needs Simon's go:
+- `./demo.sh --set ctrl.zeta=1.0` (margins fine; expect a louder buzz);
+- `--set ctrl.p_over_w0=0.25` (slower integrator);
+- `--set ctrl.p_over_w0=0 --set ctrl.zeta=1.0` (PD: a visibly clean catch, then the cart runs off). This one is worth showing only as the contrast.
