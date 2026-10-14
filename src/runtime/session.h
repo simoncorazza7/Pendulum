@@ -12,6 +12,7 @@
 #include "runtime/balance.h"
 #include "runtime/mover.h"
 #include "runtime/swing_calib.h"
+#include "runtime/swingup.h"
 
 // Balance session (pendctl --mode balance; brief §6 hardware step 3, first closed-loop catches): one
 // program run, many catches. Portable like BalanceRuntime: the caller owns the fixed-rate loop and
@@ -29,6 +30,9 @@
 //   FINISHING  quit: hold to standstill, driver off -> FINISHED
 //   FAILED     a move failed or the span check failed: braked to standstill, driver off (terminal:
 //              the position reference is lost)
+// Swing-up mode (swingup_mode, ./swingup.sh): BALANCE holds the cart and reports READY once the pendulum
+// hangs still and the cart is centred; the operator's go starts an rt::SwingUpRuntime run (go during the run =
+// bring it down, quit = hard stop); when the run is DONE -> AFTER_RUN as above.
 // The driver stays on from HOME until FINISHED/FAILED so the step count stays the cart position.
 namespace rt {
 
@@ -40,7 +44,8 @@ const char* sessionPhaseName(SessionPhase p);
 
 enum class SessionEvent {
     None = 0, Calibrated = 1, HomeStarted = 2, SwitchFound = 3, Homed = 4, RunEnded = 5,
-    RecentreStarted = 6, Recentred = 7, Failed = 8, Finished = 9
+    RecentreStarted = 6, Recentred = 7, Failed = 8, Finished = 9, SwingReady = 10, SwingStarted = 11,
+    SwingNotReady = 12
 };
 
 struct SessionConfig {
@@ -57,6 +62,8 @@ struct SessionConfig {
     double approach = 0.03;         // m: re-centring travels at v_travel to this far before the switch
     double touch_tol = 0.015;       // m: the switch found further than this from where expected fails
     double arm_delay = 0.2;         // s after BALANCE starts before the first arm request (estimator)
+    bool swingup_mode = false;      // BALANCE runs operator-started swing-ups instead of hand catches
+    SwingUpConfig swingup;          // calib set by the session
 };
 
 struct AttemptStats {
@@ -68,6 +75,10 @@ struct AttemptStats {
     double sum_th2 = 0;             // rad^2, from 1 s after engage
     int n_th = 0, n_eng = 0, n_sat = 0;
     double peak_a = 0, peak_v = 0;  // m/s^2, m/s while engaged
+    bool swingup = false;           // a swing-up run: engaged = handed over, t_engaged = balanced after it
+    double t_handover = -1;         // s from the swing-up start
+    double peak_energy = 0;         // 1 = upright
+    const char* end_text = "";      // why the swing-up run ended (static string)
     double rmsTheta() const;
     double satFraction() const;
 };
@@ -86,6 +97,8 @@ struct SessionRecord {
     int axis_arg = 0;
     bool sent = false, saturated = false, overrun = false, limit_left = false, limit_right = false;
     bool axis_accelerating = false, driver_enabled = false;
+    int swing_phase = -1;           // rt::SwingPhase while a swing-up runs, else -1
+    double energy = 0;              // swing-up: 0 = hanging at rest, 1 = upright at rest
 };
 
 class Session {
@@ -100,6 +113,8 @@ public:
     SessionPhase phase() const { return phase_; }
     bool finished() const { return phase_ == SessionPhase::Finished || phase_ == SessionPhase::Failed; }
     core::Mode mode() const { return brt_ ? brt_->mode() : core::Mode::Idle; }
+    int swingPhase() const { return swr_ ? static_cast<int>(swr_->phase()) : -1; }
+    bool swingReady() const { return ready_; }
     const char* reason() const { return reason_; }           // why FAILED
     int attempts() const { return attempt_; }
     const AttemptStats& lastAttempt() const { return last_; }
@@ -115,6 +130,7 @@ public:
 
 private:
     void startBalance();
+    SessionRecord swingTick(hw::Hardware& hw, bool overrun, bool go, bool quit);
     void startRecentre(const hw::Sample& s);
     void moverDone(hw::Hardware& hw, const hw::Sample& s, SessionRecord& r);
     void failWith(hw::Hardware& hw, const char* fmt, ...);
@@ -126,6 +142,8 @@ private:
     Mover mover_;
     core::VelocityEstimator est_;
     std::unique_ptr<BalanceRuntime> brt_;
+    std::unique_ptr<SwingUpRuntime> swr_;
+    bool ready_ = false;
     core::Calib calib_;
     std::atomic<bool> go_{false}, quit_{false};
     bool driver_on_ = false, run_started_ = false, has_start_ = false;

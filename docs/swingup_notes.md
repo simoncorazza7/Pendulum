@@ -87,3 +87,48 @@ First attempts, kept as lessons:
      v_max, a timeout.
    - Engage through the free-motion path, with pre-load.
    - If the catch fails, fall back to damping (the damp law) and a controlled stop, not more pumping.
+
+## 6. Implementation (2026-10-14; Simon pulled swing-up forward for testing)
+
+- `rt::SwingUpRuntime` (`src/runtime/swingup.{h,cpp}`) has phases KICK → PUMP → BALANCE → BRAKE → DAMP_OUT → DONE,
+  plus STOPPING. Like the damp runtime, it carries its own aborts; the hand-catch supervisor and its golden tests are
+  untouched.
+  - **Pumping:** Åström–Furuta with a cap (`swingup.a_pump` 0.75), k_e 1.0, target `swingup.e_ref` +0.3 %, plus cart
+    centring 2 rad/s. The v_max taper and a_max come from the balance PID.
+  - **Hand-over:** |θ_f| < 10° and |θ_f + θ̇/ω₀| < 6°, with the integrator pre-load. Then the balance PID, angle only.
+  - **Normal ends:** PUMP ends on energy above +10 %, 40 s, or the operator's Enter, going to DAMP_OUT. BALANCE ends on
+    the soft limit, θ_abort, 30 s, or Enter, going to BRAKE → DAMP_OUT. DAMP_OUT runs the same law toward the hanging
+    energy (capped at 0.5 m/s²) until the swing is below 10°, then a final brake.
+  - **Hard ends:** limit switch, encoder fault, Axis not in ACCELERATE, overrun streak, quit, or a soft limit while
+    kicking or removing energy go to STOPPING, a brake only.
+- **The energy estimate needs a matched filter.** θ̇ from BD+LP2 lags about 16 ms at 14 Hz. ½θ̇² + ω₀²(cos θ − 1)
+  with the raw θ wobbles by up to about 8 % within a swing. In SimHw no gain ever handed over: the energy hovered
+  1–7 % high, or friction-limited below the target.
+  - The estimate is exactly d/dt LP2(θ). So the runtime filters θ with the same LP2 (θ_f) and uses it for E, for the
+    switching sign and for the hand-over test. That gives the energy of the trajectory 16 ms ago, which is constant
+    along a swing.
+  - With it, k_e 1.0 hands over in 16.7 s at a_pump 0.75 (11.7 s at 1.0). Lower k_e stalls below the target, because
+    friction wins.
+- **Session:** `balance.swingup = true` (`./swingup.sh`). After homing or re-centring the session holds the cart and
+  prints READY once the pendulum hangs still and the cart is centred. Enter starts a run. Afterwards AFTER_RUN, and
+  Enter re-centres. `data.csv` gains `swing_phase` and `energy`; meta `runs` gains `swingup` entries.
+- **Tests:** PC 76/76 (`tests/unit/test_swingup.cpp`), on SimHw with the identified plant and the switches:
+  - full run: hand-over 16.7 s, balanced 8.1 s until the soft limit, brought down to a 10° swing, done at 43 s, max
+    |x| 140 mm (the balance drift), within the soft limits;
+  - too much energy: caught at +10 % and brought down;
+  - Enter while pumping (87° swing): down in 10 s; quit: a hard stop;
+  - the whole session in swing-up mode (calibrate, home, READY, run, quit).
+- **What it does not do yet:** cart feedback after the hand-over (Stage 2), so the balance lasts only until the drift
+  reaches the soft limit, a few seconds. The rig's real friction and energy losses may need e_ref or a_pump retuned;
+  start conservative.
+
+### Running it (each run needs Simon's go)
+
+`./swingup.sh` gives a checklist; then calibration and homing as in the demo.
+- **The new hazard:** the pendulum sweeps the whole circle around the pivot, with the tip passing the bottom at up to
+  ~4 m/s. Stay outside that circle; never reach in to catch it while it pumps.
+- **Enter during a run** = bring it down: the energy is pumped out and the cart stops with the pendulum hanging.
+  **q or Ctrl-C** = hard stop: the cart stops, but the pendulum keeps its energy and keeps swinging; let it die down
+  before reaching in.
+- First run: watch the pumping phase. The energy line should climb to about 1.00 in 15–25 s and the cart should swing
+  ±60–100 mm. If the hand-over or the catch fails, the runtime removes the energy by itself.

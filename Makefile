@@ -18,25 +18,25 @@ CORE      := src/core/pid.cpp src/core/supervisor.cpp src/core/units.cpp src/cor
 CORE_H    := src/core/pid.h src/core/supervisor.h src/core/units.h src/core/swingfit.h \
              src/core/estimator.h src/core/profile.h
 HW        := src/hw/sim_hw.cpp src/runtime/balance.cpp src/runtime/swing_calib.cpp src/runtime/damp.cpp \
-             src/runtime/params.cpp src/runtime/mover.cpp src/runtime/session.cpp
+             src/runtime/params.cpp src/runtime/mover.cpp src/runtime/session.cpp src/runtime/swingup.cpp
 HW_H      := src/hw/hardware.h src/hw/sim_hw.h src/runtime/balance.h src/runtime/swing_calib.h \
-             src/runtime/damp.h src/runtime/params.h src/runtime/mover.h src/runtime/session.h
+             src/runtime/damp.h src/runtime/params.h src/runtime/mover.h src/runtime/session.h src/runtime/swingup.h
 COMMON_H  := src/common/config.h src/common/runlog.h src/rt/ringlog.h
 PENDCTL   := src/app/pendctl.cpp src/app/selftest.cpp src/app/timing_probe.cpp src/app/encoder_log.cpp src/app/move.cpp \
              src/app/rig.cpp src/app/shadow_mode.cpp src/app/damp_mode.cpp src/app/balance_mode.cpp \
              src/rt/rt.cpp axis.cpp safety.cpp src/hw/pi_hw.cpp src/hw/sensor_hw.cpp src/hw/edge_reader.cpp \
              src/core/profile.cpp src/core/units.cpp src/core/pid.cpp src/core/supervisor.cpp src/core/swingfit.cpp \
              src/core/estimator.cpp src/runtime/balance.cpp src/runtime/damp.cpp src/runtime/swing_calib.cpp \
-             src/runtime/params.cpp src/runtime/mover.cpp src/runtime/session.cpp
+             src/runtime/params.cpp src/runtime/mover.cpp src/runtime/session.cpp src/runtime/swingup.cpp
 PENDCTL_H := src/app/modes.h src/rt/rt.h src/rt/latency.h axis.h safety.h SafeQueue.h src/hw/pi_hw.h \
              src/hw/edge_reader.h src/hw/hardware.h src/core/profile.h src/core/units.h src/app/rig.h \
              src/hw/sensor_hw.h src/core/pid.h src/core/supervisor.h src/core/swingfit.h src/core/estimator.h \
              src/runtime/balance.h src/runtime/damp.h src/runtime/swing_calib.h src/runtime/params.h \
-             src/runtime/mover.h src/runtime/session.h
+             src/runtime/mover.h src/runtime/session.h src/runtime/swingup.h
 TESTS     := tests/unit/test_main.cpp tests/unit/test_ringlog.cpp tests/unit/test_config.cpp tests/unit/test_pid.cpp \
              tests/unit/test_supervisor.cpp tests/unit/test_swingfit.cpp tests/unit/test_simhw.cpp \
              tests/unit/test_estimator.cpp tests/unit/test_balance.cpp tests/unit/test_profile.cpp \
-             tests/unit/test_damp.cpp tests/unit/test_params.cpp tests/unit/test_session.cpp
+             tests/unit/test_damp.cpp tests/unit/test_params.cpp tests/unit/test_session.cpp tests/unit/test_swingup.cpp
 
 .PHONY: all test clean
 all: $(BUILD)/main $(BUILD)/pendctl $(BUILD)/unit_tests

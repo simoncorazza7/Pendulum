@@ -6,7 +6,8 @@ a value or convention is established, and at the end of every session.
 
 ## Scope
 Simon (mechatronics student) is continuing a 2025 bachelor-thesis rig. Current scope: **Stage 0**
-(bring-up, audit, identification) and **Stage 1** (on-Pi angle-only balance PID). Nothing beyond that.
+(bring-up, audit, identification) and **Stage 1** (on-Pi angle-only balance PID). Exception (Simon, 2026-10-14):
+swing-up (Stage 4) pulled forward for testing (`./swingup.sh`, `docs/swingup_notes.md`). Nothing else beyond.
 Explain the reasoning behind design choices.
 
 ## Safety rules (non-negotiable)
@@ -153,4 +154,6 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   Open: **~28 Hz oscillation** (all runs peak 27-32 Hz; runs 2-6 grew, a_cmd saturated): suspected structural/actuator
   resonance. Tap test (motor off): no ring -> likely drive side (cart rocking/belt while driven). **est_fc 20 -> 14 Hz
   default** (0 of 7 runs grown vs 3 of 17; PM 46, DM 43 ms). **Trim -1.6** (5 sessions, start-to-start scatter ~0.5
-  counts). Limit now: release momentum (+80..100 mm/s). Swing-up notes: `docs/swingup_notes.md`.
+  counts). Limit now: release momentum (+80..100 mm/s).
+- 2026-10-14 **swing-up built** (`rt::SwingUpRuntime`, session `balance.swingup`, `./swingup.sh`): energy from LP2(theta)
+  (matched to the estimator; raw theta made E wobble ~8 %), hand-over 16.7 s in SimHw, energy out at the end. PC 76/76.

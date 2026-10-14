@@ -48,6 +48,13 @@ void Session::failWith(hw::Hardware& hw, const char* fmt, ...) {
 }
 
 void Session::startBalance() {
+    if (c_.swingup_mode) {                     // swing-up: hold the cart, wait for READY + the operator's go
+        swr_.reset();
+        ready_ = false;
+        t_phase_ = 0;
+        phase_ = SessionPhase::Balance;
+        return;
+    }
     BalanceConfig bc = c_.balance;
     bc.calib = calib_;
     bc.actuate = true;
@@ -148,6 +155,8 @@ SessionRecord Session::tick(hw::Hardware& hw, bool overrun) {
     const double ts = c_.balance.ts;
     t_phase_ += ts;
 
+    if (c_.swingup_mode && (phase_ == SessionPhase::Balance || phase_ == SessionPhase::AfterRun))
+        return swingTick(hw, overrun, go, quit);
     if (phase_ == SessionPhase::Balance || phase_ == SessionPhase::AfterRun) {
         BalanceRuntime& b = *brt_;
         if (phase_ == SessionPhase::Balance) {
@@ -287,6 +296,85 @@ SessionRecord Session::tick(hw::Hardware& hw, bool overrun) {
         default:
             driver(hw, false);
             break;
+    }
+    r.driver_enabled = driver_on_;
+    r.phase = static_cast<int>(phase_);
+    r.attempt = attempt_;
+    return r;
+}
+
+// Swing-up mode: BALANCE = hold + wait for READY and the go, or a running rt::SwingUpRuntime; AFTER_RUN = hold.
+SessionRecord Session::swingTick(hw::Hardware& hw, bool overrun, bool go, bool quit) {
+    SessionRecord r;
+    r.overrun = overrun;
+    const double ts = c_.balance.ts;
+    const hw::Sample s = hw.read();
+    r.t_ns = s.t_ns; r.counts = s.counts; r.pos_usteps = s.pos_usteps; r.speed_toggles = s.speed_toggles;
+    r.n_edges = s.n_edges; r.limit_left = s.limit_left; r.limit_right = s.limit_right;
+    r.axis_accelerating = s.axis_accelerating;
+    r.theta = core::thetaFromCounts(s.counts, calib_);
+    r.omega = est_.update(s.counts) * core::omegaScale(calib_);
+    r.x = core::xFromPos(s.pos_usteps, calib_);
+    r.v = core::vFromAxisSpeed(s.speed_toggles, calib_);
+
+    if (phase_ == SessionPhase::Balance && swr_) {
+        if (quit) swr_->requestStop();
+        else if (go) swr_->requestDampOut();
+        const SwingRecord w = swr_->tick(hw, s, overrun);
+        r.a_cmd = w.a_cmd; r.axis_arg = w.axis_arg; r.integral = w.integral; r.saturated = w.saturated;
+        r.sent = w.sent; r.swing_phase = w.phase; r.energy = w.energy;
+        if (swr_->done()) {
+            cur_.engaged = swr_->handedOver();
+            cur_.t_handover = swr_->handoverTime();
+            cur_.t_engaged = swr_->balanceTime();
+            cur_.max_abs_x = swr_->maxAbsX();
+            cur_.peak_v = swr_->peakV();
+            cur_.peak_energy = swr_->peakEnergy();
+            cur_.end_text = swr_->reason();
+            cur_.x_end = r.x;
+            last_ = cur_;
+            swr_.reset();
+            r.sevent = static_cast<int>(SessionEvent::RunEnded);
+            phase_ = quit ? SessionPhase::Finishing : SessionPhase::AfterRun;
+            still_ = 0;
+            t_phase_ = 0;
+        }
+    } else {
+        const double a = r.v != 0.0 ? -std::copysign(std::min(c_.mover.a_brake, std::fabs(r.v) / ts), r.v) : 0.0;
+        r.a_cmd = a;
+        r.axis_arg = core::axisAccelArg(a, calib_);
+        hw.commandAccel(r.axis_arg);           // hold the cart (the Axis keeps executing its last command)
+        r.sent = true;
+        if (quit) {
+            phase_ = SessionPhase::Finishing;
+            still_ = 0;
+            t_phase_ = 0;
+        } else if (phase_ == SessionPhase::Balance) {
+            const core::SupervisorParams& p = c_.balance.sup;
+            const bool still = std::fabs(core::wrap(r.theta - 3.141592653589793)) < p.hang_tol &&
+                               std::fabs(r.omega) < p.omega_hang && std::fabs(r.v) < p.v_stopped &&
+                               std::fabs(r.x) < p.center_tol && !s.limit_left && !s.limit_right &&
+                               t_phase_ > c_.arm_delay;
+            if (still && !ready_) r.sevent = static_cast<int>(SessionEvent::SwingReady);
+            ready_ = still;
+            if (go && ready_) {
+                SwingUpConfig u = c_.swingup;
+                u.calib = calib_;
+                swr_ = std::make_unique<SwingUpRuntime>(u);
+                cur_ = AttemptStats{};
+                cur_.n = ++attempt_;
+                cur_.swingup = true;
+                ready_ = false;
+                r.sevent = static_cast<int>(SessionEvent::SwingStarted);
+            } else if (go) {
+                r.sevent = static_cast<int>(SessionEvent::SwingNotReady);
+            }
+        } else if (go) {                      // AFTER_RUN: re-centre, then READY again
+            phase_ = SessionPhase::Recentre;
+            step_ = -1;
+            t_phase_ = 0;
+            r.sevent = static_cast<int>(SessionEvent::RecentreStarted);
+        }
     }
     r.driver_enabled = driver_on_;
     r.phase = static_cast<int>(phase_);

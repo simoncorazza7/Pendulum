@@ -141,6 +141,29 @@ en=$(sets $EN); check "B6 last EN write 1" 1 "${en: -1}"
 check "B6 meta span within 5 %" 1 "$(python3 -c "print(int(abs($(meta span_usteps) - 6104) < 305))")"
 grep -E "home:|ARMED|STOPPING|run 1|session" $OUT | head -8
 
+echo "== B7 swing-up mode: homing as B6, READY, q: ends without starting a run"
+reset_inputs; trace_start; swing 12
+start --set balance.swingup=true
+waitfor '^calib: accepted' 20
+sleep 0.5; say ""
+waitfor 'seeking the RIGHT' 5
+sleep 2; setin $LIM_R 0
+waitfor 'seeking the LEFT' 5
+sleep 0.2; setin $LIM_R 1
+sleep 11.9; setin $LIM_L 0
+waitfor 'step mode OK' 5
+sleep 0.2; setin $LIM_L 1
+waitfor 'home: centred' 15
+waitfor '^READY (swing-up)' 10
+say q
+finish
+wait
+check "B7 exit 0" 0 "$RC"
+check "B7 swing-up banner" 1 "$(grep -c '^SWING-UP MODE' $OUT)"
+check "B7 ready" 1 "$(grep -c '^READY (swing-up)' $OUT)"
+check "B7 no run started" 0 "$(grep -c 'SWING-UP run' $OUT)"
+en=$(sets $EN); check "B7 last EN write 1" 1 "${en: -1}"
+
 trace_stop
 reset_inputs
 sudo chown -R "$(id -un)":"$(id -gn)" logs

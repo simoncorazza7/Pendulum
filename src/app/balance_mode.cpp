@@ -119,8 +119,20 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                       "Enter = next step (home / stop the run / re-centre), q + Enter or Ctrl-C = stop and end.\n",
                       chip.c_str(), pi.chipLabel().c_str(), p.kp, p.ki, p.kd, p.a_max, p.v_max, sp.x_min * 1e3,
                       sp.x_max * 1e3, sp.theta_engage * kRad2Deg, sp.theta_abort * kRad2Deg);
-        std::cout << b << "calib: give the HANGING pendulum a small swing (3-8 deg) and let go. Hands off until "
-                          "'calib: accepted' (~5 s). Driver OFF.\n" << std::flush;
+        std::cout << b;
+        if (sc.swingup_mode) {
+            const rt::SwingUpConfig& u = sc.swingup;
+            std::snprintf(b, sizeof b,
+                          "SWING-UP MODE: pumping capped at %.2f m/s^2 (cart swings ~+-%.0f mm), energy target %+.1f %% of "
+                          "upright, hand-over at |theta| < %.0f deg and |theta + theta'/w0| < %.0f deg, then the PID above.\n"
+                          "The pendulum sweeps the WHOLE CIRCLE around the pivot: stay outside it during a run. During a run: "
+                          "Enter = bring it down (energy out), q / Ctrl-C = hard stop (the cart stops, the pendulum keeps "
+                          "swinging).\n",
+                          u.a_pump, u.a_pump * 52.0, u.e_ref * 100, u.theta_sw * kRad2Deg, u.u_sw * kRad2Deg);
+            std::cout << b;
+        }
+        std::cout << "calib: give the HANGING pendulum a small swing (3-8 deg) and let go. Hands off until "
+                     "'calib: accepted' (~5 s). Driver OFF.\n" << std::flush;
     }
 
     rt::Session ses(sc);
@@ -146,7 +158,10 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
     flags.motionSafe = false;
     bool quitSent = false, halted = false;
     double tQuit = 0, nextStatus = 0, nextCal = 1.0, nextMove = 0;
-    int lastMode = -1, lastRefusal = -1;
+    int lastMode = -1, lastRefusal = -1, lastSwing = -1;
+    const char* afterCentre = sc.swingup_mode
+                                  ? "Let the pendulum hang still; at READY, Enter starts the swing-up."
+                                  : "Arms by itself when the pendulum hangs still.";
     while (true) {
         const std::int64_t late = clk.wait();
         const double t = clk.seconds();
@@ -203,13 +218,23 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                 }
                 break;
             case rt::SessionEvent::Homed:
-                std::snprintf(b, sizeof b, "home: centred at pos %lld. Arms by itself when the pendulum hangs still.",
-                              static_cast<long long>(ses.centre()));
+                std::snprintf(b, sizeof b, "home: centred at pos %lld. %s", static_cast<long long>(ses.centre()),
+                              afterCentre);
                 break;
             case rt::SessionEvent::RunEnded: {
                 const rt::AttemptStats& a = ses.lastAttempt();
                 attempts.push_back(a);
-                if (a.engaged)
+                if (a.swingup)
+                    std::snprintf(b, sizeof b,
+                                  "\nswing-up run %d: %s. %s, peak energy %.3f of upright, max |x| %.0f mm, peak |v| %.2f m/s, "
+                                  "stopped at x %+.0f mm.\nEnter = re-centre (touches the nearer switch) and get READY again; "
+                                  "q + Enter = end.",
+                                  a.n, a.end_text[0] ? a.end_text : "done",
+                                  a.engaged ? fmt("handed over after %.1f s", a.t_handover).append(fmt(", balanced %.1f s",
+                                                                                                         a.t_engaged)).c_str()
+                                            : "no hand-over",
+                                  a.peak_energy, a.max_abs_x * 1e3, a.peak_v, a.x_end * 1e3);
+                else if (a.engaged)
                     std::snprintf(b, sizeof b,
                                   "run %d: %s after %.2f s balanced. RMS theta %.2f deg (after 1 s), peak |a| %.2f m/s^2 "
                                   "(saturated %.0f %%), peak |v| %.2f m/s, max |x| %.0f mm, stopped at x %+.0f mm.\n"
@@ -227,7 +252,18 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                 std::snprintf(b, sizeof b, "re-centre: driver stays ON; to the nearer switch, then the centre");
                 break;
             case rt::SessionEvent::Recentred:
-                std::snprintf(b, sizeof b, "re-centre: centred. Arms by itself when the pendulum hangs still.");
+                std::snprintf(b, sizeof b, "re-centre: centred. %s", afterCentre);
+                break;
+            case rt::SessionEvent::SwingReady:
+                std::snprintf(b, sizeof b, "\nREADY (swing-up): stand outside the pendulum's circle. Enter = start.");
+                break;
+            case rt::SessionEvent::SwingStarted:
+                std::snprintf(b, sizeof b, "\a%7.2f s  SWING-UP run %d: kick, then pumping. Enter = bring it down, "
+                              "q = hard stop.", t, r.attempt);
+                break;
+            case rt::SessionEvent::SwingNotReady:
+                std::snprintf(b, sizeof b, "not READY: the pendulum must hang still (within %.0f deg, slower than %.1f "
+                              "rad/s) with the cart centred", sc.balance.sup.hang_tol * kRad2Deg, sc.balance.sup.omega_hang);
                 break;
             case rt::SessionEvent::Failed:
                 std::snprintf(b, sizeof b, "FAILED: %s. Driver off; the session ends.", ses.reason());
@@ -276,6 +312,25 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
         } else {
             lastMode = -1;
         }
+        // Swing-up runtime: phase changes and a status line every status period.
+        if (r.swing_phase >= 0) {
+            const auto sp = static_cast<rt::SwingPhase>(r.swing_phase);
+            if (r.swing_phase != lastSwing) {
+                std::cout << (sp == rt::SwingPhase::Balance ? "\a" : "") << fmt("%7.2f s  ", t) << rt::swingPhaseName(sp)
+                          << fmt("  (energy %.3f of upright", r.energy) << fmt(", theta %+.1f deg", r.theta * kRad2Deg)
+                          << fmt(", x %+.0f mm)", r.x * 1e3) << "\n" << std::flush;
+                lastSwing = r.swing_phase;
+            }
+            if (t >= nextStatus) {
+                nextStatus = t + statusPeriod;
+                char s[200];
+                std::snprintf(s, sizeof s, "%7.2f s  %-8s energy %5.3f  theta %+7.1f deg  x %+6.1f mm  v %+6.3f m/s  a %+5.2f",
+                              t, rt::swingPhaseName(sp), r.energy, r.theta * kRad2Deg, r.x * 1e3, r.v, r.a_cmd);
+                std::cout << s << "\n" << std::flush;
+            }
+        } else {
+            lastSwing = -1;
+        }
         if (phase == rt::SessionPhase::Calibrate && t >= nextCal) {
             nextCal = t + 1.0;
             const rt::SwingCalibStatus& st = ses.calibStatus();
@@ -306,18 +361,19 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
     const std::string dir = runlog::makeRunDir(logDir, "balance");
     writeCsv(log, dir + "/data.csv",
              "tick,late_ns,t_ns,phase,attempt,mode,event,sevent,counts,pos_usteps,speed_toggles,n_edges,theta,omega,x,v,"
-             "a_cmd,x_ref,integral,axis_arg,sent,saturated,overrun,lim_l,lim_r,axis_acc,driver",
+             "a_cmd,x_ref,integral,axis_arg,sent,saturated,overrun,lim_l,lim_r,axis_acc,driver,swing_phase,energy",
              [](std::ostream& o, const BalRec& x) {
                  const rt::SessionRecord& r = x.r;
-                 char b[400];
+                 char b[440];
                  std::snprintf(b, sizeof b,
-                               "%u,%lld,%lld,%d,%d,%d,%d,%d,%lld,%lld,%lld,%d,%.7f,%.6f,%.7f,%.7f,%.6f,%.7f,%.7f,%d,%d,%d,%d,%d,%d,%d,%d",
+                               "%u,%lld,%lld,%d,%d,%d,%d,%d,%lld,%lld,%lld,%d,%.7f,%.6f,%.7f,%.7f,%.6f,%.7f,%.7f,%d,%d,%d,%d,%d,%d,%d,%d,"
+                               "%d,%.5f",
                                x.tick, static_cast<long long>(x.late_ns), static_cast<long long>(r.t_ns), r.phase, r.attempt,
                                r.mode, r.event, r.sevent, static_cast<long long>(r.counts),
                                static_cast<long long>(r.pos_usteps), static_cast<long long>(r.speed_toggles), r.n_edges,
                                r.theta, r.omega, r.x, r.v, r.a_cmd, r.x_ref, r.integral, r.axis_arg, r.sent ? 1 : 0,
                                r.saturated ? 1 : 0, r.overrun ? 1 : 0, r.limit_left ? 1 : 0, r.limit_right ? 1 : 0,
-                               r.axis_accelerating ? 1 : 0, r.driver_enabled ? 1 : 0);
+                               r.axis_accelerating ? 1 : 0, r.driver_enabled ? 1 : 0, r.swing_phase, r.energy);
                  o << b;
              });
     writeCsv(edgeLog, dir + "/edges.csv", "ts_ns,count_after,tick", [](std::ostream& o, const EdgeRec& e) {
@@ -329,7 +385,14 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
     // Per-attempt summary: n engaged t_engaged end_reason rms_theta_deg peak_a sat_fraction peak_v max_abs_x x_end
     std::string runs, touches;
     for (const rt::AttemptStats& a : attempts) {
-        char b[200];
+        char b[260];
+        if (a.swingup) {   // swing-up: n handed_over t_handover t_balanced end peak_energy peak_v max_abs_x x_end
+            std::snprintf(b, sizeof b, "%sswingup %d %d %.3f %.3f %s %.4f %.3f %.4f %.4f", runs.empty() ? "" : "; ", a.n,
+                          a.engaged ? 1 : 0, a.t_handover, a.t_engaged, a.end_text, a.peak_energy, a.peak_v, a.max_abs_x,
+                          a.x_end);
+            runs += b;
+            continue;
+        }
         std::snprintf(b, sizeof b, "%s%d %d %.3f %s %.3f %.2f %.3f %.3f %.4f %.4f", runs.empty() ? "" : "; ", a.n,
                       a.engaged ? 1 : 0, a.t_engaged, core::reasonName(static_cast<core::Reason>(a.end_reason)),
                       a.rmsTheta() * kRad2Deg, a.peak_a, a.satFraction(), a.peak_v, a.max_abs_x, a.x_end);

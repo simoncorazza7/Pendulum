@@ -132,6 +132,8 @@ DampConfig dampFrom(const Config& cfg) {
     return d;
 }
 
+namespace { SwingUpConfig swingUpFromSession(const Config& cfg, const SessionConfig& sc); }
+
 SessionConfig sessionFrom(const Config& cfg) {
     SessionConfig s;
     s.balance = balanceFrom(cfg);
@@ -179,7 +181,48 @@ SessionConfig sessionFrom(const Config& cfg) {
     const double reach = std::max(sp.x_max, -sp.x_min) + core::stoppingDistance(sp, pid.v_max) + s.touch_tol;
     if (!(reach < half))
         throw std::runtime_error("sup.x_min/x_max + braking from balance.v_max + touch_tol reach beyond the switches");
+    s.swingup_mode = cfg.getBool("balance.swingup");
+    s.swingup = swingUpFromSession(cfg, s);
     return s;
 }
+
+namespace {
+
+SwingUpConfig swingUpFromSession(const Config& cfg, const SessionConfig& sc) {
+    SwingUpConfig u;
+    u.ts = sc.balance.ts;
+    u.calib = sc.balance.calib;
+    u.est_kind = sc.balance.est_kind;
+    u.est_fc = sc.balance.est_fc;
+    u.w0 = cfg.getDouble("plant.w0");
+    u.pid = sc.balance.pid;
+    u.limits = sc.balance.sup;
+    u.a_pump = cfg.getDouble("swingup.a_pump");
+    u.a_damp = cfg.getDouble("swingup.a_damp");
+    u.k_e = cfg.getDouble("swingup.k_e");
+    u.e_ref = cfg.getDouble("swingup.e_ref");
+    u.e_abort = cfg.getDouble("swingup.e_abort");
+    u.kx = cfg.getDouble("swingup.kx");
+    u.kv = cfg.getDouble("swingup.kv");
+    u.kick_time = cfg.getDouble("swingup.kick_time");
+    u.theta_sw = cfg.getDouble("swingup.theta_sw_deg") * kDeg;
+    u.u_sw = cfg.getDouble("swingup.u_sw_deg") * kDeg;
+    u.pump_max = cfg.getDouble("swingup.pump_max");
+    u.balance_max = cfg.getDouble("swingup.balance_max");
+    u.damp_max = cfg.getDouble("swingup.damp_max");
+    u.quiet_deg = cfg.getDouble("swingup.quiet_deg");
+    u.preload = cfg.getBool("swingup.preload");
+    if (!(u.a_pump > 0 && u.a_damp > 0 && u.a_pump <= u.pid.a_max && u.a_damp <= u.pid.a_max))
+        throw std::runtime_error("swingup.a_pump / a_damp must be in (0, balance.a_max]");
+    if (!(u.k_e > 0 && u.e_abort > u.e_ref && u.e_ref > -0.05 && u.kx >= 0 && u.kv >= 0 && u.kick_time > 0))
+        throw std::runtime_error("swingup.k_e / e_ref / e_abort / kx / kv / kick_time out of range");
+    if (!(u.theta_sw > 0 && u.theta_sw < u.limits.theta_abort && u.u_sw > 0 && u.quiet_deg > 0))
+        throw std::runtime_error("swingup.theta_sw_deg / u_sw_deg / quiet_deg out of range (theta_sw < theta_abort)");
+    return u;
+}
+
+}
+
+SwingUpConfig swingUpFrom(const Config& cfg) { return sessionFrom(cfg).swingup; }
 
 }

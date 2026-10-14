@@ -6,6 +6,7 @@
 #include "runtime/balance.h"
 #include "runtime/damp.h"
 #include "runtime/session.h"
+#include "runtime/swingup.h"
 #include "runtime/swing_calib.h"
 
 // Config -> runtime parameters (portable, unit-tested against config/pendctl.conf). Angles that a
@@ -23,6 +24,9 @@ DampConfig dampFrom(const Config& cfg);
 // mover from balance.* and move.* (tracking), the homing checks. Throws on unusable values, and if the
 // soft limits plus braking distance do not fit inside the switches.
 SessionConfig sessionFrom(const Config& cfg);
+// Swing-up runtime from swingup.* plus the session's balance (gains, reduced a_max / v_max, estimator, limits).
+// calib.c_bottom and calib.pos_center are set by the caller (the session).
+SwingUpConfig swingUpFrom(const Config& cfg);
 
 }
 
