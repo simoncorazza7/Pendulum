@@ -59,6 +59,7 @@ void Session::startBalance() {
     bc.calib = calib_;
     bc.actuate = true;
     bc.keep_driver_on = true;
+    bc.epoch_base = static_cast<std::uint32_t>(attempt_);   // unique epochs across re-centres (remote PC resets)
     brt_ = std::make_unique<BalanceRuntime>(bc);
     run_started_ = false;
     prev_mode_ = core::Mode::Idle;
@@ -174,6 +175,7 @@ SessionRecord Session::tick(hw::Hardware& hw, bool overrun) {
         r.mode = t.mode; r.event = t.event; r.a_cmd = t.a_cmd; r.integral = t.integral; r.axis_arg = t.axis_arg;
         r.sent = t.sent; r.saturated = t.saturated; r.limit_left = t.limit_left; r.limit_right = t.limit_right;
         r.axis_accelerating = t.axis_accelerating; r.driver_enabled = t.driver_enabled;
+        r.controller = t.controller; r.epoch = t.epoch; r.a_local = t.a_local; r.remote_miss = t.remote_miss;
         est_.update(t.counts);
         const core::Mode m = static_cast<core::Mode>(t.mode);
         if (phase_ == SessionPhase::Balance) {

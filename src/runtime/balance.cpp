@@ -82,7 +82,8 @@ double BalanceRuntime::omegaFit(std::int64_t t_ns) const {
 }
 
 BalanceRuntime::BalanceRuntime(const BalanceConfig& c)
-    : c_(c), est_(c.est_kind, c.ts, c.est_fc), delay_(static_cast<std::size_t>(c.delay_samples)) {}
+    : c_(c), est_(c.est_kind, c.ts, c.est_fc), delay_(static_cast<std::size_t>(c.delay_samples)),
+      epoch_(c.epoch_base) {}
 
 TickRecord BalanceRuntime::tick(hw::Hardware& hw, bool overrun) {
     const hw::Sample s = hw.read();
@@ -103,6 +104,18 @@ TickRecord BalanceRuntime::tick(hw::Hardware& hw, bool overrun) {
     trackEdges(s);
     r.released = released(s.t_ns);
 
+    // Stage 2b: is the PC's command for this tick (from the sample remote_delay ticks ago) here?
+    double a_remote = 0.0;
+    bool have_remote = false;
+    bool remote_fault = false;
+    if (c_.remote) {
+        const std::uint32_t want = c_.remote->seq() - static_cast<std::uint32_t>(c_.remote_delay);
+        have_remote = c_.remote->command(want, &a_remote) && std::isfinite(a_remote);
+        misses_ = (sup_.mode == core::Mode::Engaged && !have_remote) ? misses_ + 1 : 0;
+        // The supervisor reads it while arming (refusal), ARMED and ENGAGED (abort); not in STOPPING.
+        remote_fault = misses_ >= c_.remote_max_miss || !c_.remote->linkUp();
+    }
+
     core::SupervisorInputs in;
     in.theta = r.theta;
     in.omega = r.omega;
@@ -116,6 +129,7 @@ TickRecord BalanceRuntime::tick(hw::Hardware& hw, bool overrun) {
     in.arm = arm_.exchange(false);
     in.stop = stop_.exchange(false);
     in.released = r.released;
+    in.remote_fault = remote_fault;
     const core::SupervisorResult sr = core::supervisorStep(c_.sup, sup_, in, c_.ts);
     sup_ = sr.state;
     const core::SupervisorOutput& o = sr.out;
@@ -132,6 +146,8 @@ TickRecord BalanceRuntime::tick(hw::Hardware& hw, bool overrun) {
     if (o.reset_controller) {
         pid_ = core::PidState{};
         delay_.reset();
+        a_hold_ = 0.0;
+        ++epoch_;
         // Momentum pre-load: v_inf = v_engage + L_eq theta'(engage) + g int theta dt, and the PID
         // equilibrium forces int theta = -I(0); I(0) = theta'/w0^2 cancels the pendulum's momentum
         // (cart at rest at engage). Only with a detected release: the fitted edges then are free motion.
@@ -145,7 +161,14 @@ TickRecord BalanceRuntime::tick(hw::Hardware& hw, bool overrun) {
         const core::PidResult pr = core::pidStep(c_.pid, pid_, r.theta, r.v, c_.ts, &r.omega);
         pid_ = pr.state;
         r.saturated = pr.saturated;
-        r.a_ctrl = delay_.push(pr.a_cmd);
+        if (c_.remote) {                 // the PC's command from remote_delay ticks ago; the local PID is a shadow
+            r.a_local = pr.a_cmd;
+            if (have_remote) a_hold_ = std::max(-c_.pid.a_max, std::min(c_.pid.a_max, a_remote));
+            else r.remote_miss = true;
+            r.a_ctrl = a_hold_;
+        } else {
+            r.a_ctrl = delay_.push(pr.a_cmd);
+        }
         a = r.a_ctrl;
     } else if (o.mode == core::Mode::Stopping) {
         a = o.a_brake_cmd;
@@ -153,6 +176,8 @@ TickRecord BalanceRuntime::tick(hw::Hardware& hw, bool overrun) {
         a = -std::copysign(std::min(c_.sup.a_brake, std::fabs(r.v) / c_.ts), r.v);   // hold
     }
     r.integral = pid_.integral;
+    r.controller = o.run_controller;
+    r.epoch = epoch_;
     r.a_cmd = a;
     r.axis_arg = core::axisAccelArg(a, c_.calib);
 

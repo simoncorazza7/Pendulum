@@ -9,6 +9,7 @@
 #include "core/supervisor.h"
 #include "core/units.h"
 #include "hw/hardware.h"
+#include "runtime/remote.h"
 
 // One control period of the Stage 1 balance runtime, on any hw::Hardware (SimHw on the PC,
 // PiHw on the rig). Portable: no threads, clocks or I/O of its own; the caller provides the fixed-
@@ -47,6 +48,15 @@ struct BalanceConfig {
     double w0 = 4.931;                         // rad/s, small-angle frequency (plant.w0) of the free-motion fit
     bool preload = false;                      // at engage, pre-load the integrator with theta'/w0^2 (fit);
                                                // only with sup.engage_on_release (else engage is a still hold)
+    // Stage 2b (docs/remote.md): with `remote`, the command applied at tick k while ENGAGED is the PC's command
+    // computed from the sample of tick k - remote_delay (constant delay; the same as delay_samples on the local
+    // PID, which still runs as a shadow: a_local). A tick whose command has not arrived holds the previous one
+    // (remote_miss); remote_max_miss in a row aborts, as does the link going down while ARMED or ENGAGED
+    // (Reason::RemoteFault); arming is refused while the link is down. Not owned; set by the caller.
+    RemoteSource* remote = nullptr;
+    int remote_delay = 1;                      // ticks (>= 1)
+    int remote_max_miss = 5;                   // consecutive ticks without the command
+    std::uint32_t epoch_base = 0;              // first engagement gets epoch_base + 1 (the session: attempts so far)
 };
 
 struct TickRecord {
@@ -73,6 +83,10 @@ struct TickRecord {
     double integral = 0;            // rad*s, controller integrator
     bool released = false;          // release detected this sample (supervisor input)
     double omega_release = 0;       // rad/s, free-motion velocity from the release fit (at engage)
+    bool controller = false;        // the supervisor ran the controller on this sample (ENGAGED)
+    std::uint32_t epoch = 0;        // engagements so far (the remote PC resets its controller when it changes)
+    double a_local = 0;             // m/s^2, remote mode: the local PID's output on this sample (shadow)
+    bool remote_miss = false;       // remote mode, ENGAGED: the command for this tick had not arrived (held)
 };
 
 class BalanceRuntime {
@@ -97,6 +111,9 @@ private:
     std::atomic<bool> arm_{false}, stop_{false};
     bool driver_on_ = false;
     bool sent_prev_ = false;
+    std::uint32_t epoch_ = 0;
+    int misses_ = 0;                     // remote: consecutive ENGAGED ticks without the command
+    double a_hold_ = 0.0;                // remote: last applied command
     struct EdgeTheta { std::int64_t ts_ns; double theta; };   // edge time, boundary angle (rad)
     static constexpr int kEdgeHist = 16;
     EdgeTheta hist_[kEdgeHist] = {};     // ring of the newest edges

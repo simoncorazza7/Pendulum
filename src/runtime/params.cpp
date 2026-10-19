@@ -183,6 +183,21 @@ SessionConfig sessionFrom(const Config& cfg) {
         throw std::runtime_error("sup.x_min/x_max + braking from balance.v_max + touch_tol reach beyond the switches");
     s.swingup_mode = cfg.getBool("balance.swingup");
     s.swingup = swingUpFromSession(cfg, s);
+    s.remote_mode = cfg.getBool("balance.remote");
+    s.balance.remote_delay = static_cast<int>(cfg.getInt("remote.delay_ticks"));
+    s.balance.remote_max_miss = static_cast<int>(cfg.getInt("remote.max_miss"));
+    if (s.remote_mode) {
+        if (s.swingup_mode) throw std::runtime_error("balance.remote: not with balance.swingup (hand catches only)");
+        if (!(s.balance.remote_delay >= 1 && s.balance.remote_delay <= 200))
+            throw std::runtime_error("remote.delay_ticks must be in [1, 200] (the reply can't arrive in its own tick)");
+        if (!(s.balance.remote_max_miss >= 1 && s.balance.remote_max_miss <= 50))
+            throw std::runtime_error("remote.max_miss must be in [1, 50]");
+        if (s.balance.preload && s.balance.sup.engage_on_release)
+            throw std::runtime_error("balance.remote: the integrator pre-load (ctrl.preload with sup.engage_on_release) "
+                                     "is not sent to the PC");
+        if (s.balance.delay_samples != 0)
+            throw std::runtime_error("balance.remote: ctrl.delay_samples must be 0 (remote.delay_ticks is the delay)");
+    }
     return s;
 }
 

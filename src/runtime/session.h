@@ -64,6 +64,8 @@ struct SessionConfig {
     double arm_delay = 0.2;         // s after BALANCE starts before the first arm request (estimator)
     bool swingup_mode = false;      // BALANCE runs operator-started swing-ups instead of hand catches
     SwingUpConfig swingup;          // calib set by the session
+    bool remote_mode = false;       // Stage 2b: the controller runs on a PC (balance.remote; the caller sets
+                                    // balance.remote to its link; balance.remote_delay / remote_max_miss from remote.*)
 };
 
 struct AttemptStats {
@@ -99,6 +101,10 @@ struct SessionRecord {
     bool axis_accelerating = false, driver_enabled = false;
     int swing_phase = -1;           // rt::SwingPhase while a swing-up runs, else -1
     double energy = 0;              // swing-up: 0 = hanging at rest, 1 = upright at rest
+    bool controller = false;        // balance runtime: the controller ran on this sample (ENGAGED)
+    std::uint32_t epoch = 0;        // balance runtime: engagements so far
+    double a_local = 0;             // remote mode: the local (shadow) PID's output
+    bool remote_miss = false;       // remote mode: the command for this tick had not arrived (held)
 };
 
 class Session {
