@@ -26,6 +26,7 @@ enum class Reason {
     ArmMoving = 13,
     EngagedEvent = 14,    // informational: ARMED -> ENGAGED
     ArmedEvent = 15,      // informational: IDLE -> ARMED
+    RemoteFault = 16,     // Stage 2b: the PC's commands stopped arriving (or the link is down)
 };
 
 const char* modeName(Mode m);
@@ -67,6 +68,7 @@ struct SupervisorInputs {
     bool arm = false;               // operator request (one sample)
     bool stop = false;              // operator request (one sample)
     bool released = false;          // runtime: the pendulum moves freely away from upright after a still hold
+    bool remote_fault = false;      // runtime (Stage 2b): remote commands missing / link down
 };
 
 struct SupervisorState {

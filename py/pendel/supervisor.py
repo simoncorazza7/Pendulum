@@ -39,6 +39,7 @@ class Reason(IntEnum):
     ARM_MOVING = 13
     ENGAGED_EVENT = 14           # informational: ARMED -> ENGAGED
     ARMED_EVENT = 15             # informational: IDLE -> ARMED
+    REMOTE_FAULT = 16            # Stage 2b: the PC's commands stopped arriving (or the link is down)
 
 
 @dataclass(frozen=True)
@@ -79,6 +80,7 @@ class SupervisorInputs:
     arm: bool = False              # operator request (one sample)
     stop: bool = False             # operator request (one sample)
     released: bool = False         # runtime: free motion away from upright after a still hold
+    remote_fault: bool = False     # runtime (Stage 2b): remote commands missing / link down
 
 
 @dataclass(frozen=True)
@@ -127,6 +129,8 @@ def _common_abort(p: SupervisorParams, i: SupervisorInputs, overruns: int) -> Re
         return Reason.LIMIT_SWITCH
     if i.encoder_fault:
         return Reason.ENCODER_FAULT
+    if i.remote_fault:
+        return Reason.REMOTE_FAULT
     if not i.axis_accelerating:
         return Reason.AXIS_NOT_ACCELERATING
     if overruns >= p.overrun_streak:
@@ -146,6 +150,8 @@ def _arm_refusal(p: SupervisorParams, i: SupervisorInputs) -> Reason:
         return Reason.LIMIT_SWITCH
     if i.encoder_fault:
         return Reason.ENCODER_FAULT
+    if i.remote_fault:
+        return Reason.REMOTE_FAULT
     if abs(wrap(i.theta)) < math.pi - p.hang_tol:
         return Reason.ARM_NOT_HANGING
     if abs(i.omega) > p.omega_hang or abs(i.v) > p.v_stopped:

@@ -15,6 +15,7 @@ Reason commonAbort(const SupervisorParams& p, const SupervisorInputs& in, int ov
     if (in.stop) return Reason::ManualStop;
     if (in.limit_pressed) return Reason::LimitSwitch;
     if (in.encoder_fault) return Reason::EncoderFault;
+    if (in.remote_fault) return Reason::RemoteFault;
     if (!in.axis_accelerating) return Reason::AxisNotAccelerating;
     if (overruns >= p.overrun_streak) return Reason::Overrun;
     return Reason::None;
@@ -29,6 +30,7 @@ bool softLimit(const SupervisorParams& p, const SupervisorInputs& in) {
 Reason armRefusal(const SupervisorParams& p, const SupervisorInputs& in) {
     if (in.limit_pressed) return Reason::LimitSwitch;
     if (in.encoder_fault) return Reason::EncoderFault;
+    if (in.remote_fault) return Reason::RemoteFault;
     if (std::fabs(wrap(in.theta)) < kPi - p.hang_tol) return Reason::ArmNotHanging;
     if (std::fabs(in.omega) > p.omega_hang || std::fabs(in.v) > p.v_stopped) return Reason::ArmMoving;
     if (std::fabs(in.x - p.x_center) > p.center_tol) return Reason::ArmNotCentred;
@@ -143,6 +145,7 @@ const char* reasonName(Reason r) {
         case Reason::ArmMoving: return "arm refused: pendulum or cart moving";
         case Reason::EngagedEvent: return "engaged";
         case Reason::ArmedEvent: return "armed";
+        case Reason::RemoteFault: return "remote link (commands missing or link down)";
     }
     return "?";
 }
