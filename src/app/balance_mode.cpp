@@ -19,11 +19,13 @@
 #include <cstdint>
 #include <cstdio>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
 
 #include "app/modes.h"
+#include "app/remote_link.h"
 #include "app/rig.h"
 #include "common/runlog.h"
 #include "hw/pi_hw.h"
@@ -81,10 +83,26 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
     const double statusPeriod = cfg.getDouble("balance.status_period");  // s
     const bool lockMem = cfg.getBool("rt.lock_memory"), rtOn = cfg.getBool("rt.enable");
     const std::string logDir = cfg.getString("log.dir");
-    const rt::SessionConfig sc = rt::sessionFrom(cfg);                   // throws on bad parameters
+    rt::SessionConfig sc = rt::sessionFrom(cfg);                         // throws on bad parameters
     const double ts = sc.balance.ts;
     const double upm = sc.balance.calib.usteps_per_m;
     const hw::PiRt rtc = rtFrom(cfg);
+
+    // Stage 2b: the PC's controller over UDP (docs/remote.md). Opened before any GPIO, so a busy port ends here.
+    std::unique_ptr<RemoteLink> link;
+    if (sc.remote_mode) {
+        link = std::make_unique<RemoteLink>(static_cast<int>(cfg.getInt("remote.port")), sc.balance.remote_delay,
+                                            cfg.getDouble("remote.link_timeout"),
+                                            static_cast<std::size_t>(logSeconds / ts));
+        std::string e;
+        if (!link->open(&e)) { std::cerr << "balance: " << e << "\n"; return 1; }
+        proto::Params pp;
+        const core::PidParams& g = sc.balance.pid;
+        pp.ts = ts; pp.kp = g.kp; pp.ki = g.ki; pp.kd = g.kd; pp.a_max = g.a_max; pp.v_max = g.v_max;
+        pp.v_taper = g.v_taper; pp.i_max = g.i_max; pp.i_delay = g.i_delay; pp.theta_ref = g.theta_ref; pp.vel_fc = g.vel_fc;
+        link->setParams(pp);
+        sc.balance.remote = link.get();
+    }
 
     RingLog<BalRec> log(static_cast<std::size_t>(logSeconds / ts), true);   // keeps the newest
     RingLog<EdgeRec> edgeLog(1500000, true);
@@ -131,6 +149,16 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                           u.a_pump, u.a_pump * 52.0, u.e_ref * 100, u.theta_sw * kRad2Deg, u.u_sw * kRad2Deg);
             std::cout << b;
         }
+        if (link) {
+            std::snprintf(b, sizeof b,
+                          "REMOTE MODE: the controller runs on the PC (py/remote_ctrl.py, UDP port %d). Constant delay "
+                          "%d ticks = %.1f ms; a run aborts after %d missing commands in a row or %.0f ms without replies; "
+                          "arming waits for the PC. Everything else (limits, stops, homing, keys) stays on the Pi.\n",
+                          static_cast<int>(cfg.getInt("remote.port")), sc.balance.remote_delay,
+                          sc.balance.remote_delay * ts * 1e3, sc.balance.remote_max_miss,
+                          cfg.getDouble("remote.link_timeout") * 1e3);
+            std::cout << b;
+        }
         std::cout << "calib: give the HANGING pendulum a small swing (3-8 deg) and let go. Hands off until "
                      "'calib: accepted' (~5 s). Driver OFF.\n" << std::flush;
     }
@@ -159,6 +187,9 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
     bool quitSent = false, halted = false;
     double tQuit = 0, nextStatus = 0, nextCal = 1.0, nextMove = 0;
     int lastMode = -1, lastRefusal = -1, lastSwing = -1;
+    bool linkWasUp = false;
+    double nextLink = 5.0;
+    long remoteMiss = 0;
     const char* afterCentre = sc.swingup_mode
                                   ? "Let the pendulum hang still; at READY, Enter starts the swing-up."
                                   : "Arms by itself when the pendulum hangs still.";
@@ -177,8 +208,44 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
             halted = true;
             break;
         }
+        if (link) link->beginTick(clk.tick(), rt::monoNs());   // replies first: this tick may need one
         const rt::SessionRecord r = ses.tick(hw, clk.overrun());
         log.push({clk.tick(), late, r});
+        if (link) {
+            proto::Sample s;
+            s.flags = static_cast<std::uint16_t>((r.controller ? proto::kSampleController : 0) |
+                                                 (quitSent ? proto::kSampleFinishing : 0));
+            s.epoch = r.epoch;
+            s.t_ns = r.t_ns;
+            s.counts = static_cast<std::int32_t>(r.counts);
+            s.pos_usteps = static_cast<std::int32_t>(r.pos_usteps);
+            s.theta = r.theta;
+            s.omega = r.omega;
+            s.x = r.x;
+            s.v = r.v;
+            s.mode = static_cast<std::uint8_t>(r.mode < 0 ? 255 : r.mode);
+            s.phase = static_cast<std::uint8_t>(r.phase);
+            link->sendSample(s, r.a_local);
+            if (r.remote_miss) ++remoteMiss;
+            if (link->linkUp() != linkWasUp) {
+                linkWasUp = link->linkUp();
+                std::cout << fmt("%7.2f s  ", t)
+                          << (linkWasUp ? "remote: link UP, PC " + link->peer() : std::string("remote: link DOWN (no replies)"))
+                          << "\n" << std::flush;
+            }
+            if (r.mode != static_cast<int>(core::Mode::Engaged) && t >= nextLink) {
+                nextLink = t + 5.0;
+                std::uint64_t n, lateN;
+                std::int64_t mx;
+                link->takeWindow(&n, &mx, &lateN);
+                char s2[200];
+                std::snprintf(s2, sizeof s2, "  remote: link %s, PC %s; last 5 s: %llu replies, worst round trip %.2f ms "
+                              "(delay %.1f ms), %llu late", link->linkUp() ? "up" : "DOWN", link->peer().c_str(),
+                              static_cast<unsigned long long>(n), mx * 1e-6, sc.balance.remote_delay * ts * 1e3,
+                              static_cast<unsigned long long>(lateN));
+                if (static_cast<rt::SessionPhase>(r.phase) != rt::SessionPhase::Calibrate) std::cout << s2 << "\n" << std::flush;
+            }
+        }
         const hw::Sample& ls = hw.last();
         for (int i = 0; i < ls.n_edges; ++i)
             edgeLog.push({ls.edges[static_cast<std::size_t>(i)].ts_ns, ls.edges[static_cast<std::size_t>(i)].count_after, clk.tick()});
@@ -296,7 +363,8 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
             const bool refusal = r.event == static_cast<int>(core::Reason::ArmNotHanging) ||
                                  r.event == static_cast<int>(core::Reason::ArmMoving) ||
                                  r.event == static_cast<int>(core::Reason::ArmNotCentred) ||
-                                 r.event == static_cast<int>(core::Reason::LimitSwitch);
+                                 r.event == static_cast<int>(core::Reason::LimitSwitch) ||
+                                 r.event == static_cast<int>(core::Reason::RemoteFault);
             if (m == core::Mode::Idle && refusal && r.event != lastRefusal && phase == rt::SessionPhase::Balance) {
                 std::cout << "waiting to arm: " << core::reasonName(static_cast<core::Reason>(r.event)) << "\n" << std::flush;
                 lastRefusal = r.event;
@@ -306,7 +374,16 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                 char s[200];
                 std::snprintf(s, sizeof s, "%7.2f s  theta %+6.2f deg  x %+6.1f mm  v %+6.3f m/s  a %+5.2f m/s^2%s", t,
                               r.theta * kRad2Deg, r.x * 1e3, r.v, r.a_cmd, r.saturated ? " (sat)" : "");
-                std::cout << s << "\n" << std::flush;
+                std::cout << s;
+                if (link) {
+                    std::uint64_t n, lateN;
+                    std::int64_t mx;
+                    link->takeWindow(&n, &mx, &lateN);
+                    std::snprintf(s, sizeof s, "  | PC: worst %.2f ms, %llu late, %ld missed", mx * 1e-6,
+                                  static_cast<unsigned long long>(lateN), remoteMiss);
+                    std::cout << s;
+                }
+                std::cout << "\n" << std::flush;
             }
             lastMode = r.mode;
         } else {
@@ -361,21 +438,24 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
     const std::string dir = runlog::makeRunDir(logDir, "balance");
     writeCsv(log, dir + "/data.csv",
              "tick,late_ns,t_ns,phase,attempt,mode,event,sevent,counts,pos_usteps,speed_toggles,n_edges,theta,omega,x,v,"
-             "a_cmd,x_ref,integral,axis_arg,sent,saturated,overrun,lim_l,lim_r,axis_acc,driver,swing_phase,energy",
+             "a_cmd,x_ref,integral,axis_arg,sent,saturated,overrun,lim_l,lim_r,axis_acc,driver,swing_phase,energy,"
+             "ctrl,epoch,a_local,r_miss",
              [](std::ostream& o, const BalRec& x) {
                  const rt::SessionRecord& r = x.r;
-                 char b[440];
+                 char b[480];
                  std::snprintf(b, sizeof b,
                                "%u,%lld,%lld,%d,%d,%d,%d,%d,%lld,%lld,%lld,%d,%.7f,%.6f,%.7f,%.7f,%.6f,%.7f,%.7f,%d,%d,%d,%d,%d,%d,%d,%d,"
-                               "%d,%.5f",
+                               "%d,%.5f,%d,%u,%.6f,%d",
                                x.tick, static_cast<long long>(x.late_ns), static_cast<long long>(r.t_ns), r.phase, r.attempt,
                                r.mode, r.event, r.sevent, static_cast<long long>(r.counts),
                                static_cast<long long>(r.pos_usteps), static_cast<long long>(r.speed_toggles), r.n_edges,
                                r.theta, r.omega, r.x, r.v, r.a_cmd, r.x_ref, r.integral, r.axis_arg, r.sent ? 1 : 0,
                                r.saturated ? 1 : 0, r.overrun ? 1 : 0, r.limit_left ? 1 : 0, r.limit_right ? 1 : 0,
-                               r.axis_accelerating ? 1 : 0, r.driver_enabled ? 1 : 0, r.swing_phase, r.energy);
+                               r.axis_accelerating ? 1 : 0, r.driver_enabled ? 1 : 0, r.swing_phase, r.energy,
+                               r.controller ? 1 : 0, r.epoch, r.a_local, r.remote_miss ? 1 : 0);
                  o << b;
              });
+    if (link) writeRemoteCsv(*link, dir + "/remote.csv");
     writeCsv(edgeLog, dir + "/edges.csv", "ts_ns,count_after,tick", [](std::ostream& o, const EdgeRec& e) {
         char b[96];
         std::snprintf(b, sizeof b, "%lld,%lld,%u", static_cast<long long>(e.ts_ns), static_cast<long long>(e.count_after),
@@ -402,8 +482,7 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
     const rt::SwingCalibStatus& st = ses.calibStatus();
     const std::string result = std::string(rt::sessionPhaseName(ses.phase())) + (ses.reason()[0] ? std::string(": ") + ses.reason() : std::string()) +
                                (halted ? " (HALT)" : "");
-    runlog::writeMeta(dir, "balance", cmdLine, cfg, configPath,
-                      {{"chip", chip + " (" + pi.chipLabel() + ")"},
+    runlog::Fields meta{{"chip", chip + " (" + pi.chipLabel() + ")"},
                        {"result", result},
                        {"c_bottom_fit_counts", fmt("%.4f", st.c_bottom)},
                        {"c_bottom_se_counts", fmt("%.4f", st.fit.se)},
@@ -427,7 +506,17 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                        {"encoder_same_type", std::to_string(pi.encoder().sameType())},
                        {"encoder_full_batches", std::to_string(pi.encoder().fullBatches())},
                        {"records", std::to_string(log.size())},
-                       {"records_overwritten", std::to_string(log.overwritten())}});
+                       {"records_overwritten", std::to_string(log.overwritten())}};
+    if (link) {
+        const runlog::Fields rf = remoteMetaFields(*link, sc.balance.remote_delay, ts);
+        meta.insert(meta.end(), rf.begin(), rf.end());
+        meta.push_back({"remote_missed_ticks", std::to_string(remoteMiss)});
+        const LinkStats& ls2 = link->stats();
+        std::cout << fmt("remote: worst round trip %.2f ms", ls2.rtt_max_ns * 1e-6) << " (delay "
+                  << fmt("%.1f ms)", sc.balance.remote_delay * ts * 1e3) << ", " << ls2.late << " late replies, "
+                  << remoteMiss << " missed ticks, max |PC - local PID| " << ls2.max_abs_diff << " m/s^2\n";
+    }
+    runlog::writeMeta(dir, "balance", cmdLine, cfg, configPath, meta);
     std::cout << "balance: " << result << "; " << attempts.size() << " runs\n  -> " << dir << "\n";
     return ses.phase() == rt::SessionPhase::Finished ? 0 : 3;
 }

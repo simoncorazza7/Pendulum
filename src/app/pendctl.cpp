@@ -13,7 +13,10 @@
 //   damp           Stage 1 step 2: hanging active-damping test (moves the cart); refuses the real
 //                  chip unless damp.allow_real_chip=true.
 //   balance        Stage 1 step 3: balance session (homes, balances, re-centres; interactive). Refuses
-//                  the real chip unless balance.allow_real_chip=true (demo.sh).
+//                  the real chip unless balance.allow_real_chip=true (demo.sh). With balance.remote=true the
+//                  controller runs on a PC (Stage 2b, remote.sh, docs/remote.md).
+//   remote-sim     Stage 2b end to end with a SIMULATED pendulum: no GPIO, nothing moves; the PC's
+//                  py/remote_ctrl.py balances it over UDP with the constant delay remote.delay_ticks.
 // Usage:
 //   pendctl --mode MODE [--config config/pendctl.conf] [--set key=value ...]
 //
@@ -55,7 +58,7 @@ void onTerminate(int sig) {
 }
 
 void usage() {
-    std::cout << "Usage: pendctl --mode log-selftest|timing-probe|encoder-log|move|shadow|damp|balance [--config FILE] "
+    std::cout << "Usage: pendctl --mode log-selftest|timing-probe|encoder-log|move|shadow|damp|balance|remote-sim [--config FILE] "
                  "[--set key=value ...]\n";
 }
 
@@ -92,6 +95,7 @@ int main(int argc, char** argv) {
         else if (mode == "shadow") rc = app::runShadow(cfg, configPath, cmdLine);
         else if (mode == "damp") rc = app::runDamp(cfg, configPath, cmdLine);
         else if (mode == "balance") rc = app::runBalance(cfg, configPath, cmdLine);
+        else if (mode == "remote-sim") rc = app::runRemoteSim(cfg, configPath, cmdLine);
         else usage();
     } catch (const std::exception& e) {
         std::cerr << "pendctl: " << e.what() << "\n";

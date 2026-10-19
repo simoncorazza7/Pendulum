@@ -6,8 +6,9 @@ a value or convention is established, and at the end of every session.
 
 ## Scope
 Simon (mechatronics student) is continuing a 2025 bachelor-thesis rig. Current scope: **Stage 0**
-(bring-up, audit, identification) and **Stage 1** (on-Pi angle-only balance PID). Exception (Simon, 2026-10-14):
-swing-up (Stage 4) pulled forward for testing (`./swingup.sh`, `docs/swingup_notes.md`). Nothing else beyond.
+(bring-up, audit, identification) and **Stage 1** (on-Pi angle-only balance PID). Exceptions (Simon): swing-up
+(Stage 4, 10-14; `./swingup.sh`, `docs/swingup_notes.md`); remote controller on the PC (Stage 2b, 10-19;
+`./remote.sh`, `docs/remote.md`). Nothing else beyond.
 Explain the reasoning behind design choices.
 
 ## Safety rules (non-negotiable)
@@ -114,29 +115,26 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   `run_balance_mock.sh`. See `docs/stage0_3_safe_bringup.md`.
 - **Demo / Stage 1 step 3: `./demo.sh`** (checklist, build, `pendctl --mode balance` on the real chip; interactive,
   Simon runs it in `ssh -t`). Procedure, messages, design: `docs/stage1_demo.md`. Claude runs it only with a go
-  (stdin through a FIFO, as in the balance mock).
+  (stdin through a FIFO, as in the balance mock). **`./remote.sh`** = the same with the PID on the PC
+  (`py/remote_ctrl.py` first); `pendctl --mode remote-sim` = no GPIO, simulated pendulum (latency measurement).
 
 ## Status (details: `docs/session_log.md`)
 - Claude runs on Simon's Windows PC, drives the Pi over SSH (host key ED25519
-  SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (71).
+  SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (82).
+  Pi = 192.168.0.102 on the lab LAN; pendel.local resolves only from PowerShell/Windows ssh, not Git Bash.
 - Done: 0.1–0.5 (scope check passed 2026-10-09), Gate A. GPIO24 held high from boot (`gpio=24=op,dh`).
-- E-stop: Simon accepted the rocker switch (cuts motor AND Pi) for the slow 0.8 tests; a motor-only
-  switch (with a bulk cap at VMOT) is to be added before the aggressive 0.9 runs.
+- E-stop: the rocker switch (cuts motor AND Pi); a motor-only switch (+ bulk cap at VMOT) before the aggressive 0.9 runs.
 - **New PCB arrives Wed 2026-10-14** (better 5 V buck, fixes MS wiring): pin map may change, so read pins from config.
 - 0.5 (`docs/stage0_5_timing.md`): loop p99 6/35 µs idle/load; step edges p99 ≤ 12 µs. SoC heatsink fitted 10-09.
 - C++ core mirrors Python with golden tests (pid, supervisor, units, swingfit, estimator, SimHw); `docs/model_derivation.md`.
 - **c_bottom must be re-found after every program start** (no index): small swing + `core::fitOffset`.
 - 2026-10-09 (`docs/stage0_6_7_10_results.md`): CPR = 2400 exact, no lost edges, c_bottom repeatable ±0.13 counts.
   **Plant: ω₀ = 4.931 rad/s (L_eq 0.4035 m), b/J 0.024 1/s, Coulomb 0.0117 rad/s²** (config `plant.*`). Open: 7.3 ms reader stall.
-- 2026-10-09 first motion (0.8, `pendctl --mode move`): right switch at low pos, switches 1526 steps apart (half step);
-  θ sign by hand (theta_sign = +1); EN verified (3.3 V at the A4988 ENABLE pin with GPIO24 high).
-- 2026-10-09 afternoon (`docs/stage1_damp.md`): start-up swing calibration (`rt::SwingCalibrator`, amplitude-
-  corrected w, 2-20 deg), `pendctl --mode shadow` (motor lines never requested) and `--mode damp`. On the rig:
-  **shadow** (theta sign at upright confirmed), **0.10 pulse** (input gain 93 %, combined sign confirmed),
-  **hanging damping** (decay 1.02 vs design 0.99 1/s, gain 103 %). Stage 1 steps 1-2 done (ahead of Gate B, Simon's OK).
-- Drift (`docs/stage1_drift.md`): v_inf = v + L_eq*theta' + g*int(theta) at engage; i_delay 0. A hand holding the rod
-  after ENGAGED: rigid-in-angle model ~90 mm/s per 50 ms, hand still in space benign (`py/hand_hold.py`). Engage on
-  release + pre-load built but OFF (shadow 14-38-54: hand adjustments look like releases). Left: reference offset -> trim.
+- 2026-10-09 first motion (0.8): right switch at low pos; θ sign by hand (theta_sign = +1); EN verified (3.3 V at ENABLE).
+  Afternoon (`docs/stage1_damp.md`): start-up swing calibration, `--mode shadow` / `--mode damp`; on the rig shadow,
+  0.10 pulse (gain 93 %, signs confirmed), hanging damping (decay 1.02 vs 0.99 1/s). Stage 1 steps 1-2 done.
+- Drift (`docs/stage1_drift.md`): v_inf = v + L_eq*theta' + g*int(theta) at engage; i_delay 0; a hand holding the rod after
+  ENGAGED ~90 mm/s per 50 ms (`py/hand_hold.py`). Engage on release + pre-load built but OFF. Reference offset -> trim.
 - 0.11: BD+LP2 20 Hz (`docs/stage0_11_estimators.md`). Open for Gate B: 0.9 with the new PCB; 0.6b.
 - 2026-10-12: 0.12 validated on the rig data (`py/sim_validate.py`); **Gate B draft `docs/gateB_report.md`**
   (PID wc=2w0, LP2 20 Hz: GM [0.25, 6.9], PM 50 deg, DM 48 ms; catch region set by actuator limits). PENDING 0.9.
@@ -150,7 +148,10 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   resonance. Tap test (motor off): no ring -> likely drive side (cart rocking/belt while driven). **est_fc 20 -> 14 Hz
   default** (0 of 7 runs grown vs 3 of 17; PM 46, DM 43 ms). **Trim -1.6** (5 sessions, start-to-start scatter ~0.5
   counts). Limit now: release momentum (+80..100 mm/s).
-- 2026-10-14 **swing-up built** (`rt::SwingUpRuntime`, session `balance.swingup`, `./swingup.sh`): energy from LP2(theta)
-  (matched to the estimator; raw theta made E wobble ~8 %), hand-over 16.7 s in SimHw, energy out at the end. PC 76/76.
-  Rig 11-36-43: **7/7 swung up and handed over** (18-19.5 s), energy out 7/7; balance 0.25-0.5 s (5), 2.2, 11.6 s: the
-  cart moves 70-110 mm/s at hand-over, u >= 3 deg -> soft limit. Tuned e_ref 0.007, u_sw 3. Real fix: Stage 2 cart feedback.
+- 2026-10-14 **swing-up built** (`rt::SwingUpRuntime`, `./swingup.sh`; energy from LP2(theta)). Rig 11-36-43: **7/7 swung
+  up and handed over** (18-19.5 s), energy out 7/7; balance 0.25-11.6 s: cart at 70-110 mm/s at hand-over -> soft limit.
+  Tuned e_ref 0.007, u_sw 3. Real fix: Stage 2 cart feedback.
+- 2026-10-19 **remote controller built** (Stage 2b, `docs/remote.md`): UDP, the Pi applies the PC's command from sample
+  k - remote.delay_ticks (constant delay), shadow PID, `RemoteFault` abort. PC 82/82 (bit-exact = Stage 2a delay line under
+  1..N jitter); WSL e2e 15 s, PC = local PID exactly. Round trip: localhost max 1.5 ms; laptop Wi-Fi 10 s max 11.2 ms.
+  Next: wired-PC measurement (remote-sim), Pi build + `make test`, then the rig (Simon's go).
