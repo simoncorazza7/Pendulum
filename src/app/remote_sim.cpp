@@ -8,6 +8,7 @@
 //   3. taps of remote.sim_tap_deg every remote.sim_tap_period s; after remote.sim_seconds engaged: stop
 // Ends on any abort too. Logs as the balance session: data.csv (+ true theta), remote.csv, meta.json.
 
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
@@ -55,6 +56,7 @@ int runRemoteSim(const Config& cfg, const std::string& configPath, const std::st
     rt::BalanceConfig bc = sc.balance;
     bc.sup.x_min = -9.5;
     bc.sup.x_max = 9.5;
+    bc.sup.max_run_time = std::max(bc.sup.max_run_time, simSeconds + 10.0);   // a latency run lasts minutes
     hw::SimHwParams p;
     p.w0 = cfg.getDouble("plant.w0");
     p.bJ = cfg.getDouble("plant.bJ");

@@ -1,7 +1,7 @@
 """PC side of the remote controller (brief Stage 2b, docs/remote.md): runs the balance controller on the samples
 the Pi streams over UDP and sends each command straight back.
 
-    python py/remote_ctrl.py [--host pendel.local] [--port 9760] [--high-priority] [--stay]
+    python py/remote_ctrl.py [--host pendel.local] [--port 9760] [--normal-priority] [--stay]
 
 Start this first, then on the Pi either the rig (./remote.sh, HARDWARE) or the simulated pendulum
 (build/pendctl --mode remote-sim, no GPIO). Needs only the Python standard library: py/pendel/control.py (the
@@ -93,11 +93,33 @@ def resolve(host: str, port: int):
 
 
 def high_priority() -> str:
+    """This process only, undone when it exits: Windows HIGH_PRIORITY_CLASS + a TIME_CRITICAL thread (normal
+    programs can no longer take the CPU for a whole ~16 ms scheduler slice) + a 1 ms timer resolution request."""
     if sys.platform == "win32":
+        import atexit
         import ctypes
-        k = ctypes.windll.kernel32
-        ok = k.SetPriorityClass(k.GetCurrentProcess(), 0x00000080)      # HIGH_PRIORITY_CLASS, this process only
-        return "high priority class" if ok else "priority unchanged (SetPriorityClass failed)"
+        from ctypes import wintypes
+        k = ctypes.WinDLL("kernel32")
+        # 64-bit: without these the pseudo-handles are passed as 32-bit ints, an invalid handle, and the calls fail
+        k.GetCurrentProcess.restype = wintypes.HANDLE
+        k.GetCurrentThread.restype = wintypes.HANDLE
+        k.SetPriorityClass.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+        k.SetPriorityClass.restype = wintypes.BOOL
+        k.SetThreadPriority.argtypes = [wintypes.HANDLE, ctypes.c_int]
+        k.SetThreadPriority.restype = wintypes.BOOL
+        got = []
+        if k.SetPriorityClass(k.GetCurrentProcess(), 0x00000080):      # HIGH_PRIORITY_CLASS
+            got.append("high priority class")
+        if k.SetThreadPriority(k.GetCurrentThread(), 15):              # THREAD_PRIORITY_TIME_CRITICAL
+            got.append("time-critical thread")
+        try:
+            w = ctypes.windll.winmm
+            if w.timeBeginPeriod(1) == 0:                              # TIMERR_NOERROR
+                atexit.register(w.timeEndPeriod, 1)
+                got.append("1 ms timer")
+        except OSError:
+            pass
+        return ", ".join(got) if got else "priority unchanged"
     try:
         import os
         os.nice(-10)
@@ -111,7 +133,9 @@ def main() -> int:
     ap.add_argument("--host", default="pendel.local", help="the Pi")
     ap.add_argument("--port", type=int, default=9760, help="remote.port on the Pi")
     ap.add_argument("--log-dir", default=str(HERE.parent / "logs"))
-    ap.add_argument("--high-priority", action="store_true", help="raise this process's scheduling priority")
+    ap.add_argument("--normal-priority", action="store_true",
+                    help="don't raise this process's priority (by default: Windows high priority class, time-critical "
+                         "thread, 1 ms timer; this process only. Laptop test: worst answer 15.9 ms -> 0.99 ms)")
     ap.add_argument("--stay", action="store_true", help="keep waiting for the next session after one ends")
     ap.add_argument("--idle-exit", type=float, default=10.0, help="s without samples (after the first) before ending")
     ap.add_argument("--golden", action="store_true", help="print the golden packets (tests/golden/remote_packets.txt)")
@@ -128,7 +152,7 @@ def main() -> int:
         pass
     sock.settimeout(0.2)
     print(f"remote_ctrl: PC controller for {a.host} {addr[0]}:{a.port}" +
-          (f" ({high_priority()})" if a.high_priority else ""))
+          (f" ({high_priority()})" if not a.normal_priority else " (normal priority)"))
     print("remote_ctrl: waiting for the Pi (./remote.sh, or build/pendctl --mode remote-sim). Ctrl-C ends.", flush=True)
 
     hello = HELLO.pack(MAGIC_HELLO, VERSION, 0)

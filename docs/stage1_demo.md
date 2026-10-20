@@ -138,6 +138,32 @@ This gives the operator procedure: a light fingertip hold with the hand still in
    - If the drift is consistent across runs, apply the average trim change (`encoder.trim`, or `./demo.sh --set encoder.trim=...`).
    - If runs end within about 1 s, the hand is closer to the rigid model. In that case, practise the release, or let go right at the beep.
 
+## After a mechanical rebuild (new carriage, 2026-10-20)
+
+Values that belong to the old build. Re-check them in this order before the next catch; each motion step needs Simon's go.
+
+1. **Wiring and pins.**
+   - If wires were re-routed or the new PCB went in, check `pins.*` and that MS1/MS2 are secured.
+   - After boot, `pinctrl get 24` must read high: driver off.
+2. **θ sign (most important).** Use `--mode shadow`, which never touches the motor lines:
+   - Hold the rod near upright and lean the top toward +x (the LEFT switch): θ must go **positive**
+     (`calib.theta_sign = +1`).
+   - Hanging, pushing the bob toward +x must lower θ from 180°, as in the 2026-10-09 hand test.
+   - An encoder remounted mirrored flips the sign, and a wrong sign turns the PID into positive feedback.
+3. **Pivot.** If the pivot, bearing, rod or bob changed, re-identify the free swing (`plant.w0`, `bJ`, `coulomb`).
+   The gains are designed from ω₀.
+4. **Cart direction and step mode.** A short `--mode move`: +x must go toward the LEFT switch
+   (`calib.x_sign = 1`), and the distance must match the ruler at 13333 µsteps/m.
+5. **Track span.** If the carriage changed the travel between the switches, homing fails its span check, safely
+   and before any balancing.
+   - Update `balance.span_usteps` from the span it prints.
+   - `sessionFrom` refuses soft limits that no longer fit inside the switches with braking.
+6. **Combined sign and hanging damping:** the 0.10 pulse and `--mode damp`, as on 2026-10-09.
+7. **Trim.** `encoder.trim = -1.6` belongs to the old mounting. Start at 0 and re-measure it from the drift of the
+   first catches (`py/stage1_report.py balance`).
+8. **The ~28 Hz mode and encoder flickers.** They may change with the carriage. Check the first sessions with
+   `py/osc_compare.py` and the flicker count.
+
 ## First rig session, 2026-10-12 (`logs/2026-10-12T15-30-52_balance`, Simon ran `./demo.sh`)
 
 From `meta.json` (`data.csv` not yet fetched: the Pi was switched off right after):

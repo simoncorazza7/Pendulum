@@ -151,7 +151,7 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 - 2026-10-14 **swing-up built** (`rt::SwingUpRuntime`, `./swingup.sh`; energy from LP2(theta)). Rig 11-36-43: **7/7 swung
   up and handed over** (18-19.5 s), energy out 7/7; balance 0.25-11.6 s: cart at 70-110 mm/s at hand-over -> soft limit.
   Tuned e_ref 0.007, u_sw 3. Real fix: Stage 2 cart feedback.
-- 2026-10-19 **remote controller built** (Stage 2b, `docs/remote.md`): UDP, the Pi applies the PC's command from sample
-  k - remote.delay_ticks (constant delay), shadow PID, `RemoteFault` abort. PC 82/82 (bit-exact = Stage 2a delay line under
-  1..N jitter); WSL e2e 15 s, PC = local PID exactly. Round trip: localhost max 1.5 ms; laptop Wi-Fi 10 s max 11.2 ms.
-  Next: wired-PC measurement (remote-sim), Pi build + `make test`, then the rig (Simon's go).
+- 2026-10-19 **remote controller** (Stage 2b, `docs/remote.md`): constant delay remote.delay_ticks, shadow PID, `RemoteFault`.
+  PC 82/82 (bit-exact = delay line under jitter); WSL e2e OK; Windows PC program worst answer 0.99 ms (default priority).
+  Next: wired Windows PC measurement, Pi build. 10-20: **new carriage** being fitted: re-commission first
+  (`docs/stage1_demo.md` "After a mechanical rebuild": theta sign, span, trim, plant).

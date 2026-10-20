@@ -58,6 +58,21 @@ Measured so far:
 A 10-minute Wi-Fi run ended when the laptop left the lab network. On Wi-Fi the worst case includes the link
 dropping out entirely, which no delay covers; the brief says wired Ethernet.
 
+**The Windows PC program** (2026-10-20, laptop, Windows Python → simulated Pi in WSL). This is its answer time,
+receive → send, i.e. its own part of the round trip:
+
+| priority | samples | p50 | p99 | p99.9 | max | answers > 1 ms |
+|---|---|---|---|---|---|---|
+| normal | 30 702 (60 s) | 47 µs | 236 µs | 1.0 ms | **15.9 ms** | 32 |
+| 1 ms timer only | 12 755 (25 s) | 56 µs | 193 µs | 408 µs | 5.0 ms | 5 |
+| high class + time-critical thread + 1 ms timer (**default now**) | 41 793 (84 s) | 54 µs | 140 µs | 253 µs | **0.99 ms** | 0 |
+
+At normal priority Windows sometimes takes the CPU away for a whole scheduler slice (~16 ms), which would decide
+the worst case. The default settings apply to this process only and are undone when it exits; `--normal-priority`
+switches them off. The WSL "Pi" in these runs is not real-time: its loop stalled up to 41 ms and its virtual
+network held packets for up to 111 ms. Two runs therefore ended with the remote-link abort, exactly as designed.
+So the round trips of these runs say nothing about the real Pi; only the PC's answer time above carries over.
+
 ## Procedure (wired PC)
 
 1. **Latency, no motion** (simulated pendulum on the Pi, no GPIO; the real loop, link and PC program):
@@ -77,8 +92,8 @@ dropping out entirely, which no delay covers; the brief says wired Ethernet.
      a_cmd, a_local, pc_proc_ns) and the `remote_*` fields in `meta.json`. The PC writes
      `logs/<time>_remote-pc/samples.csv` and `summary.json`.
 
-Windows: the PC program needs only Python 3 (no packages). `--high-priority` raises its own process priority. If
-Windows Firewall asks about Python, allowing private networks is Simon's decision. Replies to the PC's own HELLO
+Windows: the PC program needs only Python 3 (no packages). It raises its own process priority by default (see
+above). If Windows Firewall asks about Python, allow private networks (Simon: fine). Replies to the PC's own HELLO
 normally pass without a rule.
 
 ## Files
@@ -101,7 +116,9 @@ normally pass without a rule.
 
 ## Open
 
-- The wired-PC measurement (procedure step 1) and the first rig run.
+- The wired-PC measurement (procedure step 1) and the first rig run. These wait for the rig: Simon is fitting a new
+  carriage (2026-10-20); the checks in `docs/stage1_demo.md` ("After a mechanical rebuild") come first.
+- On the Pi: `make` and `make test`, the gpio-mockup balance test (local mode unchanged?), a short remote-sim.
 - Late replies count by tick, so after a loop overrun the catch-up ticks shrink the delay in time. On the Pi
   overruns are aborts (3 in a row) and have not happened in 1.26 M logged ticks; under WSL the loop stalled 49 ms
   once.
