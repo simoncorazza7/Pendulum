@@ -70,7 +70,7 @@ fi
 git -C "$REPO" config receive.denyCurrentBranch updateInstead
 echo
 echo "done. libgpiod $(dpkg-query -W -f='${Version}' libgpiod-dev), $(g++ --version | head -1)"
-echo "Next on the PC: git remote add pi2 pendel@pendel2.local:Pendel-main && git push pi2 control-dev"
+echo "Next on the PC: git remote add pi2 $(id -un)@$(hostname).local:Pendel-main && git push pi2 control-dev"
 echo "Then here: cd ~/Pendel-main && make && make test"
 [ "${REBOOT:-0}" = 1 ] && echo "Reboot once (sudo reboot) so gpio=24=op,dh holds the driver off from power-on; check: pinctrl get 24"
 exit 0
