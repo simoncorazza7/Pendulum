@@ -1,13 +1,41 @@
-# Working with the Pi (for Simon's assistant)
+# Working with the Pendel code (for Simon's assistant)
 
-How to reach the files on the rig's Pi, change them on your own computer, and send the changes to the Pi. The same
-steps as a page with copy buttons: https://claude.ai/artifact/WHmkkUcREiFBZbSf3yD82k (Simon shares it).
+How to get the code, read it, keep it current, and later work on the rig's Raspberry Pi. The same steps as a page
+with copy buttons: https://claude.ai/artifact/WHmkkUcREiFBZbSf3yD82k (Simon shares it). Nothing in parts 1 and 2
+touches the rig.
 
-The code on the Pi (`~/Pendel-main`, branch `control-dev`) is a git repository that accepts pushes straight into its
-working files. You keep a copy on your computer, edit and commit there, and `git push` updates the Pi. **Never edit
-files on the Pi itself:** the next push would be refused, and nobody would know what changed.
+## 1. Get the code (GitHub)
 
-## Before anything: the rig moves
+1. Install Git for Windows (git-scm.com). Use **PowerShell** for the commands below.
+2. **Clone** (sign in to GitHub when Git asks):
+   ```
+   cd $HOME\Documents
+   git clone https://github.com/simoncorazza7/Pendulum.git Pendel-main
+   cd Pendel-main
+   git switch control-dev
+   ```
+3. **Stay current** whenever Simon has pushed something new: `git pull`.
+
+## 2. Where to start reading
+
+| File | What it is |
+|---|---|
+| `CLAUDE.md` | rules, conventions, hardware facts and the current status, condensed |
+| `docs/explainer.md` | overview of the rig and how the balance control works |
+| `docs/stage1_demo.md` | how a balance session runs, and the results so far |
+| `config/pendctl.conf` | every setting, with units and reasons in the comments |
+| `src/core/` | controller maths: PID, supervisor, estimator, units |
+| `src/runtime/` | the loop logic: balance, session, swing-up, moves |
+| `src/app/` | the programs on the Pi (`pendctl` modes) |
+| `py/` | analysis and plotting on the PC; `py/remote_ctrl.py` is the controller-on-the-PC program |
+| `tests/` | unit tests (`tests/unit`), golden data, mock and end-to-end tests |
+
+To run the Python tools, install Python 3.11 or newer and then:
+`python -m venv .venv`, then `.venv\Scripts\python -m pip install -r py\requirements.txt`.
+
+## 3. Later: working on the Pi
+
+### Before anything: the rig moves
 
 - **Needs Simon's go for that run:** anything that moves the cart or opens the real GPIO chip:
   - `./demo.sh`, `./swingup.sh`, `./remote.sh`, `./start.sh`, `build/main`;
@@ -17,66 +45,61 @@ files on the Pi itself:** the next push would be refused, and nobody would know 
 - **After anything unexpected:** check that the driver is off. `pinctrl get 24` must show `op` `dh`;
   `pinctrl set 24 op dh` turns it off.
 
-## Set up once (Windows, PowerShell; Git Bash can't resolve `pendel.local`)
+### Connect to the Pi (once)
 
-1. **Install** Git for Windows and Python 3.11 or newer (add it to PATH). Then:
+Use PowerShell: Git Bash can't resolve `pendel.local`.
+
+1. **Make Git use Windows' SSH, and make a key:**
    ```
    git config --global core.sshCommand "C:/Windows/System32/OpenSSH/ssh.exe"
-   git config --global user.name "Your Name"
-   git config --global user.email "you@example.com"
+   ssh-keygen -t ed25519 -C "your-name"
    ```
-2. **Make an SSH key:** `ssh-keygen -t ed25519 -C "your-name"` (Enter for the defaults).
-3. **Put the key on the Pi.** Type the Pi's password, which Simon gives you, once:
+2. **Put the key on the Pi.** Type the Pi's password, which Simon gives you, once:
    ```
    type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh pendel@pendel.local "mkdir -p ~/.ssh && chmod 700 ~/.ssh && tr -d '\r' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
    ```
    - Accept the fingerprint only if it is `SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM` (ED25519).
    - Check: `ssh pendel@pendel.local hostname` prints `pendel` without asking for a password.
-4. **Get the code:** this names the Pi `pi`, as in Simon's setup.
-   ```
-   cd $HOME\Documents
-   git clone -o pi pendel@pendel.local:Pendel-main
-   cd Pendel-main
-   git switch control-dev
-   ```
-5. **Install the analysis tools:**
-   `python -m venv .venv`, then `.venv\Scripts\python -m pip install -r py\requirements.txt`.
+3. **Add the Pi as a second place to push to:** `git remote add pi pendel@pendel.local:Pendel-main`.
 
-## Look at files and logs
+### Look at files and logs on the Pi
 
 - **Shell on the Pi:** `ssh pendel@pendel.local`, then `cd ~/Pendel-main`. Useful there:
   - `git log --oneline -5`: what is deployed;
   - `ls logs`: one folder per run;
-  - `less config/pendctl.conf`: the settings, with units in the comments.
+  - `less config/pendctl.conf`: the settings.
 - **Copy runs to your computer:** `.venv\Scripts\python py\fetch_runs.py --last 3` (into `logs\`), then
   `.venv\Scripts\python py\plot_run.py`.
 
-## Change something and send it to the Pi
+The code on the Pi (`~/Pendel-main`, branch `control-dev`) is a git repository that accepts pushes straight into
+its working files. **Never edit files on the Pi itself:** the next push would be refused, and nobody would know
+what changed.
 
-1. `git pull pi control-dev`: start from the latest version.
+### Change something and send it to the Pi
+
+1. `git pull`: start from the latest version.
 2. Edit on your computer. To try a value for one run only, use an override instead of editing:
    `./demo.sh --set encoder.trim=-1.6`.
-3. Check and commit: `git status`, `git diff`, `git add <file>`,
-   `git commit -m "what changed and why"`. Keep commits small.
-4. `git push pi control-dev`: the Pi's files now match your commit.
+3. Check and commit: `git status`, `git diff`, `git add <file>`, `git commit -m "what changed and why"`.
+4. `git push pi control-dev`: the Pi's files now match your commit. Push to GitHub only if Simon agrees.
 5. Build and test on the Pi; nothing moves: `ssh pendel@pendel.local "cd ~/Pendel-main && make && make test"`.
    The build deletes the old program first, so a failed build never leaves a stale one to run.
 6. Confirm: `ssh pendel@pendel.local "cd ~/Pendel-main && git log --oneline -1"`.
 
-## When something goes wrong
+### When something goes wrong
 
 | You see | Meaning | Do |
 |---|---|---|
 | push rejected: `fetch first` / `non-fast-forward` | someone pushed since your pull | `git pull --rebase pi control-dev`, push again |
 | push rejected: `Working directory has unstaged changes` | someone edited files on the Pi | stop, tell Simon; don't force |
 | `Could not resolve hostname pendel.local` | Pi off or elsewhere, or you're in Git Bash | use PowerShell; check cable and power; ask Simon |
-| `Permission denied (publickey)` | your key isn't on the Pi | repeat set-up step 3 |
+| `Permission denied (publickey)` | your key isn't on the Pi | repeat "Put the key on the Pi" |
 | `REMOTE HOST IDENTIFICATION HAS CHANGED` | another machine answers to that name | stop, tell Simon |
 | the build fails on the Pi | the pushed code doesn't compile | fix, commit, push again; never run an old build |
 
-Never `git push --force`, and never push anywhere but `pi`.
+Never `git push --force`.
 
-## Running the rig: only together with Simon
+### Running the rig: only together with Simon
 
 `ssh -t pendel@pendel.local`, then `cd ~/Pendel-main && ./demo.sh` (or `./swingup.sh`, `./remote.sh`). Each starts
 with a checklist. After every run: `pinctrl get 24` must show `op dh`.
