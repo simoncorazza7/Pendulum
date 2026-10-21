@@ -1,0 +1,30 @@
+** Drc report for PCB.kicad_pcb **
+** Created on 2026-09-25T11:33:52 **
+** Report includes: Errors, Warnings **
+
+** Found 3 DRC violations **
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; warning
+    @(69.0000 mm, 51.5000 mm): Rectangle on Edge.Cuts
+    @(149.9300 mm, 127.8900 mm): Rectangle of J9 on F.Silkscreen
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; warning
+    @(69.0000 mm, 51.5000 mm): Rectangle on Edge.Cuts
+    @(106.2100 mm, 65.6100 mm): Rectangle of J4 on F.Silkscreen
+[silk_edge_clearance]: Silkscreen clipped by board edge
+    Rule: board setup constraints silk; warning
+    @(69.0000 mm, 51.5000 mm): Rectangle on Edge.Cuts
+    @(176.4500 mm, 79.0200 mm): Rectangle of J2 on F.Silkscreen
+
+** Found 0 unconnected pads **
+
+** Found 0 Footprint errors **
+
+** Ignored checks **
+    - Footprint has no courtyard defined
+    - Track endpoint not centered on via
+    - Tuning profile track geometries
+    - Footprint doesn't match symbol's footprint filters
+    - Footprint component type doesn't match footprint pads
+
+** End of Report **

@@ -1,0 +1,6 @@
+# KiCad local state and automatic backups
+.history/
+_restore_backup*/
+*.kicad_prl
+*-backups/
+fp-info-cache

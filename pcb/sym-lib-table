@@ -1,0 +1,5 @@
+(sym_lib_table
+	(version 7)
+	(lib (name "TSR3") (type "KiCad") (uri "C:/Users/scorazza/Downloads/TSR3_kicad_lib/TSR3.kicad_sym") (options "") (descr ""))
+	(lib (name "Connector_Wurth_WR-TBL") (type "KiCad") (uri "C:/Users/scorazza/Downloads/KiCad_WR-TBL (rev26b)/symbols/Connector_Wurth_WR-TBL.kicad_sym") (options "") (descr ""))
+)
