@@ -57,7 +57,7 @@ Explain the reasoning behind design choices.
 - NEMA 23 (23HS2430) on A4988 (≤ 2 A; record Vref, don't change it), 24 V, 1/8 µstep (MS1=MS2=1,
   MS3 not connected per thesis schematic ✱). Steps/m must be measured; the thesis prior (GT2, 60T
   pulley, 1600 µsteps/rev) gives ≈ 13 333 µsteps/m. No cart encoder (position is open-loop).
-- 24 V is fused at 1 A on VMOT (confirmed by Simon) and could blow in accel tests. Pull-ups are 8 kΩ (thesis).
+- 24 V is fused at 1 A on VMOT (confirmed by Simon) and could blow in accel tests. Pull-ups (new PCB): encoder 4.7 kΩ, switches 10 kΩ.
   Details in `docs/thesis_notes.md`. Thesis PDF is in the folder above the repo.
 - Pendulum encoder: quadrature, NPN OC, pull-ups to 3.3 V, 600 PPR → 2400 counts/rev ✱.
 - Limit switches NO, pulled up (1 = free, 0 = pressed).
@@ -120,11 +120,12 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 
 ## Status (details: `docs/session_log.md`)
 - Claude runs on Simon's Windows PC, drives the Pi over SSH (host key ED25519
-  SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (82).
+  SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (88).
   Pi = 192.168.0.102 on the lab LAN; pendel.local resolves only from PowerShell/Windows ssh, not Git Bash.
 - Done: 0.1–0.5 (scope check passed 2026-10-09), Gate A. GPIO24 held high from boot (`gpio=24=op,dh`).
 - E-stop: the rocker switch (cuts motor AND Pi); a motor-only switch (+ bulk cap at VMOT) before the aggressive 0.9 runs.
-- **New PCB arrives Wed 2026-10-14** (better 5 V buck, fixes MS wiring): pin map may change, so read pins from config.
+- **New PCB soldered 2026-10-21** (KiCad in `pcb/`; same pin map; TSR 3-2450 5 V, MS1/MS2 on board). Bring-up A-E:
+  `docs/pcb_bringup.md`, `./pcbtest.sh C|D|E` (virtual board: `tests/pcb/run_pcb_fake.sh`). Not yet run on the rig.
 - 0.5 (`docs/stage0_5_timing.md`): loop p99 6/35 µs idle/load; step edges p99 ≤ 12 µs. SoC heatsink fitted 10-09.
 - C++ core mirrors Python with golden tests (pid, supervisor, units, swingfit, estimator, SimHw); `docs/model_derivation.md`.
 - **c_bottom must be re-found after every program start** (no index): small swing + `core::fitOffset`.
