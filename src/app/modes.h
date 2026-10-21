@@ -7,6 +7,7 @@
 #include "common/config.h"
 
 class Axis;
+struct gpiod_line;
 
 namespace app {
 
@@ -18,6 +19,7 @@ struct Flags {
 };
 extern Flags flags;
 extern std::atomic<Axis*> activeAxis;     // the fatal-signal handler sets its EN = 1
+extern std::atomic<gpiod_line*> activeEnLine;   // a raw ~ENABLE output (pcb-test): the handler sets it to 1
 
 int runSelftest(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 int runTimingProbe(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
@@ -27,6 +29,7 @@ int runShadow(const Config& cfg, const std::string& configPath, const std::strin
 int runDamp(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 int runBalance(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 int runRemoteSim(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
+int runPcbTest(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 
 }
 

@@ -17,6 +17,8 @@
 //                  controller runs on a PC (Stage 2b, remote.sh, docs/remote.md).
 //   remote-sim     Stage 2b end to end with a SIMULATED pendulum: no GPIO, nothing moves; the PC's
 //                  py/remote_ctrl.py balances it over UDP with the constant delay remote.delay_ticks.
+//   pcb-test       bring-up test of the carrier PCB, one stage per run (pcbtest.stage C / D / E; only E moves
+//                  the motor). Refuses the real chip unless pcbtest.allow_real_chip=true (pcbtest.sh).
 // Usage:
 //   pendctl --mode MODE [--config config/pendctl.conf] [--set key=value ...]
 //
@@ -36,12 +38,14 @@
 namespace app {
 Flags flags;
 std::atomic<Axis*> activeAxis{nullptr};
+std::atomic<gpiod_line*> activeEnLine{nullptr};
 }
 
 namespace {
 
 void emergencyOff() {
     if (Axis* a = app::activeAxis.load()) a->disableDriver();
+    if (gpiod_line* l = app::activeEnLine.load()) gpiod_line_set_value(l, 1);   // ~ENABLE high = driver off
 }
 
 void onTerminate(int sig) {
@@ -58,7 +62,7 @@ void onTerminate(int sig) {
 }
 
 void usage() {
-    std::cout << "Usage: pendctl --mode log-selftest|timing-probe|encoder-log|move|shadow|damp|balance|remote-sim [--config FILE] "
+    std::cout << "Usage: pendctl --mode log-selftest|timing-probe|encoder-log|move|shadow|damp|balance|remote-sim|pcb-test [--config FILE] "
                  "[--set key=value ...]\n";
 }
 
@@ -96,6 +100,7 @@ int main(int argc, char** argv) {
         else if (mode == "damp") rc = app::runDamp(cfg, configPath, cmdLine);
         else if (mode == "balance") rc = app::runBalance(cfg, configPath, cmdLine);
         else if (mode == "remote-sim") rc = app::runRemoteSim(cfg, configPath, cmdLine);
+        else if (mode == "pcb-test") rc = app::runPcbTest(cfg, configPath, cmdLine);
         else usage();
     } catch (const std::exception& e) {
         std::cerr << "pendctl: " << e.what() << "\n";
