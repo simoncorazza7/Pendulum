@@ -101,6 +101,11 @@ continuity mode.
 The Pi is **not** on the board; A4988 out if socketed; nothing in J3, J4 or J9. A bench supply with a current limit
 (24 V, 0.2 A) is ideal.
 
+> **Bench supply in constant-voltage mode only: 24 V set, current limit as a ceiling.** In constant-current mode the
+> supply raises its voltage, up to its maximum (often 30+ V, above U1's 30 V input limit), until the set current flows.
+> On 2026-10-22, 2 A in CC mode burned out L1: a small SMD inductor, probably rated below F1's 1 A, so F1 does not
+> protect it. A 1 A fuse carries 2 A for seconds to minutes before it opens.
+
 1. 24 V on J2: the blue and green LEDs light.
 2. Supply current (bench supply): below ~50 mA. The blue LED takes ~17 mA. U1 idling with the green LED behind it
    takes 5–15 mA (the LED's 18 mA at 5 V is ~4 mA at 24 V). With D1 not fitted yet (2026-10-22), a 0.01 A display
@@ -119,9 +124,10 @@ The Pi is **not** on the board; A4988 out if socketed; nothing in J3, J4 or J9. 
    - An open-collector encoder can only pull low, and without the Pi there is no pull-up voltage.
    - Near 5 V means a push-pull 5 V encoder that would drive 5 V into the Pi: **stop**.
    - Power off and unplug the encoder again.
-10. Power off. **Raise the bench supply's current limit to 1 A**: with the Pi on, the board draws ~0.13 A at 24 V
-    idle and ~0.3 A in stage C's load test, and a 0.2 A limit would sag the supply into a false under-voltage
-    verdict. **Remove F2** for stages C and D. Mount the Pi with the power off. Never connect the Pi's USB-C while the
+10. Power off. **Raise the bench supply's current limit to 0.5 A** for stages C and D (1 A for stage E, the motor).
+    With the Pi on, the board draws ~0.13 A at 24 V idle and ~0.3 A in stage C's load test. A 0.2 A limit would sag
+    the supply into a false under-voltage verdict. 0.5 A caps a fault well below the 2 A that burned out L1 (L1's
+    rating is not recorded: the schematic says 0805, the PCB footprint is a 2.5 x 2.0 mm Würth MAPI-2510). **Remove F2** for stages C and D. Mount the Pi with the power off. Never connect the Pi's USB-C while the
     board powers it: two 5 V supplies would fight.
 
 ## Stages C, D, E: `./pcbtest.sh`
