@@ -91,7 +91,9 @@ The Pi is **not** on the board; A4988 out if socketed; nothing in J3, J4 or J9. 
 (24 V, 0.2 A) is ideal.
 
 1. 24 V on J2: the blue and green LEDs light.
-2. Supply current (bench supply): below ~50 mA (U1 idling plus the two LEDs ≈ 35 mA).
+2. Supply current (bench supply): below ~50 mA. The blue LED takes ~17 mA. U1 idling with the green LED behind it
+   takes 5–15 mA (the LED's 18 mA at 5 V is ~4 mA at 24 V). With D1 not fitted yet (2026-10-22), a 0.01 A display
+   shows 0.00–0.01. That is the point of this step: no short.
 3. **5 V rail, pin 2 to pin 6: 4.90–5.10 V.**
    - Above 5.25 V: **stop** (R5 wrong or its joint open).
    - About 24 V: **stop** (U1 reversed).
@@ -106,7 +108,9 @@ The Pi is **not** on the board; A4988 out if socketed; nothing in J3, J4 or J9. 
    - An open-collector encoder can only pull low, and without the Pi there is no pull-up voltage.
    - Near 5 V means a push-pull 5 V encoder that would drive 5 V into the Pi: **stop**.
    - Power off and unplug the encoder again.
-10. Power off. **Remove F2** for stages C and D. Mount the Pi with the power off. Never connect the Pi's USB-C while the
+10. Power off. **Raise the bench supply's current limit to 1 A**: with the Pi on, the board draws ~0.13 A at 24 V
+    idle and ~0.3 A in stage C's load test, and a 0.2 A limit would sag the supply into a false under-voltage
+    verdict. **Remove F2** for stages C and D. Mount the Pi with the power off. Never connect the Pi's USB-C while the
     board powers it: two 5 V supplies would fight.
 
 ## Stages C, D, E: `./pcbtest.sh`
