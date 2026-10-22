@@ -9,9 +9,18 @@
 #   3. ~/Pendel-main: an empty git repository that accepts pushes into its working tree (updateInstead), so the PC
 #      can `git push pi2 control-dev` exactly as to the rig Pi
 # Shows what it will do and asks before changing anything; safe to run again. --check: report only.
+# --rig: this Pi REPLACES the rig Pi (hostname pendel, user pendel; the old one died 2026-10-22), so the PC's
+# remote `pi` (pendel@pendel.local) and every script keep working.
 set -u
 CHECK=0
-[ "${1:-}" = "--check" ] && CHECK=1
+RIG=0
+for a in "$@"; do
+    case "$a" in
+    --check) CHECK=1 ;;
+    --rig) RIG=1 ;;
+    *) echo "usage: bash setup_pi.sh [--check] [--rig]"; exit 2 ;;
+    esac
+done
 
 ok() { echo "  ok    $*"; }
 todo() { echo "  TODO  $*"; }
@@ -26,7 +35,12 @@ echo "  $MODEL | $PRETTY_NAME | $ARCH | host $HOST | user $(id -un) | kernel $(u
 fail=0
 [ "${VERSION_CODENAME:-}" = "bookworm" ] && ok "bookworm" || { bad "not bookworm (${VERSION_CODENAME:-?}): libgpiod v1 is needed; re-image with the bookworm release"; fail=1; }
 [ "$ARCH" = "armhf" ] && ok "32-bit armhf userland (as the rig Pi)" || { bad "userland is $ARCH, the rig Pi is armhf: re-image with the 32-bit bookworm release"; fail=1; }
-[ "$HOST" = "pendel" ] && { bad "hostname 'pendel' is the rig Pi's: two of them on one router can't be told apart. Re-image (or rename) first"; fail=1; } || ok "hostname $HOST"
+if [ "$RIG" = 1 ]; then
+    [ "$HOST" = "pendel" ] && [ "$(id -un)" = "pendel" ] && ok "rig replacement: host pendel, user pendel" \
+        || { bad "--rig needs hostname pendel and user pendel (got $HOST / $(id -un)): re-image with those"; fail=1; }
+else
+    [ "$HOST" = "pendel" ] && { bad "hostname 'pendel' is the rig Pi's: two of them on one router can't be told apart. Re-image (or rename) first, or --rig if this Pi replaces the rig Pi"; fail=1; } || ok "hostname $HOST"
+fi
 id -nG | grep -qw gpio && ok "user in group gpio" || todo "user not in group gpio (Raspberry Pi OS adds the first user; check)"
 [ "$fail" = 0 ] || { echo "not changing anything"; exit 1; }
 
@@ -70,7 +84,11 @@ fi
 git -C "$REPO" config receive.denyCurrentBranch updateInstead
 echo
 echo "done. libgpiod $(dpkg-query -W -f='${Version}' libgpiod-dev), $(g++ --version | head -1)"
-echo "Next on the PC: git remote add pi2 $(id -un)@$(hostname).local:Pendel-main && git push pi2 control-dev"
+if [ "$RIG" = 1 ]; then
+    echo "Next on the PC: git push pi control-dev   (the new host key: check it against ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub here)"
+else
+    echo "Next on the PC: git remote add pi2 $(id -un)@$(hostname).local:Pendel-main && git push pi2 control-dev"
+fi
 echo "Then here: cd ~/Pendel-main && make && make test"
 [ "${REBOOT:-0}" = 1 ] && echo "Reboot once (sudo reboot) so gpio=24=op,dh holds the driver off from power-on; check: pinctrl get 24"
 exit 0
