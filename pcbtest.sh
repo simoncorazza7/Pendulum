@@ -15,7 +15,8 @@ PCB test, stage C: GPIO lines and supply. Every header GPIO is driven for a frac
   2. The Pi is on the board and powered ONLY through it (no USB-C cable).
   3. J3 (switches), J4 (encoder) and J9 (motor) are EMPTY.
   4. Motor fuse F2 is REMOVED (no motor voltage). F1 is in.
-  5. A multimeter at hand (5 V / 3.3 V / Vref readings are asked for).
+  5. A multimeter at hand, black lead CLIPPED to J2's GND (5 V at C4 +, 3.3 V at R3's 3V3 end, Vref are asked for).
+     NEVER probe the 40-pin header while the Pi is on: pin 1 to pin 2 kills the Pi (2026-10-22).
 TXT
 ;;
 D) cat <<'TXT'

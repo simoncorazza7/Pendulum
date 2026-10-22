@@ -372,8 +372,10 @@ bool stageC(Gpio& g, bool mock, Report& r, const Settings& st) {
         if (throttled(&v0)) r.add("C4", "since boot", core::judgeThrottled(v0, "since boot"));
         else r.add("C4", "since boot", Level::Skip, "vcgencmd get_throttled not available");
         if (waitEnter("All four CPU cores now run flat out for " + std::to_string(static_cast<int>(st.loadSeconds)) +
-                      " s (the Pi's highest current). Meanwhile measure with the multimeter: 5V = header pin 2 to pin 6 "
-                      "(GND), 3V3 = pin 1 to pin 6.")) {
+                      " s (the Pi's highest current). Meanwhile measure with the multimeter, black lead clipped to J2's "
+                      "GND terminal: 5V at C4's + leg (the leg without the stripe), 3V3 at R3's 3V3 end (the end that "
+                      "beeps to header pin 1 with the power off). NEVER probe the header pins while the Pi is on: a slip "
+                      "between pin 1 and pin 2 puts 5 V on the Pi's 3.3 V rail and destroys the Pi.")) {
             std::atomic<bool> run{true};
             std::vector<std::thread> burn;
             for (int k = 0; k < 4; ++k)
@@ -395,15 +397,15 @@ bool stageC(Gpio& g, bool mock, Report& r, const Settings& st) {
             const std::string temp = trim(shell("vcgencmd measure_temp 2>/dev/null"));
             if (!temp.empty()) r.add("C4", "SoC temperature", Level::Info, temp);
         }
-        if (auto v = askNumber("5V rail you measured under load, in V")) r.add("C4", "5V rail", core::judgeRange("5V (pin 2)", *v, 4.90, 5.25, "V"));
+        if (auto v = askNumber("5V rail you measured under load, in V")) r.add("C4", "5V rail", core::judgeRange("5V (C4 +)", *v, 4.90, 5.25, "V"));
         else r.add("C4", "5V rail", Level::Skip, "not measured");
-        if (auto v = askNumber("3V3 rail, in V")) r.add("C4", "3V3 rail", core::judgeRange("3V3 (pin 1)", *v, 3.20, 3.40, "V"));
+        if (auto v = askNumber("3V3 rail, in V")) r.add("C4", "3V3 rail", core::judgeRange("3V3 (R3)", *v, 3.20, 3.40, "V"));
         else r.add("C4", "3V3 rail", Level::Skip, "not measured");
     }
 
     std::printf("\nC5  A4988 current limit\n");
-    std::printf("  With the Pi on, the A4988's logic is powered (VDD = 3V3). Measure Vref: the potentiometer's metal top\n"
-                "  (or the VREF pad) against GND. Don't turn the potentiometer.\n");
+    std::printf("  With the Pi on, the A4988's logic is powered (VDD = 3V3). Measure Vref: black lead clipped to J2's GND,\n"
+                "  red probe on the potentiometer's metal top only (not the header or the carrier's pins). Don't turn it.\n");
     if (auto v = askNumber("Vref, in V")) {
         char s[240];
         std::snprintf(s, sizeof s,
@@ -411,7 +413,7 @@ bool stageC(Gpio& g, bool mock, Report& r, const Settings& st) {
                       "%.2f A with 0.050 ('R050'), %.2f A with 0.100 ('R100', most clones). Record it.",
                       *v, *v / (8 * 0.068), *v / (8 * 0.050), *v / (8 * 0.100));
         r.add("C5", "Vref", *v > 0.05 ? Level::Info : Level::Warn,
-              std::string(s) + (*v > 0.05 ? "" : " ~0 V: no current; check the carrier is seated and VDD (pin 2) has 3.3 V"));
+              std::string(s) + (*v > 0.05 ? "" : " ~0 V: no current; check the carrier is seated and its VDD pad has 3.3 V"));
     } else {
         r.add("C5", "Vref", Level::Skip, "not measured");
     }

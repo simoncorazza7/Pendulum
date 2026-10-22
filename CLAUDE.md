@@ -28,6 +28,8 @@ Explain the reasoning behind design choices.
   if it's measurable, design a measurement.
 - Simon types passwords himself. Never push without asking (upstream isn't his).
 - Stop at Gates A, B and C, report, and wait.
+- **Never ask Simon to probe the 40-pin header while it is powered** (2026-10-22: a probe across pins 1-2 put 5 V on
+  the Pi's 3V3 and killed the rig Pi). Powered test points: 5 V = C4 +, 3V3 = R3's 3V3 end, VMOT = C5 +.
 
 ## Conventions
 - SI internally (m, s, rad, m/s²). Counts/steps only at the hardware boundary. Unit comment on every
@@ -126,6 +128,8 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 - E-stop: the rocker switch (cuts motor AND Pi); a motor-only switch (+ bulk cap at VMOT) before the aggressive 0.9 runs.
 - **New PCB soldered 2026-10-21** (KiCad in `pcb/`; same pin map; TSR 3-2450 5 V, MS1/MS2 on board). Bring-up A-E:
   `docs/pcb_bringup.md`, `./pcbtest.sh C|D|E` (virtual board: `tests/pcb/run_pcb_fake.sh`). Not yet run on the rig.
+  2026-10-22: stage B had no 5 V (Simon fixed it; readings not reported); then the **rig Pi 4 died** (probe spark across header pins 1-2, Pi on the
+  board): red on, green dark/solid, no HDMI even on USB-C. Board's 3V3 not yet re-checked. Needs a new Pi (`setup_pi.sh`).
 - 0.5 (`docs/stage0_5_timing.md`): loop p99 6/35 µs idle/load; step edges p99 ≤ 12 µs. SoC heatsink fitted 10-09.
 - C++ core mirrors Python with golden tests (pid, supervisor, units, swingfit, estimator, SimHw); `docs/model_derivation.md`.
 - **c_bottom must be re-found after every program start** (no index): small swing + `core::fitOffset`.

@@ -15,6 +15,17 @@ Stages A and B are by hand because the worst faults on this board destroy the Pi
 cannot measure them itself. In particular, a GPIO line that the board pulls up to 3.3 V reads the same whether it
 sits at 3.3 V or at a fatal 5 V.
 
+> **Probing rule: never put a probe on the 40-pin header while it is powered.** Header pin 1 (3V3) sits right next
+> to pin 2 (5 V). A probe touching both with the Pi on puts 5 V on the Pi's 3.3 V rail, which feeds the SoC's I/O and
+> the SD card. That destroyed the rig's Pi 4 on 2026-10-22: a spark, then red LED on, green dark or solid, no HDMI
+> output, no Ethernet link, with or without its board. Clip the black lead to J2's GND terminal so one hand holds
+> one probe, and measure at these points instead:
+> - 5 V: C4's + leg (the leg without the stripe).
+> - 3.3 V: R3's 3V3 end (find it in stage A, item 9, and mark it).
+> - VMOT: C5's + leg.
+>
+> Header pins are measured only in stages A and B, with no Pi on the board.
+
 ## The board (from `pcb/PCB.kicad_pcb`)
 
 - **Power:**
@@ -77,7 +88,7 @@ continuity mode.
 | 6 | **pin 2 (5 V) – pins 3, 5, 7, 13, 15, 18, 19, 21, 35, 38, 40** | **open** | **5 V on a GPIO destroys it** |
 | 7 | **J2.1 (+24 V) and VMOT – pins 1, 2, 3, 13, 15, 18, 19, 21, 35, 38, 40** | **open** | **24 V path to the Pi** |
 | 8 | pin 1 (3V3) – pin 19 / pin 35 | 4.7 kΩ each (R1, R2) | missing or wrong resistor |
-| 9 | pin 1 (3V3) – pin 21 / pin 3 | 10 kΩ each (R3, R4) | missing or wrong resistor |
+| 9 | pin 1 (3V3) – pin 21 / pin 3 | 10 kΩ each (R3, R4). Mark the end of R3 that reads 0 Ω to pin 1: the safe 3V3 test point later | missing or wrong resistor |
 | 10 | U1 pin 5 (TRIM) – GND | 5.6 kΩ (R5) | **wrong 5 V output voltage**: fix before stage B |
 | 11 | pins 13, 15, 18, 38, 40 → A1 pads 15, 16, 9, 10, 11 | 0 Ω each (STEP, DIR, ~ENABLE, MS1, MS2) | open trace or joint |
 | 12 | pin 3 → J3.2, pin 21 → J3.3, pin 19 → J4.2, pin 35 → J4.3, pin 2 → J4.1, GND → J3.1 and J4.4 | 0 Ω | open trace or joint |
@@ -141,7 +152,8 @@ Each run prints a checklist, builds `pendctl`, runs `pendctl --mode pcb-test` an
   reaches both levels. With nothing in J3/J4 and F2 out, nothing on the board drives these lines, so driving them
   is safe. ENABLE toggling on the A4988 does nothing without VMOT.
 - **C4: supply.** `vcgencmd get_throttled` since boot, then 30 s with all four cores at full load, then again. Any
-  under-voltage flag fails. Your 5 V and 3V3 readings under load are entered and judged (4.90–5.25 V, 3.20–3.40 V).
+  under-voltage flag fails. Your 5 V (at C4 +) and 3V3 (at R3's 3V3 end) readings under load are entered and judged
+  (4.90–5.25 V, 3.20–3.40 V). Never on the header pins: see the probing rule above.
 - **C5: Vref.** The A4988's current-limit voltage, measured and recorded; it was never recorded before. The program
   prints the resulting current for the common sense resistors. Don't turn the potentiometer.
 
