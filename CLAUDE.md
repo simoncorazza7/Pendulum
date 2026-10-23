@@ -51,7 +51,7 @@ Explain the reasoning behind design choices.
 - German identifiers: Winkel = angle, Flanke = edge, Drehgeber = encoder, Endschalter = limit switch.
 
 ## System facts (✱ = unverified; see "Status" for what has been verified)
-- Pi 4 Model B Rev 1.5, 1 GB. Host `pendel`, user `pendel`, `pendel@pendel.local` (DHCP: .100 on 10-09, .102 on 10-12; use the name) (wired
+- Pi 4 Model B Rev 1.5, 4 GB (replacement from 2026-10-23; the original 1 GB Pi died 10-22). Host `pendel`, user `pendel`, `pendel@pendel.local` (DHCP: .100 on 10-09, .102 on 10-12; use the name) (wired
   eth0). Raspberry Pi OS bookworm, **32-bit armhf userland**, kernel 6.12 PREEMPT (not RT), RT throttling
   95 %, governor ondemand, desktop (labwc) running. libgpiod 1.6.3 (v1 API). g++ 12.2, Python 3.11.
   No gnuplot, no cmake. Full table in `docs/stage0_discovery.md`.
@@ -122,14 +122,16 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 
 ## Status (details: `docs/session_log.md`)
 - Claude runs on Simon's Windows PC, drives the Pi over SSH (host key ED25519
-  SHA256:Wnp+aM+kwJnd9hLdTFa+kKDR0QoMufwu4zVaZaG2wlM). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (88).
+  SHA256:+/uYSPx4f31bInTJd3Lgdp3Fgh76LSaEVURRtlaBABE, new Pi 10-23). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (88).
   Pi = 192.168.0.102 on the lab LAN; pendel.local resolves only from PowerShell/Windows ssh, not Git Bash.
 - Done: 0.1–0.5 (scope check passed 2026-10-09), Gate A. GPIO24 held high from boot (`gpio=24=op,dh`).
 - E-stop: the rocker switch (cuts motor AND Pi); a motor-only switch (+ bulk cap at VMOT) before the aggressive 0.9 runs.
 - **New PCB soldered 2026-10-21** (KiCad in `pcb/`; same pin map; TSR 3-2450 5 V, MS1/MS2 on board). Bring-up A-E:
   `docs/pcb_bringup.md`, `./pcbtest.sh C|D|E` (virtual board: `tests/pcb/run_pcb_fake.sh`). Not yet run on the rig.
   2026-10-22: stage B had no 5 V (Simon fixed it; readings not reported); then the **rig Pi 4 died** (probe spark across header pins 1-2, Pi on the
-  board): red on, green dark/solid, no HDMI even on USB-C. Board's 3V3 not yet re-checked. Needs a new Pi (`setup_pi.sh`).
+  board): red on, green dark/solid, no HDMI even on USB-C. Earlier, 2 A in bench-supply CC mode burned L1 (U1 may have
+  seen >30 V). 10-23: new Pi set up (`setup_pi.sh --rig`, GPIO24 op hi at boot, make + 88 tests OK), NOT on the PCB until
+  the board re-check passes (Ω at J2+/C6+/C4+, 5 V at C4+ with no Pi).
 - 0.5 (`docs/stage0_5_timing.md`): loop p99 6/35 µs idle/load; step edges p99 ≤ 12 µs. SoC heatsink fitted 10-09.
 - C++ core mirrors Python with golden tests (pid, supervisor, units, swingfit, estimator, SimHw); `docs/model_derivation.md`.
 - **c_bottom must be re-found after every program start** (no index): small swing + `core::fitOffset`.
