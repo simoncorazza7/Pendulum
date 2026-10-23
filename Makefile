@@ -26,7 +26,7 @@ COMMON_H  := src/common/config.h src/common/runlog.h src/rt/ringlog.h
 PENDCTL   := src/app/pendctl.cpp src/app/selftest.cpp src/app/timing_probe.cpp src/app/encoder_log.cpp src/app/move.cpp \
              src/app/rig.cpp src/app/shadow_mode.cpp src/app/damp_mode.cpp src/app/balance_mode.cpp \
              src/app/remote_link.cpp src/app/remote_sim.cpp src/app/pcb_test.cpp \
-             src/rt/rt.cpp axis.cpp safety.cpp src/hw/pi_hw.cpp src/hw/sensor_hw.cpp src/hw/edge_reader.cpp \
+             src/rt/rt.cpp axis.cpp safety.cpp src/hw/pi_hw.cpp src/hw/sensor_hw.cpp src/hw/edge_reader.cpp src/hw/sim_hw.cpp \
              src/core/profile.cpp src/core/units.cpp src/core/pid.cpp src/core/supervisor.cpp src/core/swingfit.cpp \
              src/core/pcb_check.cpp \
              src/core/estimator.cpp src/runtime/balance.cpp src/runtime/damp.cpp src/runtime/swing_calib.cpp \
@@ -36,7 +36,7 @@ PENDCTL_H := src/app/modes.h src/rt/rt.h src/rt/latency.h axis.h safety.h SafeQu
              src/hw/sensor_hw.h src/core/pid.h src/core/supervisor.h src/core/swingfit.h src/core/estimator.h \
              src/runtime/balance.h src/runtime/damp.h src/runtime/swing_calib.h src/runtime/params.h \
              src/runtime/mover.h src/runtime/session.h src/runtime/swingup.h src/runtime/remote.h \
-             src/app/remote_link.h src/common/remote_proto.h src/core/pcb_check.h
+             src/app/remote_link.h src/common/remote_proto.h src/core/pcb_check.h src/hw/sim_hw.h
 TESTS     := tests/unit/test_main.cpp tests/unit/test_ringlog.cpp tests/unit/test_config.cpp tests/unit/test_pid.cpp \
              tests/unit/test_supervisor.cpp tests/unit/test_swingfit.cpp tests/unit/test_simhw.cpp \
              tests/unit/test_estimator.cpp tests/unit/test_balance.cpp tests/unit/test_profile.cpp \
