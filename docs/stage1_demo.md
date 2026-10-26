@@ -282,3 +282,32 @@ Trim iterations (offset from the quiet stretches, `stage1_report.py balance`; un
 - **`encoder.trim = −1.6`** (today's mean) is now the default.
 - Next for longer untouched runs: a cleaner release, since v0 was +80 … +100 mm/s in runs 1, 4 and 5 (always +x).
   Engage on release is the systematic fix, and Stage 2 cart feedback the real one.
+
+### Does the 28 Hz follow the cart speed? (2026-10-26, `py/osc_speed.py`)
+
+Question: is the oscillation forced by something locked to the cart speed, or is it a mode at one frequency?
+Speed-locked candidates: belt teeth on the motor pulley or the smooth idler (500 per metre, 28 Hz at 56 mm/s), the
+stepper's electrical cycle (417/m, 28 Hz at 67 mm/s) and its full step (1667/m, 28 Hz at 17 mm/s). Data: all 18
+`*_balance` sessions of 10-12 … 10-15 (old carriage), 0.25 s windows, split by supervisor mode and session phase.
+
+| Group | Peaked steady windows ≥ 15 mm/s | Peak frequency per speed bin | Spearman ρ (f vs \|v\|) |
+|---|---|---|---|
+| ENGAGED (loop closed) | 167 | 28.1–28.4 Hz at 30–110 mm/s; 29.2 at 15–30 | −0.44 |
+| Open-loop moves (homing, re-centre; no controller) | 154 | 28.3–28.6 Hz at 15–110 mm/s | 0.07 (p = 0.39) |
+| Swing-up | 259 | 27.8–28.2 Hz at 5–300 mm/s | −0.11 |
+
+- **A fixed mode, not a speed-locked forcing.** From 15 to 110 mm/s the belt-tooth frequency sweeps 8–55 Hz while
+  the peak stays at 28 Hz. 0–2 % of the peaked open-loop and swing-up windows lie on the belt-tooth line.
+- **It exists without the controller.** Open-loop moves show it too, small (90th percentile 0.2–0.4 counts), so the
+  loop amplifies a mechanical mode rather than creating it. This agrees with the est_fc 14 result.
+- **Order spectrum** (767 constant-speed 1 s open-loop windows, dB above each spectrum's 15 Hz running median): full
+  step 1667/m **+7.7 dB** (the driver's full-step ripple reaches the encoder), belt teeth 500/m −0.4 dB, electrical
+  417/m +0.6 dB. The smooth idler leaves no trace.
+- **No amplitude bump** where the tooth line crosses 28 Hz: ENGAGED 45–60 mm/s gives 0.26 / 0.45 counts (median /
+  90th percentile) against 0.24–0.25 / 0.39–0.43 on either side. Open-loop moves spend almost no time at 45–60 mm/s.
+  Slow ENGAGED windows (15–30 mm/s) peak slightly higher (29–31 Hz), where the full-step line crosses 28–33 Hz.
+- **Consequence:** a toothed idler will not remove the 28 Hz. The remaining suspects all need the driver holding
+  (the motor-off tap test gave no ring): the motor on its rubber isolators (thesis), the belt span's stiffness against
+  the cart mass, cart rocking, the encoder bracket. Discriminating test (needs a go): tap the cart with the driver
+  enabled and holding, no steps, encoder logged.
+- The new carriage (10-20) may have moved the mode. Rerun `py/osc_speed.py logs/<new runs>` on its first sessions.

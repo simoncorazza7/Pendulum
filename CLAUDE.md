@@ -152,7 +152,10 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   `keep_driver_on` hold. First rig catches 15-30-52: RMS theta 0.08 deg (= sim); drift from a +2.1-count offset; long runs = hand.
 - 2026-10-14 `10-20-52_balance`: **trim -2.1 validated** (residual -3 mm/s^2, run 11 14.9 s untouched) -> config default.
   Open: **~28 Hz oscillation** (all runs peak 27-32 Hz; runs 2-6 grew, a_cmd saturated): suspected structural/actuator
-  resonance. Tap test (motor off): no ring -> likely drive side (cart rocking/belt while driven). **est_fc 20 -> 14 Hz
+  resonance. Tap test (motor off): no ring -> likely drive side (cart rocking/belt while driven). 10-26 `py/osc_speed.py`:
+  a **fixed 28.1-28.6 Hz mode** at 15-300 mm/s, also in open-loop moves; no belt-tooth line (500/m), so a toothed idler
+  won't fix it; the full-step ripple (1667/m) is visible. Old carriage only: the rig is disassembled (10-26), no new-carriage
+  runs yet, so rerun it on the first ones. **est_fc 20 -> 14 Hz
   default** (0 of 7 runs grown vs 3 of 17; PM 46, DM 43 ms). **Trim -1.6** (5 sessions, start-to-start scatter ~0.5
   counts). Limit now: release momentum (+80..100 mm/s).
 - 2026-10-14 **swing-up built** (`rt::SwingUpRuntime`, `./swingup.sh`; energy from LP2(theta)). Rig 11-36-43: **7/7 swung
