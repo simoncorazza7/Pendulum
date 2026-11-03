@@ -40,13 +40,13 @@ sys.modules["pendel_control"] = control           # dataclasses look their modul
 _spec.loader.exec_module(control)
 
 # --- protocol (src/common/remote_proto.h; golden bytes: tests/golden/remote_packets.txt) ---
-VERSION = 1
+VERSION = 2                                      # 2 (2026-11-03): SAMPLE carries i0 (integrator pre-load)
 MAGIC_HELLO, MAGIC_PARAMS, MAGIC_SAMPLE, MAGIC_REPLY = 0x4C454850, 0x4D525050, 0x504D5350, 0x444D4350
 HELLO = struct.Struct("<IHH")                    # magic, version, 0                                   8 bytes
 PARAMS = struct.Struct("<IHHI11d")               # magic, version, delay_ticks, params_id, ts, kp, ki, kd, a_max,
                                                  # v_max, v_taper, i_max, i_delay, theta_ref, vel_fc   100 bytes
-SAMPLE = struct.Struct("<IHHIIIqiiddddBBH")      # magic, version, flags, seq, epoch, params_id, t_ns, counts,
-                                                 # pos_usteps, theta, omega, x, v, mode, phase, delay  72 bytes
+SAMPLE = struct.Struct("<IHHIIIqiiddddBBHd")     # magic, version, flags, seq, epoch, params_id, t_ns, counts,
+                                                 # pos_usteps, theta, omega, x, v, mode, phase, delay, i0  80 bytes
 REPLY = struct.Struct("<IHHIIIdII")              # magic, version, flags, seq, epoch, params_id, a_cmd,
                                                  # pc_proc_ns, 0                                        36 bytes
 SAMPLE_CONTROLLER, SAMPLE_FINISHING = 1, 2
@@ -54,7 +54,7 @@ REPLY_PARAMS_OK, REPLY_COMPUTED = 1, 2
 MODES = {0: "IDLE", 1: "ARMED", 2: "ENGAGED", 3: "STOPPING", 255: "-"}
 PHASES = {0: "CALIBRATE", 1: "WAIT_GO", 2: "HOME", 3: "BALANCE", 4: "AFTER_RUN", 5: "RECENTRE", 6: "FINISHING",
           7: "FINISHED", 8: "FAILED"}
-assert (HELLO.size, PARAMS.size, SAMPLE.size, REPLY.size) == (8, 100, 72, 36)
+assert (HELLO.size, PARAMS.size, SAMPLE.size, REPLY.size) == (8, 100, 80, 36)
 
 
 class PidController:
@@ -67,8 +67,8 @@ class PidController:
                                    theta_ref=prm["theta_ref"], vel_fc=prm["vel_fc"])
         self.reset()
 
-    def reset(self) -> None:                       # a new engagement (epoch)
-        self.s = control.PidState()
+    def reset(self, i0: float = 0.0) -> None:     # a new engagement (epoch); i0: the Pi's integrator pre-load
+        self.s = control.PidState(integral=i0)
 
     def step(self, theta: float, omega: float, x: float, v: float) -> float:   # m/s^2
         a, self.s, _ = control.pid_step(self.p, self.s, theta, v, self.ts, omega)
@@ -81,7 +81,7 @@ def golden_lines() -> list[str]:
     params = PARAMS.pack(MAGIC_PARAMS, VERSION, 3, 0x12345678, 0.002, 62.78, 96.75, 6.556, 2.0, 0.3, 0.25, 1.0, 0.0,
                          0.0, 14.0)
     sample = SAMPLE.pack(MAGIC_SAMPLE, VERSION, 1, 123456, 7, 0x12345678, 1234567890123, -4797, 6104, 0.0123, -0.456,
-                         -0.0789, 0.101, 2, 3, 3)
+                         -0.0789, 0.101, 2, 3, 3, 0.0042)
     reply = REPLY.pack(MAGIC_REPLY, VERSION, 3, 123453, 7, 0x12345678, -1.25, 54321, 0)
     return [f"hello {hello.hex()}", f"params {params.hex()}", f"sample {sample.hex()}", f"reply {reply.hex()}"]
 
@@ -211,7 +211,7 @@ def main() -> int:
             if magic != MAGIC_SAMPLE or len(data) != SAMPLE.size:
                 continue
             (_, _, flags, seq, ep, pid_id, t_ns, counts, pos, theta, omega, x, v, mode, phase,
-             delay) = SAMPLE.unpack(data)
+             delay, i0) = SAMPLE.unpack(data)
             n_samples += 1
             if last_seq is not None and seq > last_seq + 1:
                 lost += seq - last_seq - 1
@@ -220,7 +220,7 @@ def main() -> int:
             if ctrl is not None and pid_id == params_id:
                 rflags = REPLY_PARAMS_OK
                 if ep != epoch:
-                    ctrl.reset()
+                    ctrl.reset(i0)
                     epoch = ep
                 if flags & SAMPLE_CONTROLLER:
                     acmd = ctrl.step(theta, omega, x, v)
