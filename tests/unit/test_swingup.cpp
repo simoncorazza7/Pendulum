@@ -22,7 +22,7 @@ const double kTs = 0.002;
 hw::SimHwParams swingSim() {
     hw::SimHwParams p;
     const double span = 6104 / 13333.0;
-    p.w0 = 4.931; p.bJ = 0.024; p.coulomb = 0.0117;
+    p.w0 = 4.97; p.bJ = 0.054; p.coulomb = 0.168;    // pivot of 2026-11-02 (config plant.*)
     p.axis_a = 400000.0 / (2 * 13333.0); p.axis_v = 120000.0 / (2 * 13333.0);
     p.pos_switch_right = 1000;
     p.pos_switch_left = 1000 + span * 13333.0;
@@ -62,7 +62,7 @@ rt::SwingUpConfig rigSwing(const hw::SimHwParams& p) {
 }
 
 double swingDeg(const hw::SimHw& sim) {   // amplitude estimate from energy: angle from hanging at the turning point
-    const double w2 = 4.931 * 4.931;
+    const double w2 = 4.97 * 4.97;
     const double E = 0.5 * sim.thetadot() * sim.thetadot() + w2 * (std::cos(sim.theta()) - 1);
     const double c = std::clamp(-E / w2 - 1, -1.0, 1.0);   // cos A at the turning point
     return std::acos(c) * 180 / kPi;
@@ -92,7 +92,9 @@ TEST(swingup_pumps_hands_over_balances_and_brings_it_down) {
 TEST(swingup_too_much_energy_is_removed) {
     const hw::SimHwParams p = swingSim();
     rt::SwingUpConfig c = rigSwing(p);
-    c.e_ref = 0.3;                               // aims 30 % above upright: must trip e_abort (10 %)
+    c.e_ref = 0.3;                               // aims 30 % above upright: must trip e_abort ...
+    c.e_abort = 0.015;                           // ... set low: with the 11-02 pivot friction the pumping tops out near
+                                                 // +2 % before the cart reaches the soft limit (rig 09-52-36: 1.04-1.05)
     c.theta_sw = 0.0;                            // and never hand over
     SwingRun r(c, p);
     r.until(60000, [&](int) { return r.rt.done(); });
@@ -133,7 +135,7 @@ TEST(swingup_operator_go_removes_energy_and_quit_stops_hard) {
 
 TEST(swingup_params_from_config) {
     const rt::SwingUpConfig c = rt::swingUpFrom(Config::fromFile("config/pendctl.conf"));
-    CHECK_NEAR(c.a_pump, 0.75, 1e-12);
+    CHECK_NEAR(c.a_pump, 1.1, 1e-12);
     CHECK_NEAR(c.pid.a_max, 2.0, 1e-12);                      // the balance session's reduced limits
     CHECK_NEAR(c.theta_sw * 180 / kPi, 10.0, 1e-9);
     CHECK(c.e_abort > c.e_ref);
@@ -147,7 +149,7 @@ TEST(session_swingup_mode_home_ready_swing_quit) {
     cfg.setFromAssignment("balance.swingup=true");
     cfg.setFromAssignment("swingup.e_ref=0.003");                 // SimHw energy losses (see rigSwing)
     rt::Session ses(rt::sessionFrom(cfg));
-    hw::SimHw sim(p, kPi - 0.14, 0.0, 0.03);
+    hw::SimHw sim(p, kPi - 0.31, 0.0, 0.03);       // 18 deg calibration swing
     bool ready = false, limit = false;
     double max_x = 0;
     auto tick = [&] {

@@ -25,7 +25,7 @@ const double kSpanM = 6104 / 13333.0;     // m between the switches
 // upmTruth: the step mode the driver really runs (13333 = 1/8 step as configured, 3333 = half step).
 hw::SimHwParams rigSim(double upmTruth = 13333.0) {
     hw::SimHwParams p;
-    p.w0 = 4.931; p.bJ = 0.024; p.coulomb = 0.0117;
+    p.w0 = 4.97; p.bJ = 0.054; p.coulomb = 0.168;    // pivot of 2026-11-02 (config plant.*)
     p.axis_a = 400000.0 / (2 * 13333.0); p.axis_v = 120000.0 / (2 * 13333.0);
     p.truth.usteps_per_m = upmTruth;
     p.pos_switch_right = 1000;
@@ -71,7 +71,7 @@ void stopSwing(Run& r, double hold = 0.8) {
 
 double phiDeg(double theta) { return std::fabs(core::wrap(theta - kPi)) * 180 / kPi; }
 
-// Calibrate (8 deg free swing), stop the swing, Enter, home.
+// Calibrate (18 deg free swing: calib.swing_sigma matches 12-18 deg), stop the swing, Enter, home.
 void calibrateAndHome(Run& r) {
     r.until(20000, [&](int) { return r.ses.phase() != rt::SessionPhase::Calibrate; });
     CHECK(r.ses.phase() == rt::SessionPhase::WaitGo);
@@ -146,7 +146,7 @@ TEST(session_full_flow_two_catches_recentre_quit) {
     hw::SimHwParams p = rigSim();
     rt::SessionConfig c = rigSession();
     c.trim = 1.0;                                  // 1 count reference error: drift into the soft limit
-    Run r(p, c, kPi - 0.14, 0.05);                 // 8 deg swing, cart 50 mm left of the middle
+    Run r(p, c, kPi - 0.31, 0.05);                 // 18 deg swing, cart 50 mm left of the middle
     calibrateAndHome(r);
     CHECK(r.ses.phase() == rt::SessionPhase::Balance);
     CHECK(std::llabs(r.ses.posRight() - 1000) <= 2);
@@ -205,7 +205,7 @@ TEST(session_full_flow_two_catches_recentre_quit) {
 
 TEST(session_wrong_step_mode_fails_the_span_check) {
     hw::SimHwParams p = rigSim(3333.3);            // the driver runs half step, the config says 1/8
-    Run r(p, rigSession(), kPi - 0.14, 0.0);
+    Run r(p, rigSession(), kPi - 0.31, 0.0);
     calibrateAndHome(r);
     CHECK(r.ses.phase() == rt::SessionPhase::Failed);
     CHECK(std::string(r.ses.reason()).find("track span") != std::string::npos);
@@ -219,7 +219,7 @@ TEST(session_wrong_step_mode_fails_the_span_check) {
 
 TEST(session_step_loss_is_measured_and_stops_beyond_tolerance) {
     for (double lost : {100.0, 300.0}) {           // 7.5 mm: re-zeroed; 22 mm: beyond touch_tol 15 mm
-        Run r(rigSim(), rigSession(), kPi - 0.14, 0.0);
+        Run r(rigSim(), rigSession(), kPi - 0.31, 0.0);
         calibrateAndHome(r);
         liftAndRelease(r);
         r.until(500, [](int) { return false; });
@@ -247,7 +247,7 @@ TEST(session_step_loss_is_measured_and_stops_beyond_tolerance) {
 }
 
 TEST(session_quit_during_homing_stops) {
-    Run r(rigSim(), rigSession(), kPi - 0.14, 0.0);
+    Run r(rigSim(), rigSession(), kPi - 0.31, 0.0);
     r.until(20000, [&](int) { return r.ses.phase() != rt::SessionPhase::Calibrate; });
     stopSwing(r);
     r.ses.requestGo();
@@ -275,7 +275,7 @@ TEST(session_params_from_config) {
     CHECK_NEAR(c.balance.pid.a_max, 2.0, 1e-12);   // balance.* replaces ctrl.a_max / v_max
     CHECK_NEAR(c.balance.pid.v_max, 0.3, 1e-12);
     CHECK_NEAR(c.span_usteps, 6104, 1e-9);
-    CHECK_NEAR(c.mover.w0, 4.931, 1e-12);
+    CHECK_NEAR(c.mover.w0, 4.97, 1e-12);
     Config bad = Config::fromFile("config/pendctl.conf");
     bad.setFromAssignment("sup.x_max=0.22");      // soft limit + braking beyond the switches
     CHECK_THROWS(rt::sessionFrom(bad));

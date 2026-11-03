@@ -23,7 +23,7 @@ The script shows a checklist and waits for `yes`. It then builds `build/pendctl`
 
 What you do and what you see:
 
-1. **Calibration** (driver off). Give the hanging pendulum a 3–8° swing and take your hands off. After about 5 s it prints `calib: accepted`.
+1. **Calibration** (driver off). Give the hanging pendulum a swing of about 20° and take your hands off. It prints `calib: accepted` as the swing passes 18–12°, after about 5–10 s. (Before the 2026-11-02 support bearing: 3–8°; the higher pivot friction now kills small swings within the 3 s fit window.)
 2. **Stop the swing by hand**, let the pendulum hang still, press Enter. **Homing** takes about 25 s:
    - The cart drives at 40 mm/s to the right switch.
    - It then drives to the left switch and prints the measured span. It must say `step mode OK`.
@@ -49,7 +49,7 @@ What you do and what you see:
 | `STOPPING: angle beyond theta_abort` | the pendulum fell (\|θ\| > 22°): failed catch, or let go with a push | as above |
 | `FAILED: track span ...` | the switches were not about 6104 µsteps apart: the step mode is not 1/8 (the loose MS1/MS2 wire) | re-seat or secure the MS wires, restart `./demo.sh` |
 | `FAILED: ... switch found ... mm from where the step count puts it` / `not within 20 mm` | step loss, or the step mode changed during the session | restart (it homes again); look at the run that came before |
-| `FAILED: calibration ...` | no accepted swing fit within 120 s; nothing moved | restart and swing 3–8° with hands off |
+| `FAILED: calibration ...` | no accepted swing fit within 120 s; nothing moved | restart and swing about 20° with hands off |
 
 ## Design and why
 

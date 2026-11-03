@@ -159,7 +159,7 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                           cfg.getDouble("remote.link_timeout") * 1e3);
             std::cout << b;
         }
-        std::cout << "calib: give the HANGING pendulum a small swing (3-8 deg) and let go. Hands off until "
+        std::cout << "calib: give the HANGING pendulum a ~20 deg swing and let go (pivot friction: 3-8 deg dies too fast). Hands off until "
                      "'calib: accepted' (~5 s). Driver OFF.\n" << std::flush;
     }
 
