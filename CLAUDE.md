@@ -165,3 +165,31 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   PC 82/82 (bit-exact = delay line under jitter); WSL e2e OK; Windows PC program worst answer 0.99 ms (default priority).
   Next: wired Windows PC measurement, Pi build. 10-20: **new carriage** being fitted: re-commission first
   (`docs/stage1_demo.md` "After a mechanical rebuild": theta sign, span, trim, plant).
+- 2026-11-02 rig rebuilt on the new PCB + carriage (Pi now 192.168.0.101); PCB stages C/D/E and re-commissioning not
+  logged. Simon added an external support bearing on the encoder shaft: demo calibration never accepts. Free swing
+  `11-02T15-27-20_encoder-log`: 43 deg -> rest in 16 s, **Coulomb 0.31 rad/s^2 (27x), stiction +-4.4 counts**, linear
+  decay; w0 ~5.0 at small amplitude. Replayed calibration: no `calib.swing_sigma`/`plant.w0` passes (rms 5-10 counts).
+  Decision (Simon): fix the bearing friction first (alignment / seals), then re-record and update `plant.*`.
+  After Simon's bearing fix, `15-43-11` (fit --t0 2 --t1 29): 43 deg -> rest in ~27 s, **Coulomb 0.168 (14x old), b/J
+  0.054, w0 4.97** (A^2 coeff 0.071, ~rigid). Calibration replay: accepts at 12-18 deg with w0 4.97, swing_sigma 0.12
+  (c 1.8-2.0 consistent); current defaults still reject. Sim (catch_study plant): no falls, runs reach the soft limit
+  sooner (3-4.6 s vs 4-10 s). Not yet in config: pass via `--set` for the demo.
+  Simon then ran `./demo.sh` with those `--set`s: `11-02T15-52-23_balance` calib accepted (se 0.03), **span 5938 usteps**
+  (new carriage, -2.7 %, inside tol), touch errors 0/1; 3 catches: 2.8 s, **60 s (max run time)**, 16.4 s -> theta sign and
+  combined loop OK on the new PCB/carriage. pcb-test: only stage C logged (10-30). Next (Simon): swing-up. Estimated
+  extra loss on the last approach with the new friction ~+2 % of 2w0^2 (bJ*4w0 + coulomb*pi), so e_ref 0.007 may turn
+  back ~15 deg short: first run at 0.007, then raise e_ref from the measured arrival energy (`py/swingup_report.py`).
+- 2026-11-03 swing-up `09-44-23_balance` (defaults + plant --sets): 2 runs, **no hand-over in 40 s, peak energy 0.92 /
+  0.84**, x -53..+63 mm, |v| <= 220 mm/s. Energy balance from data.csv (input = -a theta' cos theta / 2g, a from v):
+  input ~0.08-0.10/s vs loss 0.07-0.09/s at E 0.8-0.9 (model bJ*<theta'^2> + coulomb*<|theta'|> gives 0.064; old
+  plant ~0.02). Next try (Simon OK'd looser limits): a_pump 1.1, k_e 2, e_ref 0.02 (old arrival loss 0.7 % x ~3.5),
+  pump_max 60; v_max kept 0.3 (0.4 fails the soft-limit + braking reach check and the move.max_speed guard).
+  Result `09-52-36_balance`: pumping now reaches the top in 17-18 s (4/4), but **0/4 hand-overs**: arrivals E 0.99-1.015
+  (over the top at 30-70 deg/s, or turned back at 10-11 deg), min |u| 2.9-5.6 deg vs u_sw 3; cart at x +-50..100 mm,
+  |v| 150-250 mm/s at the top; all 4 ended "soft limit while pumping". Arrival ~0.7-1 % below e_ref at k_e 2 (not 2.4 %).
+  **`10-02-18_balance` (e_ref 0.01, u_sw 5): 6/6 handed over** (pump 16.6-21 s, x -81..+95 mm), arrivals E 1.0008-1.0048,
+  hand-over at |theta| 9.1 deg, u 1.3-3.8 deg. Balanced 2.8, 0.35, 0.36, 0.96, **30, 30 s** (balance_max). Short runs: cart
+  +52 mm at +190 mm/s at hand-over (soft limit in 0.35 s). Run 5: RMS theta 0.10 deg, 0 % sat, x -65..+91; run 6: RMS
+  1.19 deg, 22 % sat, 1.6 Hz, many identity-residual steps (hand? note the identity ignores the new Coulomb torque).
+  **Config defaults now = these values** (Simon, 11-03): plant 4.97/0.054/0.168, calib.swing_sigma 0.12 (swing ~20 deg),
+  encoder.trim 0, swingup a_pump 1.1, k_e 2, e_ref 0.01, u_sw 5, pump_max 60. Session/swing-up tests simulate the new plant.
