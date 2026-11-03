@@ -196,3 +196,8 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 - 2026-11-03 remote (wired PC 192.168.0.103): `14-14-50_remote-sim` 42 085 replies, 0 lost, RTT p99.9 2.39 / max 4.17 ms ->
   **remote.delay_ticks 4**. remote-sim with the new plant.coulomb: the sim rod sticks at upright and the cart runs away
   (fell at 6.04 s, 3 runs); use `--set plant.coulomb=0` (gains don't use it). Next: 10-min confirm run, then `./remote.sh`.
+  **First rig remote session `14-32-03_balance`** (delay 4): 3 catches 47.9 s (RMS 0.70 deg, 1.1 Hz, pushes flagged),
+  5.1 s, **60 s at RMS 0.099 deg** (= local quality). Trim residual +0.08 counts (trim 0 holds). Link 5.8 min, 172 907
+  replies, 0 lost; RTT p99.9 2.5 ms but clustered stalls to **13.2 ms** (at 5.9 s, 56 s): 8 late, 4 held ticks engaged,
+  longest run 3 (abort at 5). Report: N=7 covers all, 6 leaves 2 single holds. Confirm sim 14-25-13 (no taps): max 9.3 ms,
+  1 late; ended at the 9.5 m sim soft limit after 68.6 s (angle-only drift), not the link. -> **remote.delay_ticks 6** (Simon).

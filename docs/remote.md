@@ -53,7 +53,8 @@ Measured so far:
 |---|---|---|---|
 | localhost, WSL on Simon's laptop | `tests/remote/run_remote_e2e.sh` (C++ link + PC program) | 0.13 / 0.63 / 1.48 | 1 |
 | laptop Wi-Fi → router → Pi wired, 10 s | `py/net_probe_*` (Python both ends) | 1.27 / 8.0 / 11.2 | 6 (→ delay_ticks 7) |
-| Simon's wired PC → Pi (2026-11-03, 1.4 min, 42 085 replies, 0 lost) | `remote-sim` + `py/remote_ctrl.py` (`logs/2026-11-03T14-14-50_remote-sim`) | 0.46 / 2.39 / 4.17 | 3 (→ delay_ticks **4**, now the default) |
+| Simon's wired PC → Pi (2026-11-03, 1.4 min, 42 085 replies, 0 lost) | `remote-sim` + `py/remote_ctrl.py` (`logs/2026-11-03T14-14-50_remote-sim`) | 0.46 / 2.39 / 4.17 | 3 (→ 4) |
+| same wired PC, first rig session (2026-11-03, 5.8 min, 172 907 replies, 0 lost) | `./remote.sh` (`logs/2026-11-03T14-32-03_balance`) | 0.41 / 2.50 / 13.2 (clustered stalls) | 7; 6 leaves 2 single late ticks → delay_ticks **6**, now the default |
 
 A 10-minute Wi-Fi run ended when the laptop left the lab network. On Wi-Fi the worst case includes the link
 dropping out entirely, which no delay covers; the brief says wired Ethernet.
