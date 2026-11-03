@@ -1,6 +1,6 @@
 // Stage 2b remote controller (docs/remote.md): the UDP packet layout (golden bytes shared with py/remote_ctrl.py)
-// and BalanceRuntime with a remote command source. A fake PC runs core::pidStep on every sample, exactly as
-// py/remote_ctrl.py does, and delivers its replies after a chosen number of ticks.
+// and BalanceRuntime / SwingUpRuntime with a remote command source. A fake PC runs core::pidStep on every sample,
+// exactly as py/remote_ctrl.py does, and delivers its replies after a chosen number of ticks.
 
 #include <algorithm>
 #include <cmath>
@@ -21,6 +21,7 @@
 #include "runtime/balance.h"
 #include "runtime/params.h"
 #include "runtime/remote.h"
+#include "runtime/swingup.h"
 
 namespace {
 
@@ -64,7 +65,7 @@ proto::Sample goldenSample() {
     proto::Sample s;
     s.flags = 1; s.seq = 123456; s.epoch = 7; s.params_id = 0x12345678; s.t_ns = 1234567890123LL; s.counts = -4797;
     s.pos_usteps = 6104; s.theta = 0.0123; s.omega = -0.456; s.x = -0.0789; s.v = 0.101; s.mode = 2; s.phase = 3;
-    s.delay_ticks = 3;
+    s.delay_ticks = 3; s.i0 = 0.0042;
     return s;
 }
 proto::Reply goldenReply() {
@@ -73,8 +74,8 @@ proto::Reply goldenReply() {
     return r;
 }
 
-// The PC, as py/remote_ctrl.py: resets its PID when the epoch changes, runs it on samples flagged controller,
-// replies 0 otherwise. reply latency (ticks) per seq from `latency` (< 0: the reply never arrives).
+// The PC, as py/remote_ctrl.py: resets its PID when the epoch changes (integrator = the sample's i0), runs it on
+// samples flagged controller, replies 0 otherwise. reply latency (ticks) per seq from `latency` (< 0: the reply never arrives).
 class FakePc : public rt::RemoteSource {
 public:
     FakePc(const core::PidParams& p, std::function<int(std::uint32_t)> latency) : pid_(p), latency_(std::move(latency)) {}
@@ -90,11 +91,13 @@ public:
             }
         }
     }
-    void sample(const rt::TickRecord& r) {
-        if (r.epoch != epoch_) { st_ = core::PidState{}; epoch_ = r.epoch; }
+    void sample(const rt::TickRecord& r) { sample(r.controller, r.epoch, r.i0, r.theta, r.v, r.omega); }
+    void sample(const rt::SwingRecord& r) { sample(r.controller, r.epoch, r.i0, r.theta, r.v, r.omega); }
+    void sample(bool controller, std::uint32_t epoch, double i0, double theta, double v, double omega) {
+        if (epoch != epoch_) { st_ = core::PidState{}; st_.integral = i0; epoch_ = epoch; }
         double a = 0.0;
-        if (r.controller) {
-            const core::PidResult pr = core::pidStep(pid_, st_, r.theta, r.v, kTs, &r.omega);
+        if (controller) {
+            const core::PidResult pr = core::pidStep(pid_, st_, theta, v, kTs, &omega);
             st_ = pr.state;
             a = pr.a_cmd;
         }
@@ -185,6 +188,7 @@ TEST(remote_packets_match_the_python_golden_bytes) {
     CHECK_EQ(s.counts, -4797);
     CHECK_EQ(s.t_ns, 1234567890123LL);
     CHECK_EQ(s.omega, -0.456);
+    CHECK_EQ(s.i0, 0.0042);
     CHECK_EQ(proto::packReply(goldenReply(), b), proto::kReplySize);
     CHECK_EQ(hex(b, proto::kReplySize), g.at("reply"));
     proto::Reply r;
@@ -192,7 +196,7 @@ TEST(remote_packets_match_the_python_golden_bytes) {
     CHECK_EQ(r.a_cmd, -1.25);
     CHECK_EQ(r.pc_proc_ns, 54321u);
     CHECK(!proto::unpackReply(b, proto::kReplySize - 1, &r));     // wrong size
-    b[4] = 2;                                                     // wrong version
+    b[4] = 1;                                                     // wrong version (1: before i0)
     CHECK(!proto::unpackReply(b, proto::kReplySize, &r));
     CHECK(proto::paramsId(goldenParams()) == proto::paramsId(goldenParams()));
     proto::Params q = goldenParams();
@@ -329,9 +333,153 @@ TEST(remote_config_is_checked) {
     c0.setFromAssignment("remote.delay_ticks=0");
     CHECK_THROWS(rt::sessionFrom(c0));
     Config c1 = cfg;
-    c1.setFromAssignment("balance.swingup=true");
-    CHECK_THROWS(rt::sessionFrom(c1));
+    c1.setFromAssignment("balance.swingup=true");                 // remote swing-up (2026-11-03)
+    CHECK(rt::sessionFrom(c1).swingup_mode);
     Config c2 = cfg;
     c2.setFromAssignment("ctrl.delay_samples=2");
     CHECK_THROWS(rt::sessionFrom(c2));
+}
+
+// --- remote swing-up (./swingup.sh --remote): pumping on the Pi, the balance after the hand-over on the PC ---
+namespace {
+
+hw::SimHwParams swingTrack() {                   // the 2026-11-02 pivot on the rig track (as test_swingup.cpp)
+    hw::SimHwParams p;
+    const double span = 6104 / 13333.0;
+    p.w0 = 4.97; p.bJ = 0.054; p.coulomb = 0.168;
+    p.axis_a = 400000.0 / (2 * 13333.0); p.axis_v = 120000.0 / (2 * 13333.0);
+    p.pos_switch_right = 1000;
+    p.pos_switch_left = 1000 + span * 13333.0;
+    p.pos_end_right = 1000 - 0.015 * 13333.0;
+    p.pos_end_left = p.pos_switch_left + 0.015 * 13333.0;
+    p.truth.pos_center = 1000 + 0.5 * span * 13333.0;
+    return p;
+}
+
+rt::SwingUpConfig swingConfig(const hw::SimHwParams& p) {
+    rt::SwingUpConfig c = rt::swingUpFrom(Config::fromFile("config/pendctl.conf"));
+    c.calib.c_bottom = 12.37 - std::floor(12.37 + 2400.0);   // the hanging start: SimHw counts begin at 0
+    c.calib.pos_center = p.truth.pos_center;
+    c.e_ref = 0.003;                     // SimHw loses less energy on the last approach than the rig (test_swingup.cpp)
+    return c;
+}
+
+struct SwingRun {
+    hw::SimHw sim;
+    rt::SwingUpRuntime rt;
+    FakePc* pc;
+    std::vector<rt::SwingRecord> recs;
+    bool limit = false;
+    SwingRun(const rt::SwingUpConfig& c, const hw::SimHwParams& p, FakePc* f) : sim(p, kPi, 0.0, 0.0), rt(c), pc(f) {
+        sim.enableDriver(true);
+        recs.reserve(40000);
+    }
+    void until(int n, const std::function<bool(int)>& done) {
+        for (int k = 0; k < n && !done(k); ++k) {
+            const auto t = static_cast<std::uint32_t>(recs.size());
+            if (pc) pc->beginTick(t);
+            const hw::Sample s = sim.read();
+            limit = limit || s.limit_left || s.limit_right;
+            const rt::SwingRecord r = rt.tick(sim, s, false);
+            if (pc) pc->sample(r);
+            sim.advance(kTs);
+            recs.push_back(r);
+        }
+    }
+    int handover() const {
+        for (std::size_t k = 0; k < recs.size(); ++k)
+            if (recs[k].phase == static_cast<int>(rt::SwingPhase::Balance)) return static_cast<int>(k);
+        return -1;
+    }
+};
+
+}
+
+// The pumping stays local; from the hand-over tick k0 on, the command at tick k is the PC's from sample k - N:
+// 0 for the first N ticks (the PC answered 0 to samples before the hand-over), then exactly the shadow PID's
+// a_local of tick k - N, whatever the reply jitter within N. The PC starts from the Pi's pre-load (i0).
+TEST(remote_swingup_balances_on_the_pc_with_the_constant_delay) {
+    const int N = 6;
+    const hw::SimHwParams p = swingTrack();
+    rt::SwingUpConfig c = swingConfig(p);
+    std::uint32_t x = 777;
+    FakePc pc(c.pid, [&](std::uint32_t) {
+        x = lcg(x);
+        return 1 + static_cast<int>((x >> 16) % N);
+    });
+    c.remote = &pc;
+    c.remote_delay = N;
+    c.epoch_base = 4;
+    SwingRun r(c, p, &pc);
+    r.until(60000, [&](int) { return r.rt.done(); });
+    const int k0 = r.handover();
+    CHECK(k0 > 0);
+    CHECK(r.rt.handedOver());
+    CHECK(r.rt.balanceTime() > 1.0);
+    CHECK_EQ(r.recs[static_cast<std::size_t>(k0)].epoch, 5u);
+    CHECK(std::fabs(r.recs[static_cast<std::size_t>(k0)].i0) > 1e-4);          // the pre-load went with the samples
+    int balance = 0, mismatch = 0, misses = 0;
+    double maxA = 0;
+    for (std::size_t k = static_cast<std::size_t>(k0); k < r.recs.size(); ++k) {
+        const rt::SwingRecord& w = r.recs[k];
+        if (w.phase != static_cast<int>(rt::SwingPhase::Balance)) break;
+        ++balance;
+        if (w.remote_miss) ++misses;
+        const double want = k < static_cast<std::size_t>(k0 + N) ? 0.0 : r.recs[k - N].a_local;
+        if (w.a_cmd != want) ++mismatch;
+        maxA = std::max(maxA, std::fabs(w.a_cmd));
+    }
+    CHECK(balance > 500);
+    CHECK_EQ(mismatch, 0);
+    CHECK_EQ(misses, 0);
+    CHECK(maxA > 0.1);
+    CHECK(r.rt.done());
+    CHECK(!r.limit);
+    CHECK(!r.sim.crashed());
+    std::printf("    remote swing-up: hand-over %.2f s, balanced %.2f s (%s), %d BALANCE ticks bit-identical to the "
+                "shadow PID %d ticks earlier\n", r.rt.handoverTime(), r.rt.balanceTime(), r.rt.reason(), balance, N);
+}
+
+// The PC goes silent while balancing: max_miss ticks later the run brakes ("remote link") and the energy is
+// pumped out locally, down to a quiet hanging swing.
+TEST(remote_swingup_link_loss_brakes_and_brings_it_down) {
+    const hw::SimHwParams p = swingTrack();
+    rt::SwingUpConfig c = swingConfig(p);
+    std::uint32_t silentFrom = 0;
+    FakePc pc(c.pid, [&](std::uint32_t s) { return (silentFrom && s >= silentFrom) ? -1 : 1; });
+    c.remote = &pc;
+    c.remote_delay = 6;
+    c.remote_max_miss = 5;
+    SwingRun r(c, p, &pc);
+    r.until(60000, [&](int) {
+        const int k0 = r.handover();
+        if (k0 >= 0 && !silentFrom && static_cast<int>(r.recs.size()) > k0 + 100)
+            silentFrom = static_cast<std::uint32_t>(r.recs.size());
+        return r.rt.done();
+    });
+    CHECK(silentFrom > 0);
+    CHECK_EQ(std::string(r.rt.reason()), std::string("remote link"));
+    CHECK(r.rt.done());
+    CHECK(r.recs.back().energy < 0.1);                                         // brought down
+    CHECK(!r.limit);
+    CHECK(!r.sim.crashed());
+}
+
+// No PC while pumping: the run never hands over into a dead link; it removes the energy instead.
+TEST(remote_swingup_link_down_while_pumping_removes_energy) {
+    const hw::SimHwParams p = swingTrack();
+    rt::SwingUpConfig c = swingConfig(p);
+    FakePc pc(c.pid, [](std::uint32_t) { return 1; });
+    c.remote = &pc;
+    c.remote_delay = 6;
+    SwingRun r(c, p, &pc);
+    r.until(60000, [&](int k) {
+        if (k == 2500) pc.up = false;                                          // 5 s into the pumping
+        return r.rt.done();
+    });
+    CHECK_EQ(std::string(r.rt.reason()), std::string("remote link down"));
+    CHECK(!r.rt.handedOver());
+    CHECK(r.rt.done());
+    CHECK(!r.limit);
+    CHECK(!r.sim.crashed());
 }

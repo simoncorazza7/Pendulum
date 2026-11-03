@@ -25,7 +25,9 @@ back for outputs. Assume worst case latency (try and test what that is) to keep 
   Arming is refused while the link is down.
 - **Same gains on both sides.** The Pi sends its PID parameters (PARAMS) on HELLO and every 0.5 s. A reply counts
   only if it carries the id of those parameters, so the PC cannot run stale gains. The PC resets its PID at each
-  new engagement (epoch).
+  new engagement (epoch), with the integrator at the sample's `i0`: the Pi's pre-load for that engagement (the
+  swing-up hand-over's θ̇/ω₀², else 0). Protocol version 2 (2026-11-03) added `i0`; a version-1 PC program is
+  ignored, so with an old copy of `py/remote_ctrl.py` the link never comes up (pull it on the PC).
 - **Shadow check.** While engaged, the Pi also runs its own PID on the same samples (`a_local`) and logs
   |PC − local| per reply. It is 0 when the network loses nothing (Python and C++ PID are golden-matched), so any
   scaling or sign error in the chain would show at once.
@@ -35,6 +37,35 @@ back for outputs. Assume worst case latency (try and test what that is) to keep 
   - Kernel receive timestamps on the Pi make every round trip exact rather than rounded to ticks.
   - Packets are little-endian, fixed size and packed byte by byte (`src/common/remote_proto.h`).
   - Golden bytes are shared by the C++ and Python sides (`tests/golden/remote_packets.txt`).
+
+## Remote swing-up (`./swingup.sh --remote`, 2026-11-03)
+
+The pumping, the energy removal and every abort stay on the Pi (`rt::SwingUpRuntime`); only the BALANCE phase after
+the hand-over runs on the PC, with the same constant delay as hand catches.
+- **Before the hand-over** the samples are not flagged controller, so the PC answers 0. The first `delay_ticks`
+  BALANCE ticks therefore apply 0, then the PC's command from the sample `delay_ticks` earlier. That is exactly the
+  local PID through a delay line of N samples (`remote_swingup_balances_on_the_pc_with_the_constant_delay`: every
+  BALANCE tick bit-identical to the shadow PID N ticks earlier, under jitter 1..N).
+- **The pre-load** θ̇/ω₀² goes to the PC as the epoch's `i0`. Without it the simulated catches of the 10-02-18
+  hand-over states end sooner (`py` study below).
+- **Link:** READY (the go for a run) waits for the link. Link down while pumping: energy out ("remote link down"),
+  no hand-over into a dead link. In BALANCE, `remote.max_miss` held ticks in a row or the link going down: brake,
+  then energy out ("remote link").
+- **Does the catch survive the delay?** The six rig hand-overs of `2026-11-03T10-02-18_balance` (θ ±8.9–9.2°,
+  θ̇ 52–63°/s, cart −10…+55 mm at 69–192 mm/s) simulated with the 11-02 plant, the catch-study model:
+
+  | hand-over | local | remote 6 ticks | remote 6, no pre-load | remote 10 ticks |
+  |---|---|---|---|---|
+  | +9.1°, −61°/s, +22 mm, +174 mm/s | soft limit 2.7 s | 5 s | soft limit 1.3 s | 5 s |
+  | +9.2°, −56°/s, +55 mm, +191 mm/s | 5 s | soft limit 4.6 s | 2.0 s | 4.6 s |
+  | +9.1°, −52°/s, +52 mm, +192 mm/s | 2.6 s | 2.8 s | 3.0 s | 2.9 s |
+  | +9.1°, −62°/s, −3 mm, +69 mm/s | 0.87 s | 0.93 s | 0.66 s | 0.91 s |
+  | +8.9°, −63°/s, +8 mm, +69 mm/s | 0.89 s | 0.91 s | 0.63 s | 0.82 s |
+  | −8.9°, +55°/s, −10 mm, −134 mm/s | 2.5 s | 2.9 s | 1.2 s | 3.5 s |
+
+  No fall in any case (5 s = the end of the simulation). 6 ticks changes the run lengths by less than their spread
+  between hand-overs; dropping the pre-load shortens five of the six. (The model's runs are shorter than the rig's
+  30 s ones; it is the comparison that counts.)
 
 ## Choosing the delay: measure the worst case
 
@@ -124,4 +155,8 @@ normally pass without a rule.
 - Late replies count by tick, so after a loop overrun the catch-up ticks shrink the delay in time. On the Pi
   overruns are aborts (3 in a row) and have not happened in 1.26 M logged ticks; under WSL the loop stalled 49 ms
   once.
-- Not in remote mode: swing-up (local only), the integrator pre-load at release (refused at load).
+- Remote swing-up is built and tested on the PC (91/91) but not yet run on the rig. The pre-load at release for
+  hand catches (`ctrl.preload` with `sup.engage_on_release`) is no longer refused in remote mode (it goes as `i0`),
+  but it is untested there and stays off by default.
+- `remote-sim` simulates the configured pivot friction; with the 11-02 pivot pass `--set plant.coulomb=0` (the rod
+  sticks at upright and the angle-only PID drives the cart off).

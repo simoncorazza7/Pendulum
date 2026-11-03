@@ -32,7 +32,8 @@
 //              the position reference is lost)
 // Swing-up mode (swingup_mode, ./swingup.sh): BALANCE holds the cart and reports READY once the pendulum
 // hangs still and the cart is centred; the operator's go starts an rt::SwingUpRuntime run (go during the run =
-// bring it down, quit = hard stop); when the run is DONE -> AFTER_RUN as above.
+// bring it down, quit = hard stop); when the run is DONE -> AFTER_RUN as above. With remote_mode as well
+// (./swingup.sh --remote) the balance after the hand-over runs on the PC, and READY also needs the link up.
 // The driver stays on from HOME until FINISHED/FAILED so the step count stays the cart position.
 namespace rt {
 
@@ -104,6 +105,7 @@ struct SessionRecord {
     bool controller = false;        // balance runtime: the controller ran on this sample (ENGAGED)
     std::uint32_t epoch = 0;        // balance runtime: engagements so far
     double a_local = 0;             // remote mode: the local (shadow) PID's output
+    double i0 = 0;                  // rad*s, the integrator the epoch started with (sent to the PC)
     bool remote_miss = false;       // remote mode: the command for this tick had not arrived (held)
 };
 

@@ -189,6 +189,7 @@ int runRemoteSim(const Config& cfg, const std::string& configPath, const std::st
         s.v = r.v;
         s.mode = static_cast<std::uint8_t>(r.mode);
         s.phase = static_cast<std::uint8_t>(rt::SessionPhase::Balance);
+        s.i0 = r.i0;
         link.sendSample(s, r.a_local);
         log.push({k, late, r, sim.theta()});
 

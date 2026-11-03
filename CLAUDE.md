@@ -201,3 +201,6 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   replies, 0 lost; RTT p99.9 2.5 ms but clustered stalls to **13.2 ms** (at 5.9 s, 56 s): 8 late, 4 held ticks engaged,
   longest run 3 (abort at 5). Report: N=7 covers all, 6 leaves 2 single holds. Confirm sim 14-25-13 (no taps): max 9.3 ms,
   1 late; ended at the 9.5 m sim soft limit after 68.6 s (angle-only drift), not the link. -> **remote.delay_ticks 6** (Simon).
+- 2026-11-03 **remote swing-up built** (`./swingup.sh --remote`; docs/remote.md "Remote swing-up"): pumping on the Pi,
+  BALANCE on the PC with the constant delay; protocol v2 sends the pre-load as `i0` (old PC program: link never up).
+  Sim (`py/remote_catch_study.py`, 10-02-18 hand-overs): 6 ticks no worse than local, no pre-load worse. PC 91/91. Not on the rig yet.

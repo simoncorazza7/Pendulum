@@ -155,6 +155,7 @@ TickRecord BalanceRuntime::tick(hw::Hardware& hw, bool overrun) {
             r.omega_release = omegaFit(s.t_ns);
             pid_.integral = r.omega_release / (c_.w0 * c_.w0);
         }
+        i0_ = pid_.integral;
     }
     double a = 0.0;
     if (o.run_controller) {
@@ -178,6 +179,7 @@ TickRecord BalanceRuntime::tick(hw::Hardware& hw, bool overrun) {
     r.integral = pid_.integral;
     r.controller = o.run_controller;
     r.epoch = epoch_;
+    r.i0 = i0_;
     r.a_cmd = a;
     r.axis_arg = core::axisAccelArg(a, c_.calib);
 

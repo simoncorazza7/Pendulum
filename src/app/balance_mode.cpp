@@ -153,14 +153,17 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
             std::snprintf(b, sizeof b,
                           "REMOTE MODE: the controller runs on the PC (py/remote_ctrl.py, UDP port %d). Constant delay "
                           "%d ticks = %.1f ms; a run aborts after %d missing commands in a row or %.0f ms without replies; "
-                          "arming waits for the PC. Everything else (limits, stops, homing, keys) stays on the Pi.\n",
+                          "%s. Everything else (limits, stops, homing, keys) stays on the Pi.\n",
                           static_cast<int>(cfg.getInt("remote.port")), sc.balance.remote_delay,
                           sc.balance.remote_delay * ts * 1e3, sc.balance.remote_max_miss,
-                          cfg.getDouble("remote.link_timeout") * 1e3);
+                          cfg.getDouble("remote.link_timeout") * 1e3,
+                          sc.swingup_mode ? "READY waits for the PC; the pumping stays on the Pi, only the balance "
+                                            "after the hand-over runs on the PC (link lost: brake, energy out)"
+                                          : "arming waits for the PC");
             std::cout << b;
         }
-        std::cout << "calib: give the HANGING pendulum a ~20 deg swing and let go (pivot friction: 3-8 deg dies too fast). Hands off until "
-                     "'calib: accepted' (~5 s). Driver OFF.\n" << std::flush;
+        std::cout << "calib: give the HANGING pendulum a ~20 deg swing and let go (pivot friction: 3-8 deg dies too "
+                     "fast). Hands off until 'calib: accepted' (~5 s). Driver OFF.\n" << std::flush;
     }
 
     rt::Session ses(sc);
@@ -225,6 +228,7 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
             s.v = r.v;
             s.mode = static_cast<std::uint8_t>(r.mode < 0 ? 255 : r.mode);
             s.phase = static_cast<std::uint8_t>(r.phase);
+            s.i0 = r.i0;
             link->sendSample(s, r.a_local);
             if (r.remote_miss) ++remoteMiss;
             if (link->linkUp() != linkWasUp) {

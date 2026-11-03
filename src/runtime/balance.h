@@ -85,6 +85,7 @@ struct TickRecord {
     double omega_release = 0;       // rad/s, free-motion velocity from the release fit (at engage)
     bool controller = false;        // the supervisor ran the controller on this sample (ENGAGED)
     std::uint32_t epoch = 0;        // engagements so far (the remote PC resets its controller when it changes)
+    double i0 = 0;                  // rad*s, the integrator this epoch started with (pre-load; sent to the PC)
     double a_local = 0;             // m/s^2, remote mode: the local PID's output on this sample (shadow)
     bool remote_miss = false;       // remote mode, ENGAGED: the command for this tick had not arrived (held)
 };
@@ -112,6 +113,7 @@ private:
     bool driver_on_ = false;
     bool sent_prev_ = false;
     std::uint32_t epoch_ = 0;
+    double i0_ = 0.0;                    // integrator at the start of this epoch
     int misses_ = 0;                     // remote: consecutive ENGAGED ticks without the command
     double a_hold_ = 0.0;                // remote: last applied command
     struct EdgeTheta { std::int64_t ts_ns; double theta; };   // edge time, boundary angle (rad)

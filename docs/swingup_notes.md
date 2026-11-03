@@ -133,6 +133,11 @@ First attempts, kept as lessons:
 - First run: watch the pumping phase. The energy line should climb to about 1.00 in 15–25 s and the cart should swing
   ±60–100 mm. If the hand-over or the catch fails, the runtime removes the energy by itself.
 
+### Remote (2026-11-03)
+
+`./swingup.sh --remote` runs the balance after the hand-over on the PC (`py/remote_ctrl.py`); the pumping and all
+aborts stay on the Pi. Design, tests and the delay study: `docs/remote.md`, "Remote swing-up".
+
 ## 7. First rig test (2026-10-14, `logs/2026-10-14T11-36-43_balance`, `py/swingup_report.py`)
 
 - **Swing-up works on the rig.** 7 of 7 runs pumped smoothly to the top in 18.1–19.5 s (SimHw: 16.7 s), with the

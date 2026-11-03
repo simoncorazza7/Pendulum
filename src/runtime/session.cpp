@@ -176,6 +176,7 @@ SessionRecord Session::tick(hw::Hardware& hw, bool overrun) {
         r.sent = t.sent; r.saturated = t.saturated; r.limit_left = t.limit_left; r.limit_right = t.limit_right;
         r.axis_accelerating = t.axis_accelerating; r.driver_enabled = t.driver_enabled;
         r.controller = t.controller; r.epoch = t.epoch; r.a_local = t.a_local; r.remote_miss = t.remote_miss;
+        r.i0 = t.i0;
         est_.update(t.counts);
         const core::Mode m = static_cast<core::Mode>(t.mode);
         if (phase_ == SessionPhase::Balance) {
@@ -325,6 +326,8 @@ SessionRecord Session::swingTick(hw::Hardware& hw, bool overrun, bool go, bool q
         const SwingRecord w = swr_->tick(hw, s, overrun);
         r.a_cmd = w.a_cmd; r.axis_arg = w.axis_arg; r.integral = w.integral; r.saturated = w.saturated;
         r.sent = w.sent; r.swing_phase = w.phase; r.energy = w.energy;
+        r.controller = w.controller; r.epoch = w.epoch; r.i0 = w.i0; r.a_local = w.a_local;
+        r.remote_miss = w.remote_miss;
         if (swr_->done()) {
             cur_.engaged = swr_->handedOver();
             cur_.t_handover = swr_->handoverTime();
@@ -356,12 +359,16 @@ SessionRecord Session::swingTick(hw::Hardware& hw, bool overrun, bool go, bool q
             const bool still = std::fabs(core::wrap(r.theta - 3.141592653589793)) < p.hang_tol &&
                                std::fabs(r.omega) < p.omega_hang && std::fabs(r.v) < p.v_stopped &&
                                std::fabs(r.x) < p.center_tol && !s.limit_left && !s.limit_right &&
-                               t_phase_ > c_.arm_delay;
+                               t_phase_ > c_.arm_delay && (!c_.balance.remote || c_.balance.remote->linkUp());
             if (still && !ready_) r.sevent = static_cast<int>(SessionEvent::SwingReady);
             ready_ = still;
             if (go && ready_) {
                 SwingUpConfig u = c_.swingup;
                 u.calib = calib_;
+                u.remote = c_.balance.remote;
+                u.remote_delay = c_.balance.remote_delay;
+                u.remote_max_miss = c_.balance.remote_max_miss;
+                u.epoch_base = static_cast<std::uint32_t>(attempt_);   // unique epochs across runs (the PC resets)
                 swr_ = std::make_unique<SwingUpRuntime>(u);
                 cur_ = AttemptStats{};
                 cur_.n = ++attempt_;

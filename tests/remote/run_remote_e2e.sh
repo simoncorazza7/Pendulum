@@ -6,6 +6,7 @@
 # Timing is not what this checks: without SCHED_FIFO (WSL) the loop can stall for tens of ms, so the overrun and
 # missed-command aborts are relaxed here and late / missed counts are printed for information. The aborts
 # themselves are unit-tested (tests/unit/test_remote.cpp); the real timing comes from remote-sim on the Pi.
+# plant.coulomb=0: with the 2026-11-02 pivot friction the simulated rod sticks at upright and the cart runs off.
 #   tests/remote/run_remote_e2e.sh [seconds] [delay_ticks]
 set -u
 cd "$(dirname "$0")/../.."
@@ -26,7 +27,7 @@ timeout 180 python3 py/remote_ctrl.py --host 127.0.0.1 --port $PORT --log-dir "$
 PC=$!
 timeout 180 ./build/remote_sim_test --set log.dir="$OUT" --set remote.port=$PORT --set remote.delay_ticks="$DELAY" \
     --set remote.sim_seconds="$SECS" --set remote.sim_wait_pc=20 --set rt.enable=false --set rt.lock_memory=false \
-    --set sup.overrun_streak=1000000 --set remote.max_miss=50 > "$OUT/pi.out" 2>&1
+    --set sup.overrun_streak=1000000 --set remote.max_miss=50 --set plant.coulomb=0 > "$OUT/pi.out" 2>&1
 RC=$?
 wait $PC
 echo "--- Pi (remote-sim)"; cat "$OUT/pi.out"

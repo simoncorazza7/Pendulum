@@ -47,8 +47,8 @@ std::int64_t TickClock::wait() {
 bool calibrateAtStart(hw::Hardware& hw, rt::SwingCalibrator& cal, TickClock& clk, double timeout,
                       const std::function<void(const hw::Sample&, std::int64_t)>& onTick) {
     const double degPerCount = 360.0 / 2400.0;
-    std::cout << "calib: give the HANGING pendulum a ~20 deg swing and let go (pivot friction: 3-8 deg dies too fast). Hands off until "
-                 "'calib: accepted' (~5 s).\n"
+    std::cout << "calib: give the HANGING pendulum a ~20 deg swing and let go (pivot friction: 3-8 deg dies too "
+                 "fast). Hands off until 'calib: accepted' (~5 s).\n"
               << std::flush;
     const double t0 = clk.seconds();
     double nextStatus = t0 + 1.0;

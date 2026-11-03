@@ -13,21 +13,24 @@
 //   Pi -> PC  PARAMS  'PPRM' u16 version, u16 delay_ticks, u32 params_id, f64 ts, kp, ki, kd, a_max, v_max,
 //                     v_taper, i_max, i_delay, theta_ref, vel_fc                                           100 bytes
 //   Pi -> PC  SAMPLE  'PSMP' u16 version, u16 flags, u32 seq, u32 epoch, u32 params_id, i64 t_ns, i32 counts,
-//                     i32 pos_usteps, f64 theta, omega, x, v, u8 mode, u8 phase, u16 delay_ticks           72 bytes
+//                     i32 pos_usteps, f64 theta, omega, x, v, u8 mode, u8 phase, u16 delay_ticks, f64 i0  80 bytes
 //   PC -> Pi  REPLY   'PCMD' u16 version, u16 flags, u32 seq, u32 epoch, u32 params_id, f64 a_cmd,
 //                     u32 pc_proc_ns, u32 0                                                                36 bytes
 //
 // seq = the Pi's loop tick of the sample; a REPLY carries the seq (and epoch) of the sample it was computed from.
-// epoch counts engagements: the PC resets its controller state when it changes. params_id identifies the PARAMS
-// (FNV-1a of their packed bytes); the Pi only uses replies computed with its current params.
+// epoch counts engagements: the PC resets its controller state when it changes, with the integrator starting at i0
+// (rad*s; the momentum pre-load theta'/w0^2 of a swing-up hand-over, else 0). Version 2 added i0 (2026-11-03): a
+// version-1 PC program is ignored, so the link never comes up instead of catching without the pre-load.
+// params_id identifies the PARAMS (FNV-1a of their packed bytes); the Pi only uses replies computed with its
+// current params.
 namespace proto {
 
-constexpr std::uint16_t kVersion = 1;
+constexpr std::uint16_t kVersion = 2;
 constexpr std::uint32_t kMagicHello = 0x4C454850;    // bytes 'P' 'H' 'E' 'L'
 constexpr std::uint32_t kMagicParams = 0x4D525050;   // 'P' 'P' 'R' 'M'
 constexpr std::uint32_t kMagicSample = 0x504D5350;   // 'P' 'S' 'M' 'P'
 constexpr std::uint32_t kMagicReply = 0x444D4350;    // 'P' 'C' 'M' 'D'
-constexpr std::size_t kHelloSize = 8, kParamsSize = 100, kSampleSize = 72, kReplySize = 36;
+constexpr std::size_t kHelloSize = 8, kParamsSize = 100, kSampleSize = 80, kReplySize = 36;
 
 // SAMPLE flags
 constexpr std::uint16_t kSampleController = 1;       // the supervisor runs the controller on this sample (ENGAGED)
@@ -51,6 +54,7 @@ struct Sample {
     double theta = 0, omega = 0, x = 0, v = 0;
     std::uint8_t mode = 0, phase = 0;
     std::uint16_t delay_ticks = 0;
+    double i0 = 0;                  // rad*s, the controller integrator at the start of this epoch
 };
 
 struct Reply {
@@ -142,6 +146,7 @@ inline std::size_t packSample(const Sample& s, std::uint8_t* out) {
     w.u8(s.mode);
     w.u8(s.phase);
     w.u16(s.delay_ticks);
+    w.f64(s.i0);
     return kSampleSize;
 }
 
@@ -199,6 +204,7 @@ inline bool unpackSample(const std::uint8_t* d, std::size_t n, Sample* s) {
     s->mode = r.u8();
     s->phase = r.u8();
     s->delay_ticks = r.u16();
+    s->i0 = r.f64();
     return true;
 }
 

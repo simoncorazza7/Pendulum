@@ -23,7 +23,8 @@ const char* swingPhaseName(SwingPhase p) {
     return "?";
 }
 
-SwingUpRuntime::SwingUpRuntime(const SwingUpConfig& c) : c_(c), est_(c.est_kind, c.ts, c.est_fc) {
+SwingUpRuntime::SwingUpRuntime(const SwingUpConfig& c)
+    : c_(c), est_(c.est_kind, c.ts, c.est_fc), epoch_(c.epoch_base) {
     // core::VelocityEstimator's BdLp2 biquad (bilinear, prewarped 2nd-order Butterworth at est_fc)
     const double k = std::tan(kPi * c.est_fc * c.ts);
     const double n = 1 / (1 + std::sqrt(2.0) * k + k * k);
@@ -70,6 +71,16 @@ SwingRecord SwingUpRuntime::tick(hw::Hardware& hw, const hw::Sample& s, bool ove
     r.energy = E / (2 * w2) + 1.0;
     overruns_ = overrun ? overruns_ + 1 : 0;
 
+    // Stage 2b: is the PC's command for this tick (from the sample remote_delay ticks ago) here?
+    double a_remote = 0.0;
+    bool have_remote = false;
+    if (c_.remote) {
+        const std::uint32_t want = c_.remote->seq() - static_cast<std::uint32_t>(c_.remote_delay);
+        have_remote = c_.remote->command(want, &a_remote) && std::isfinite(a_remote);
+        misses_ = (phase_ == SwingPhase::Balance && !have_remote) ? misses_ + 1 : 0;
+    }
+    const bool linkLost = c_.remote && !c_.remote->linkUp();
+
     const bool active = phase_ == SwingPhase::Kick || phase_ == SwingPhase::Pump || phase_ == SwingPhase::Balance ||
                         phase_ == SwingPhase::DampOut;
     if (active) {
@@ -96,12 +107,16 @@ SwingRecord SwingUpRuntime::tick(hw::Hardware& hw, const hw::Sample& s, bool ove
                 case SwingPhase::Pump:
                     if (soft) { after_brake_ = SwingPhase::DampOut; enter(SwingPhase::Brake, "soft limit while pumping"); }
                     else if (go) enter(SwingPhase::DampOut, "operator stop");
+                    else if (linkLost) enter(SwingPhase::DampOut, "remote link down");
                     else if (r.energy - 1.0 > c_.e_abort) enter(SwingPhase::DampOut, "energy above e_abort");
                     else if (t_ > c_.pump_max) enter(SwingPhase::DampOut, "no hand-over within pump_max");
                     else if (std::fabs(r.theta_f) < c_.theta_sw && std::fabs(r.theta_f + r.omega / c_.w0) < c_.u_sw) {
                         t_handover_ = t_;
                         pid_ = core::PidState{};
                         if (c_.preload) pid_.integral = r.omega / w2;   // docs/stage1_drift.md: free motion at engage
+                        ++epoch_;
+                        i0_ = pid_.integral;
+                        a_hold_ = 0.0;
                         enter(SwingPhase::Balance);
                     }
                     break;
@@ -110,6 +125,8 @@ SwingRecord SwingUpRuntime::tick(hw::Hardware& hw, const hw::Sample& s, bool ove
                     if (soft) enter(SwingPhase::Brake, "balanced until the soft limit");
                     else if (go) enter(SwingPhase::Brake, "operator stop");
                     else if (std::fabs(r.theta) > L.theta_abort) enter(SwingPhase::Brake, "fell (theta_abort)");
+                    else if (c_.remote && (misses_ >= c_.remote_max_miss || linkLost))
+                        enter(SwingPhase::Brake, "remote link");
                     else if (t_phase_ > c_.balance_max) enter(SwingPhase::Brake, "balance_max reached");
                     break;
                 case SwingPhase::DampOut: {
@@ -140,8 +157,16 @@ SwingRecord SwingUpRuntime::tick(hw::Hardware& hw, const hw::Sample& s, bool ove
         case SwingPhase::Balance: {
             const core::PidResult pr = core::pidStep(c_.pid, pid_, r.theta, r.v, c_.ts, &r.omega);
             pid_ = pr.state;
-            a = pr.a_cmd;
             r.saturated = pr.saturated;
+            r.controller = true;
+            if (c_.remote) {             // the PC's command from remote_delay ticks ago; the local PID is a shadow
+                r.a_local = pr.a_cmd;
+                if (have_remote) a_hold_ = std::clamp(a_remote, -c_.pid.a_max, c_.pid.a_max);
+                else r.remote_miss = true;
+                a = a_hold_;
+            } else {
+                a = pr.a_cmd;
+            }
             t_balance_ = t_phase_;
             break;
         }
@@ -168,6 +193,8 @@ SwingRecord SwingUpRuntime::tick(hw::Hardware& hw, const hw::Sample& s, bool ove
     r.a_cmd = a;
     r.axis_arg = core::axisAccelArg(a, c);
     r.integral = pid_.integral;
+    r.epoch = epoch_;
+    r.i0 = i0_;
     r.phase = static_cast<int>(phase_);
     hw.commandAccel(r.axis_arg);          // also in DONE: a = 0 (the cart stands still), the caller holds it next
     r.sent = true;

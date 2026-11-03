@@ -9,6 +9,7 @@
 #include "core/supervisor.h"
 #include "core/units.h"
 #include "hw/hardware.h"
+#include "runtime/remote.h"
 
 // Energy-based swing-up and hand-over to the balance PID (brief Stage 4, pulled forward by Simon on
 // 2026-10-14; docs/swingup_notes.md). One run from the hanging pendulum, on any hw::Hardware; portable.
@@ -25,14 +26,18 @@
 //             cart centring); E_ref a hair above upright. Hand-over to BALANCE when |theta| < theta_sw and
 //             |theta + theta'/w0| < u_sw (arriving along the stable manifold); integrator pre-loaded theta'/w0^2.
 //   BALANCE   core::pidStep (the balance gains, a_max, v_max taper), angle only (Stage 1): the cart keeps its
-//             hand-over velocity, so the run normally ends at the soft limit.
+//             hand-over velocity, so the run normally ends at the soft limit. With `remote` (Stage 2b, docs/remote.md)
+//             the command is the PC's, computed from the sample remote_delay ticks earlier (the local PID runs as a
+//             shadow, a_local); a late reply holds the previous command; remote_max_miss in a row, or the link
+//             going down, -> BRAKE ("remote link"). The pre-load goes to the PC as the epoch's i0.
 //   BRAKE     brake the cart to standstill, then DAMP_OUT (the pendulum must not be left near upright energy)
 //   DAMP_OUT  the pumping law toward the hanging energy, capped at a_damp, with the same centring, until the
 //             swing is below quiet_deg; then a final brake -> DONE
 //   STOPPING  hard stop: brake to standstill -> DONE (the pendulum keeps whatever energy it has)
-// Ends of a run: PUMP: energy above e_abort, pump_max, operator go -> DAMP_OUT. BALANCE: |theta| > theta_abort,
-// soft limit, balance_max, operator go -> BRAKE -> DAMP_OUT. Hard (any phase): limit switch, encoder fault,
-// Axis not in ACCELERATE, overrun streak, operator quit, soft limit during KICK / DAMP_OUT -> STOPPING.
+// Ends of a run: PUMP: energy above e_abort, pump_max, operator go, remote link down -> DAMP_OUT. BALANCE:
+// |theta| > theta_abort, soft limit, balance_max, operator go, remote link -> BRAKE -> DAMP_OUT. Hard (any phase):
+// limit switch, encoder fault, Axis not in ACCELERATE, overrun streak, operator quit, soft limit during KICK /
+// DAMP_OUT -> STOPPING.
 namespace rt {
 
 enum class SwingPhase { Kick = 0, Pump = 1, Balance = 2, Brake = 3, DampOut = 4, Stopping = 5, Done = 6 };
@@ -63,6 +68,11 @@ struct SwingUpConfig {
     double damp_max = 25.0;             // s in DAMP_OUT, then a plain stop
     double quiet_deg = 10.0;            // deg, swing amplitude that ends DAMP_OUT
     bool preload = true;                // integrator pre-load theta'/w0^2 at the hand-over
+    // Stage 2b: BALANCE runs on the PC (nullptr: locally). As BalanceConfig's remote fields.
+    RemoteSource* remote = nullptr;
+    int remote_delay = 1;               // ticks (>= 1)
+    int remote_max_miss = 5;            // consecutive BALANCE ticks without the command
+    std::uint32_t epoch_base = 0;       // the hand-over starts epoch epoch_base + 1 (the PC resets its PID)
 };
 
 struct SwingRecord {
@@ -75,6 +85,11 @@ struct SwingRecord {
     int axis_arg = 0;
     double integral = 0;
     bool saturated = false, sent = false;
+    bool controller = false;            // the balance PID ran on this sample (BALANCE): the PC computes it
+    std::uint32_t epoch = 0;            // epoch_base, epoch_base + 1 from the hand-over
+    double i0 = 0;                      // rad*s, the integrator the epoch started with (the pre-load)
+    double a_local = 0;                 // m/s^2, remote: the local (shadow) PID's output
+    bool remote_miss = false;           // remote, BALANCE: the command for this tick had not arrived (held)
 };
 
 class SwingUpRuntime {
@@ -107,6 +122,9 @@ private:
     std::int64_t c0_ = 0;
     bool has_c0_ = false;
     core::PidState pid_;
+    std::uint32_t epoch_ = 0;
+    double i0_ = 0, a_hold_ = 0;                                  // remote: the epoch's i0, last applied command
+    int misses_ = 0;                                              // remote: consecutive BALANCE ticks without it
     SwingPhase phase_ = SwingPhase::Kick, after_brake_ = SwingPhase::DampOut;
     std::atomic<bool> damp_req_{false}, stop_req_{false};
     const char* reason_ = "";
