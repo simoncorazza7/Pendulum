@@ -53,7 +53,7 @@ Measured so far:
 |---|---|---|---|
 | localhost, WSL on Simon's laptop | `tests/remote/run_remote_e2e.sh` (C++ link + PC program) | 0.13 / 0.63 / 1.48 | 1 |
 | laptop Wi-Fi → router → Pi wired, 10 s | `py/net_probe_*` (Python both ends) | 1.27 / 8.0 / 11.2 | 6 (→ delay_ticks 7) |
-| Simon's wired PC → Pi | **to do**: procedure below | | |
+| Simon's wired PC → Pi (2026-11-03, 1.4 min, 42 085 replies, 0 lost) | `remote-sim` + `py/remote_ctrl.py` (`logs/2026-11-03T14-14-50_remote-sim`) | 0.46 / 2.39 / 4.17 | 3 (→ delay_ticks **4**, now the default) |
 
 A 10-minute Wi-Fi run ended when the laptop left the lab network. On Wi-Fi the worst case includes the link
 dropping out entirely, which no delay covers; the brief says wired Ethernet.
@@ -116,8 +116,9 @@ normally pass without a rule.
 
 ## Open
 
-- The wired-PC measurement (procedure step 1) and the first rig run. These wait for the rig: Simon is fitting a new
-  carriage (2026-10-20); the checks in `docs/stage1_demo.md` ("After a mechanical rebuild") come first.
+- The wired-PC measurement (procedure step 1) is done (2026-11-03, above). Open: a 10-minute confirming run at
+  delay_ticks 4 (`--set remote.sim_tap_period=0 --set plant.coulomb=0`: the simulated 11-02 pivot friction sticks the rod
+  at upright and the cart drifts off, and taps make the angle-only drift end a run within ~1.5 min), and the first rig run.
 - On the Pi: `make` and `make test`, the gpio-mockup balance test (local mode unchanged?), a short remote-sim.
 - Late replies count by tick, so after a loop overrun the catch-up ticks shrink the delay in time. On the Pi
   overruns are aborts (3 in a row) and have not happened in 1.26 M logged ticks; under WSL the loop stalled 49 ms

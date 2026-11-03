@@ -193,3 +193,6 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   1.19 deg, 22 % sat, 1.6 Hz, many identity-residual steps (hand? note the identity ignores the new Coulomb torque).
   **Config defaults now = these values** (Simon, 11-03): plant 4.97/0.054/0.168, calib.swing_sigma 0.12 (swing ~20 deg),
   encoder.trim 0, swingup a_pump 1.1, k_e 2, e_ref 0.01, u_sw 5, pump_max 60. Session/swing-up tests simulate the new plant.
+- 2026-11-03 remote (wired PC 192.168.0.103): `14-14-50_remote-sim` 42 085 replies, 0 lost, RTT p99.9 2.39 / max 4.17 ms ->
+  **remote.delay_ticks 4**. remote-sim with the new plant.coulomb: the sim rod sticks at upright and the cart runs away
+  (fell at 6.04 s, 3 runs); use `--set plant.coulomb=0` (gains don't use it). Next: 10-min confirm run, then `./remote.sh`.
