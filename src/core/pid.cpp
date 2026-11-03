@@ -54,6 +54,19 @@ PidResult pidStep(const PidParams& p, const PidState& s, double theta, double v_
     return PidResult{a_cmd, next, u, e, vel_raw, saturated};
 }
 
+double cartThetaRef(const PidParams& p, double x_cart, double v_cart) {
+    if (p.cart_kx == 0.0 && p.cart_kv == 0.0) return 0.0;
+    const double a_d = -p.cart_kx * x_cart - p.cart_kv * v_cart;
+    return std::min(p.cart_theta_max, std::max(-p.cart_theta_max, a_d / kGCascade));
+}
+
+PidResult cascadeStep(const PidParams& p, const PidState& s, double theta, double x_cart, double v_cart,
+                      double dt, const double* velEst) {
+    PidParams q = p;
+    q.theta_ref = p.theta_ref + cartThetaRef(p, x_cart, v_cart);
+    return pidStep(q, s, theta, v_cart, dt, velEst);
+}
+
 std::string validate(const PidParams& p) {
     if (!(p.kp > 0)) return "kp must be > 0 (and > g for stability)";
     if (p.ki < 0 || p.kd < 0) return "ki and kd must be >= 0";
@@ -63,6 +76,10 @@ std::string validate(const PidParams& p) {
     if (p.i_max < 0 || p.i_delay < 0) return "i_max and i_delay must be >= 0";
     if (!(p.vel_fc > 0)) return "vel_fc must be > 0";
     if (!std::isfinite(p.theta_ref)) return "theta_ref must be finite";
+    if (!(p.cart_kx >= 0 && p.cart_kv >= 0)) return "cart_kx and cart_kv must be >= 0";
+    if (!(p.cart_theta_max >= 0 && p.cart_theta_max <= 0.175)) return "cart_theta_max must be in [0, 10 deg]";
+    if ((p.cart_kx > 0 || p.cart_kv > 0) && !(p.cart_theta_max > 0))
+        return "cart_theta_max must be > 0 when the outer loop is on (cart_kx or cart_kv > 0)";
     return "";
 }
 

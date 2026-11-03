@@ -68,6 +68,9 @@ BalanceConfig balanceFrom(const Config& cfg) {
     b.pid.i_delay = cfg.getDouble("ctrl.i_delay");
     b.pid.theta_ref = 0.0;    // the trim is applied through c_bottom (encoder.trim)
     b.pid.vel_fc = cfg.getDouble("ctrl.est_fc");
+    b.pid.cart_kx = cfg.getDouble("ctrl.cart_kx");
+    b.pid.cart_kv = cfg.getDouble("ctrl.cart_kv");
+    b.pid.cart_theta_max = cfg.getDouble("ctrl.cart_theta_max_deg") * kDeg;
     const std::string why = core::validate(b.pid);
     if (!why.empty()) throw std::runtime_error("controller parameters: " + why);
     b.est_kind = estimatorKind(cfg.getString("ctrl.estimator"));

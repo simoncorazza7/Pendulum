@@ -11,7 +11,7 @@
 //
 //   PC -> Pi  HELLO   'PHEL' u16 version, u16 0                                                          8 bytes
 //   Pi -> PC  PARAMS  'PPRM' u16 version, u16 delay_ticks, u32 params_id, f64 ts, kp, ki, kd, a_max, v_max,
-//                     v_taper, i_max, i_delay, theta_ref, vel_fc                                           100 bytes
+//                     v_taper, i_max, i_delay, theta_ref, vel_fc, cart_kx, cart_kv, cart_theta_max          124 bytes
 //   Pi -> PC  SAMPLE  'PSMP' u16 version, u16 flags, u32 seq, u32 epoch, u32 params_id, i64 t_ns, i32 counts,
 //                     i32 pos_usteps, f64 theta, omega, x, v, u8 mode, u8 phase, u16 delay_ticks, f64 i0  80 bytes
 //   PC -> Pi  REPLY   'PCMD' u16 version, u16 flags, u32 seq, u32 epoch, u32 params_id, f64 a_cmd,
@@ -20,17 +20,18 @@
 // seq = the Pi's loop tick of the sample; a REPLY carries the seq (and epoch) of the sample it was computed from.
 // epoch counts engagements: the PC resets its controller state when it changes, with the integrator starting at i0
 // (rad*s; the momentum pre-load theta'/w0^2 of a swing-up hand-over, else 0). Version 2 added i0 (2026-11-03): a
-// version-1 PC program is ignored, so the link never comes up instead of catching without the pre-load.
+// version-1 PC program is ignored, so the link never comes up instead of catching without the pre-load. Version 3
+// added the Stage 3 outer-loop gains to PARAMS (the PC runs core::cascadeStep / control.cascade_step on x, v).
 // params_id identifies the PARAMS (FNV-1a of their packed bytes); the Pi only uses replies computed with its
 // current params.
 namespace proto {
 
-constexpr std::uint16_t kVersion = 2;
+constexpr std::uint16_t kVersion = 3;
 constexpr std::uint32_t kMagicHello = 0x4C454850;    // bytes 'P' 'H' 'E' 'L'
 constexpr std::uint32_t kMagicParams = 0x4D525050;   // 'P' 'P' 'R' 'M'
 constexpr std::uint32_t kMagicSample = 0x504D5350;   // 'P' 'S' 'M' 'P'
 constexpr std::uint32_t kMagicReply = 0x444D4350;    // 'P' 'C' 'M' 'D'
-constexpr std::size_t kHelloSize = 8, kParamsSize = 100, kSampleSize = 80, kReplySize = 36;
+constexpr std::size_t kHelloSize = 8, kParamsSize = 124, kSampleSize = 80, kReplySize = 36;
 
 // SAMPLE flags
 constexpr std::uint16_t kSampleController = 1;       // the supervisor runs the controller on this sample (ENGAGED)
@@ -43,7 +44,7 @@ struct Params {
     std::uint16_t delay_ticks = 0;
     std::uint32_t params_id = 0;
     double ts = 0, kp = 0, ki = 0, kd = 0, a_max = 0, v_max = 0, v_taper = 0, i_max = 0, i_delay = 0,
-           theta_ref = 0, vel_fc = 0;
+           theta_ref = 0, vel_fc = 0, cart_kx = 0, cart_kv = 0, cart_theta_max = 0;
 };
 
 struct Sample {
@@ -123,7 +124,8 @@ inline std::size_t packParams(const Params& p, std::uint8_t* out) {
     w.u16(kVersion);
     w.u16(p.delay_ticks);
     w.u32(p.params_id);
-    for (double d : {p.ts, p.kp, p.ki, p.kd, p.a_max, p.v_max, p.v_taper, p.i_max, p.i_delay, p.theta_ref, p.vel_fc})
+    for (double d : {p.ts, p.kp, p.ki, p.kd, p.a_max, p.v_max, p.v_taper, p.i_max, p.i_delay, p.theta_ref, p.vel_fc,
+                     p.cart_kx, p.cart_kv, p.cart_theta_max})
         w.f64(d);
     return kParamsSize;
 }
@@ -182,7 +184,7 @@ inline bool unpackParams(const std::uint8_t* d, std::size_t n, Params* p) {
     p->delay_ticks = r.u16();
     p->params_id = r.u32();
     double* f[] = {&p->ts, &p->kp, &p->ki, &p->kd, &p->a_max, &p->v_max, &p->v_taper, &p->i_max, &p->i_delay,
-                   &p->theta_ref, &p->vel_fc};
+                   &p->theta_ref, &p->vel_fc, &p->cart_kx, &p->cart_kv, &p->cart_theta_max};
     for (double* x : f) *x = r.f64();
     return true;
 }

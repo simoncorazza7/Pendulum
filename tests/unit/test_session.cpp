@@ -145,7 +145,9 @@ TEST(mover_shaped_move_leaves_the_pendulum_still) {
 TEST(session_full_flow_two_catches_recentre_quit) {
     hw::SimHwParams p = rigSim();
     rt::SessionConfig c = rigSession();
-    c.trim = 1.0;                                  // 1 count reference error: drift into the soft limit
+    c.trim = 1.0;                                  // 1 count reference error: drift into the soft limit ...
+    c.balance.pid.cart_kx = c.balance.pid.cart_kv = 0;   // ... with the angle-only PID (Stage 1): this test is
+                                                         // about the stop, hold and re-centre after that drift
     Run r(p, c, kPi - 0.31, 0.05);                 // 18 deg swing, cart 50 mm left of the middle
     calibrateAndHome(r);
     CHECK(r.ses.phase() == rt::SessionPhase::Balance);
@@ -279,4 +281,35 @@ TEST(session_params_from_config) {
     Config bad = Config::fromFile("config/pendctl.conf");
     bad.setFromAssignment("sup.x_max=0.22");      // soft limit + braking beyond the switches
     CHECK_THROWS(rt::sessionFrom(bad));
+}
+
+// Stage 3 (ctrl.cart_*, the config default): the same 1-count reference error that drives the angle-only PID into
+// the soft limit within seconds is held on the track. The proportional outer loop parks the cart off-centre
+// (x ~ g delta / cart_kx = 0.10 m for 1 count at kx 0.25; the pivot's stiction band of +-2.6 counts moves the
+// spot, 70 mm here) instead of letting it run.
+TEST(session_cascade_holds_the_cart_on_the_track) {
+    rt::SessionConfig c = rigSession();
+    CHECK(c.balance.pid.cart_kx > 0 && c.balance.pid.cart_kv > 0);
+    c.trim = 1.0;
+    Run r(rigSim(), c, kPi - 0.31, 0.0);
+    calibrateAndHome(r);
+    liftAndRelease(r);
+    double maxX = 0;
+    r.until(10000, [&](int) {                      // 20 s
+        maxX = std::max(maxX, std::fabs(r.sim.x()));
+        return r.ses.phase() != rt::SessionPhase::Balance;
+    });
+    CHECK(r.ses.phase() == rt::SessionPhase::Balance);
+    CHECK(r.ses.mode() == core::Mode::Engaged);   // still balancing after 20 s
+    const double delta = 1.0 * 2 * kPi / 2400, xPark = 9.81 * delta / c.balance.pid.cart_kx;
+    std::cout << "    cascade: 20 s balanced with a 1-count reference error, max |x| " << maxX * 1e3 << " mm, x now "
+              << r.sim.x() * 1e3 << " mm (P outer loop parks at " << xPark * 1e3 << " mm)\n";
+    CHECK(maxX < 0.12);
+    CHECK(std::fabs(r.sim.x()) > 0.02 && std::fabs(r.sim.x()) < 0.12);   // parked off-centre, not at the limit
+    CHECK(std::fabs(r.sim.v()) < 0.01);                                 // and at rest
+    r.ses.requestGo();
+    r.until(2000, [&](int) { return r.ses.phase() == rt::SessionPhase::AfterRun; });
+    CHECK_EQ(r.ses.lastAttempt().end_reason, static_cast<int>(core::Reason::ManualStop));
+    CHECK(!r.sawEvent(core::Reason::LimitSwitch));
+    CHECK(!r.sim.crashed());
 }

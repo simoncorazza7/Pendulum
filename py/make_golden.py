@@ -24,7 +24,7 @@ from pendel.encsim import edge_crossings, encode
 from pendel.estimators import BdLp1, BdLp2
 from pendel.simhw import SimHw, SimHwParams
 from pendel.swingfit import fit_offset_linear
-from pendel.control import PidParams, PidState, design_gains, pid_step
+from pendel.control import PidParams, PidState, cascade_step, design_gains, pid_step
 from pendel.supervisor import (Mode, SupervisorInputs, SupervisorParams, SupervisorState, brake_distance,
                                supervisor_step)
 
@@ -284,6 +284,34 @@ def render_estimators() -> dict[str, str]:
     return {"estimator_golden.csv": NL.join(est) + NL, "pid_ext_golden.csv": NL.join(pid_lines) + NL}
 
 
+CASCADE_FIELDS = PARAM_FIELDS + ("cart_kx", "cart_kv", "cart_theta_max")
+
+
+def render_cascade() -> dict[str, str]:
+    """Stage 3 cascade (control.cascade_step): the outer loop's reference, inside and beyond its clamp."""
+    NL = chr(10)
+    kp, ki, kd = design_gains(4.97, 0.054, 2 * 4.97, 0.7, 0.5 * 4.97)
+    base = PidParams(kp=kp, ki=ki, kd=kd, a_max=2.0, v_max=0.3, i_max=1.0, i_delay=0.0, theta_ref=-0.0007, vel_fc=14.0)
+    defs = [("rig", replace(base, cart_kx=0.25, cart_kv=1.0, cart_theta_max=math.radians(4))),
+            ("clamped", replace(base, cart_kx=40.0, cart_kv=8.0, cart_theta_max=math.radians(2))),
+            ("off", base)]
+    cases_lines = ["case," + ",".join(CASCADE_FIELDS)]
+    rows = ["case,k,theta,x,v,dt,theta_ref,a_cmd,u,integral,vel_f,saturated"]
+    ts = 0.002
+    for name, p in defs:
+        cases_lines.append(name + "," + ",".join(repr(float(getattr(p, f))) for f in CASCADE_FIELDS))
+        s = PidState()
+        for k in range(3000):
+            t = k * ts
+            th = math.floor((0.02 * math.sin(2 * math.pi * 0.9 * t) + 0.004 * math.sin(2 * math.pi * 7 * t)) / Q) * Q
+            x = 0.12 * math.sin(2 * math.pi * 0.15 * t)
+            v = 0.12 * 2 * math.pi * 0.15 * math.cos(2 * math.pi * 0.15 * t) + 0.25 * math.sin(2 * math.pi * 0.5 * t)
+            a, s, dbg = cascade_step(p, s, th, x, v, ts)
+            rows.append(f"{name},{k},{th!r},{x!r},{v!r},{ts!r},{dbg['theta_ref']!r},{a!r},{dbg['u']!r},"
+                        f"{s.integral!r},{s.vel_f!r},{int(dbg['saturated'])}")
+    return {"cascade_cases.csv": NL.join(cases_lines) + NL, "cascade_golden.csv": NL.join(rows) + NL}
+
+
 def render() -> dict[str, str]:
     params_lines = ["case," + ",".join(PARAM_FIELDS)]
     golden_lines = ["case,k,theta,v_cart,dt,a_cmd,u,integral,vel_f,saturated"]
@@ -306,7 +334,8 @@ def render() -> dict[str, str]:
             **render_supervisor(),
             **render_swing(),
             **render_simhw(),
-            **render_estimators()}
+            **render_estimators(),
+            **render_cascade()}
 
 
 def main() -> None:

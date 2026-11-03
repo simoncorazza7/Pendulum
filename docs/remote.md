@@ -26,8 +26,9 @@ back for outputs. Assume worst case latency (try and test what that is) to keep 
 - **Same gains on both sides.** The Pi sends its PID parameters (PARAMS) on HELLO and every 0.5 s. A reply counts
   only if it carries the id of those parameters, so the PC cannot run stale gains. The PC resets its PID at each
   new engagement (epoch), with the integrator at the sample's `i0`: the Pi's pre-load for that engagement (the
-  swing-up hand-over's θ̇/ω₀², else 0). Protocol version 2 (2026-11-03) added `i0`; a version-1 PC program is
-  ignored, so with an old copy of `py/remote_ctrl.py` the link never comes up (pull it on the PC).
+  swing-up hand-over's θ̇/ω₀², else 0). Protocol version 2 (2026-11-03) added `i0`; version 3 (same day) added the
+  Stage 3 cart-loop gains to PARAMS, and the PC runs `control.cascade_step` on x, v (`docs/stage3_cascade.md`). An
+  older PC program is ignored, so with an old copy of `py/remote_ctrl.py` the link never comes up (pull it on the PC).
 - **Shadow check.** While engaged, the Pi also runs its own PID on the same samples (`a_local`) and logs
   |PC − local| per reply. It is 0 when the network loses nothing (Python and C++ PID are golden-matched), so any
   scaling or sign error in the chain would show at once.

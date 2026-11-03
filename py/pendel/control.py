@@ -26,6 +26,9 @@ class PidParams:
     i_delay: float = 0.0      # s after engage before the integrator runs (hand still on the rod)
     theta_ref: float = 0.0    # rad, upright reference trim
     vel_fc: float = 30.0      # Hz, 1st-order low-pass on the backward-difference velocity
+    cart_kx: float = 0.0      # 1/s^2, Stage 3 outer loop: wanted cart accel -cart_kx x - cart_kv v (0, 0: angle only)
+    cart_kv: float = 0.0      # 1/s
+    cart_theta_max: float = 0.0   # rad, clamp of the outer loop's angle reference
 
 
 @dataclass(frozen=True)
@@ -85,6 +88,29 @@ def pid_step(p: PidParams, s: PidState, theta: float, v_cart: float, dt: float,
 
     new = PidState(integral=integral, t_engaged=s.t_engaged + dt, vel_f=vel_f, prev_theta=theta)
     return a_cmd, new, {"u": u, "e": e, "vel_raw": vel_raw, "vel_f": vel_f, "saturated": saturated}
+
+
+G_CASCADE = 9.81             # m/s^2, the outer loop's lean per acceleration (C++: core::kGCascade)
+
+
+def cart_theta_ref(p: PidParams, x_cart: float, v_cart: float) -> float:
+    """Stage 3 outer loop (docs/stage3_cascade.md): the lean that makes the cart accelerate by
+    a_d = -cart_kx x - cart_kv v. Holding a lean theta takes a cart acceleration g theta, so the angle loop
+    turns this reference into that acceleration at frequencies well below its own bandwidth."""
+    if p.cart_kx == 0.0 and p.cart_kv == 0.0:
+        return 0.0
+    a_d = -p.cart_kx * x_cart - p.cart_kv * v_cart
+    return min(p.cart_theta_max, max(-p.cart_theta_max, a_d / G_CASCADE))
+
+
+def cascade_step(p: PidParams, s: PidState, theta: float, x_cart: float, v_cart: float, dt: float,
+                 vel_est: float | None = None) -> tuple[float, PidState, dict]:
+    """Cascaded PID (brief Stage 3): pid_step with theta_ref + cart_theta_ref(x, v). With cart_kx = cart_kv = 0
+    it is exactly pid_step. x_cart: cart position from the track centre (m)."""
+    q = replace(p, theta_ref=p.theta_ref + cart_theta_ref(p, x_cart, v_cart))
+    a, s2, dbg = pid_step(q, s, theta, v_cart, dt, vel_est)
+    dbg["theta_ref"] = q.theta_ref
+    return a, s2, dbg
 
 
 @dataclass

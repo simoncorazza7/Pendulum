@@ -155,7 +155,7 @@ SwingRecord SwingUpRuntime::tick(hw::Hardware& hw, const hw::Sample& s, bool ove
             break;
         }
         case SwingPhase::Balance: {
-            const core::PidResult pr = core::pidStep(c_.pid, pid_, r.theta, r.v, c_.ts, &r.omega);
+            const core::PidResult pr = core::cascadeStep(c_.pid, pid_, r.theta, r.x, r.v, c_.ts, &r.omega);
             pid_ = pr.state;
             r.saturated = pr.saturated;
             r.controller = true;

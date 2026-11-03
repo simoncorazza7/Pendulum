@@ -100,6 +100,7 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
         const core::PidParams& g = sc.balance.pid;
         pp.ts = ts; pp.kp = g.kp; pp.ki = g.ki; pp.kd = g.kd; pp.a_max = g.a_max; pp.v_max = g.v_max;
         pp.v_taper = g.v_taper; pp.i_max = g.i_max; pp.i_delay = g.i_delay; pp.theta_ref = g.theta_ref; pp.vel_fc = g.vel_fc;
+        pp.cart_kx = g.cart_kx; pp.cart_kv = g.cart_kv; pp.cart_theta_max = g.cart_theta_max;
         link->setParams(pp);
         sc.balance.remote = link.get();
     }

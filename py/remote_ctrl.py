@@ -40,11 +40,12 @@ sys.modules["pendel_control"] = control           # dataclasses look their modul
 _spec.loader.exec_module(control)
 
 # --- protocol (src/common/remote_proto.h; golden bytes: tests/golden/remote_packets.txt) ---
-VERSION = 2                                      # 2 (2026-11-03): SAMPLE carries i0 (integrator pre-load)
+VERSION = 3                                      # 2: SAMPLE i0 (pre-load); 3: PARAMS Stage 3 cart gains (2026-11-03)
 MAGIC_HELLO, MAGIC_PARAMS, MAGIC_SAMPLE, MAGIC_REPLY = 0x4C454850, 0x4D525050, 0x504D5350, 0x444D4350
 HELLO = struct.Struct("<IHH")                    # magic, version, 0                                   8 bytes
-PARAMS = struct.Struct("<IHHI11d")               # magic, version, delay_ticks, params_id, ts, kp, ki, kd, a_max,
-                                                 # v_max, v_taper, i_max, i_delay, theta_ref, vel_fc   100 bytes
+PARAMS = struct.Struct("<IHHI14d")               # magic, version, delay_ticks, params_id, ts, kp, ki, kd, a_max,
+                                                 # v_max, v_taper, i_max, i_delay, theta_ref, vel_fc,
+                                                 # cart_kx, cart_kv, cart_theta_max                     124 bytes
 SAMPLE = struct.Struct("<IHHIIIqiiddddBBHd")     # magic, version, flags, seq, epoch, params_id, t_ns, counts,
                                                  # pos_usteps, theta, omega, x, v, mode, phase, delay, i0  80 bytes
 REPLY = struct.Struct("<IHHIIIdII")              # magic, version, flags, seq, epoch, params_id, a_cmd,
@@ -54,24 +55,26 @@ REPLY_PARAMS_OK, REPLY_COMPUTED = 1, 2
 MODES = {0: "IDLE", 1: "ARMED", 2: "ENGAGED", 3: "STOPPING", 255: "-"}
 PHASES = {0: "CALIBRATE", 1: "WAIT_GO", 2: "HOME", 3: "BALANCE", 4: "AFTER_RUN", 5: "RECENTRE", 6: "FINISHING",
           7: "FINISHED", 8: "FAILED"}
-assert (HELLO.size, PARAMS.size, SAMPLE.size, REPLY.size) == (8, 100, 80, 36)
+assert (HELLO.size, PARAMS.size, SAMPLE.size, REPLY.size) == (8, 124, 80, 36)
 
 
 class PidController:
-    """The Stage 1 PID with the Pi's parameters (identical to the Pi's shadow PID on the same samples)."""
+    """The balance PID with the Pi's parameters, cascaded with the Stage 3 cart loop (cart_kx, cart_kv; 0, 0 = the
+    Stage 1 angle-only PID); identical to the Pi's shadow controller on the same samples."""
 
     def __init__(self, prm: dict):
         self.ts = prm["ts"]
         self.p = control.PidParams(kp=prm["kp"], ki=prm["ki"], kd=prm["kd"], a_max=prm["a_max"], v_max=prm["v_max"],
                                    v_taper=prm["v_taper"], i_max=prm["i_max"], i_delay=prm["i_delay"],
-                                   theta_ref=prm["theta_ref"], vel_fc=prm["vel_fc"])
+                                   theta_ref=prm["theta_ref"], vel_fc=prm["vel_fc"], cart_kx=prm["cart_kx"],
+                                   cart_kv=prm["cart_kv"], cart_theta_max=prm["cart_theta_max"])
         self.reset()
 
     def reset(self, i0: float = 0.0) -> None:     # a new engagement (epoch); i0: the Pi's integrator pre-load
         self.s = control.PidState(integral=i0)
 
     def step(self, theta: float, omega: float, x: float, v: float) -> float:   # m/s^2
-        a, self.s, _ = control.pid_step(self.p, self.s, theta, v, self.ts, omega)
+        a, self.s, _ = control.cascade_step(self.p, self.s, theta, x, v, self.ts, omega)
         return a
 
 
@@ -79,7 +82,7 @@ def golden_lines() -> list[str]:
     """The packets test_remote.cpp packs (same values), as hex."""
     hello = HELLO.pack(MAGIC_HELLO, VERSION, 0)
     params = PARAMS.pack(MAGIC_PARAMS, VERSION, 3, 0x12345678, 0.002, 62.78, 96.75, 6.556, 2.0, 0.3, 0.25, 1.0, 0.0,
-                         0.0, 14.0)
+                         0.0, 14.0, 0.25, 1.0, 0.0698)
     sample = SAMPLE.pack(MAGIC_SAMPLE, VERSION, 1, 123456, 7, 0x12345678, 1234567890123, -4797, 6104, 0.0123, -0.456,
                          -0.0789, 0.101, 2, 3, 3, 0.0042)
     reply = REPLY.pack(MAGIC_REPLY, VERSION, 3, 123453, 7, 0x12345678, -1.25, 54321, 0)
@@ -201,11 +204,13 @@ def main() -> int:
             if magic == MAGIC_PARAMS and len(data) == PARAMS.size:
                 f = PARAMS.unpack(data)
                 if f[3] != params_id:
-                    keys = ("ts", "kp", "ki", "kd", "a_max", "v_max", "v_taper", "i_max", "i_delay", "theta_ref", "vel_fc")
+                    keys = ("ts", "kp", "ki", "kd", "a_max", "v_max", "v_taper", "i_max", "i_delay", "theta_ref", "vel_fc",
+                            "cart_kx", "cart_kv", "cart_theta_max")
                     prm = dict(zip(keys, f[4:]))
                     ctrl, params_id, epoch, peer = PidController(prm), f[3], None, src
                     print(f"remote_ctrl: Pi {src[0]} params: Kp {prm['kp']:.2f} Ki {prm['ki']:.2f} Kd {prm['kd']:.3f}, "
-                          f"a_max {prm['a_max']:.1f} m/s^2, v_max {prm['v_max']:.2f} m/s; constant delay {f[2]} ticks = "
+                          f"a_max {prm['a_max']:.1f} m/s^2, v_max {prm['v_max']:.2f} m/s, cart loop kx {prm['cart_kx']:.2f} "
+                          f"kv {prm['cart_kv']:.2f}; constant delay {f[2]} ticks = "
                           f"{f[2] * prm['ts'] * 1e3:.1f} ms", flush=True)
                 continue
             if magic != MAGIC_SAMPLE or len(data) != SAMPLE.size:

@@ -159,7 +159,7 @@ TickRecord BalanceRuntime::tick(hw::Hardware& hw, bool overrun) {
     }
     double a = 0.0;
     if (o.run_controller) {
-        const core::PidResult pr = core::pidStep(c_.pid, pid_, r.theta, r.v, c_.ts, &r.omega);
+        const core::PidResult pr = core::cascadeStep(c_.pid, pid_, r.theta, r.x, r.v, c_.ts, &r.omega);
         pid_ = pr.state;
         r.saturated = pr.saturated;
         if (c_.remote) {                 // the PC's command from remote_delay ticks ago; the local PID is a shadow

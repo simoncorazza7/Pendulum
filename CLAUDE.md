@@ -8,7 +8,7 @@ a value or convention is established, and at the end of every session.
 Simon (mechatronics student) is continuing a 2025 bachelor-thesis rig. Current scope: **Stage 0**
 (bring-up, audit, identification) and **Stage 1** (on-Pi angle-only balance PID). Exceptions (Simon): swing-up
 (Stage 4, 10-14; `./swingup.sh`, `docs/swingup_notes.md`); remote controller on the PC (Stage 2b, 10-19;
-`./remote.sh`, `docs/remote.md`). Nothing else beyond.
+`./remote.sh`, `docs/remote.md`); cascaded cart loop (Stage 3, 11-03; `docs/stage3_cascade.md`). Nothing else beyond.
 Explain the reasoning behind design choices.
 
 ## Safety rules (non-negotiable)
@@ -203,4 +203,14 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   1 late; ended at the 9.5 m sim soft limit after 68.6 s (angle-only drift), not the link. -> **remote.delay_ticks 6** (Simon).
 - 2026-11-03 **remote swing-up built** (`./swingup.sh --remote`; docs/remote.md "Remote swing-up"): pumping on the Pi,
   BALANCE on the PC with the constant delay; protocol v2 sends the pre-load as `i0` (old PC program: link never up).
-  Sim (`py/remote_catch_study.py`, 10-02-18 hand-overs): 6 ticks no worse than local, no pre-load worse. PC 91/91. Not on the rig yet.
+  Sim (`py/remote_catch_study.py`, 10-02-18 hand-overs): 6 ticks no worse than local, no pre-load worse. PC 91/91.
+  Pi 91/91 + e2e 4/4. **First rig run `15-32-17_balance`: 5/7 handed over, 30 s + 30 s (balance_max) remotely**, also 1.8,
+  0.36, 0.18 s (cart at -41..-51 mm moving -200..-253 mm/s at hand-over). Link 180 793 replies, 0 late, 0 missed, max
+  10.0 ms; |PC - shadow| = 0 (pre-load i0 arrived). Runs 4-5 never pumped up: sudden energy losses of 0.1-0.25/s (10x
+  friction; run 4 at E 0.26 = 61 deg, run 5 every ~1.5 s at ~30 deg) = Simon interfering on purpose. No step loss
+  (touch errors 0/-1). `15-26-06`: encoder_same_type 2, both runs "encoder fault": pendulum taken off, program started,
+  pendulum put back on (Simon). Not a wiring fault.
+- 2026-11-03 **Stage 3 cascade built** (Simon: "go there"): theta_ref = clamp(-(cart_kx x + cart_kv v)/g, +-4 deg) into the
+  balance PID (`core::cascadeStep`, `control.cascade_step`, golden). Default ON: cart_kx 0.25, cart_kv 1.0 (w_x 0.5, zeta 1;
+  `py/cascade_study.py`: 12/13 sim cases kept 30 s vs 0/13 angle only). Hand catches, swing-up BALANCE, remote (protocol
+  v3). P outer loop parks ~0.1 m per count of reference error. PC 94/94. Not on the rig yet; 0/0 = Stage 1.

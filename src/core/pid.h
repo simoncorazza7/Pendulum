@@ -27,6 +27,9 @@ struct PidParams {
     double i_delay = 0;      // s after engage before the integrator runs
     double theta_ref = 0;    // rad, upright reference trim
     double vel_fc = 30;      // Hz, 1st-order low-pass on the backward-difference velocity
+    double cart_kx = 0;      // 1/s^2, Stage 3 outer loop: wanted cart accel -cart_kx x - cart_kv v (0, 0: angle only)
+    double cart_kv = 0;      // 1/s
+    double cart_theta_max = 0;   // rad, clamp of the outer loop's angle reference
 };
 
 struct PidState {
@@ -52,6 +55,18 @@ struct PidResult {
 // backward difference (mirror of the Python vel_est argument).
 PidResult pidStep(const PidParams& p, const PidState& s, double theta, double v_cart, double dt,
                   const double* velEst = nullptr);
+
+constexpr double kGCascade = 9.81;   // m/s^2, the outer loop's lean per acceleration (Python: G_CASCADE)
+
+// Stage 3 outer loop (docs/stage3_cascade.md): the lean that makes the cart accelerate by
+// a_d = -cart_kx x - cart_kv v, clamped to +-cart_theta_max. Holding a lean theta takes a cart acceleration
+// g theta, so the angle loop turns this reference into that acceleration well below its own bandwidth.
+double cartThetaRef(const PidParams& p, double x_cart, double v_cart);
+
+// Cascaded PID (brief Stage 3): pidStep with theta_ref + cartThetaRef(x, v); x_cart from the track centre (m).
+// With cart_kx = cart_kv = 0 it is exactly pidStep. Mirrors control.cascade_step.
+PidResult cascadeStep(const PidParams& p, const PidState& s, double theta, double x_cart, double v_cart,
+                      double dt, const double* velEst = nullptr);
 
 // Empty string if the parameters are usable, otherwise the reason.
 std::string validate(const PidParams& p);

@@ -58,7 +58,8 @@ proto::Params goldenParams() {
     p.delay_ticks = 3;
     p.params_id = 0x12345678;
     p.ts = 0.002; p.kp = 62.78; p.ki = 96.75; p.kd = 6.556; p.a_max = 2.0; p.v_max = 0.3; p.v_taper = 0.25;
-    p.i_max = 1.0; p.i_delay = 0.0; p.theta_ref = 0.0; p.vel_fc = 14.0;
+    p.i_max = 1.0; p.i_delay = 0.0; p.theta_ref = 0.0; p.vel_fc = 14.0; p.cart_kx = 0.25; p.cart_kv = 1.0;
+    p.cart_theta_max = 0.0698;
     return p;
 }
 proto::Sample goldenSample() {
@@ -91,13 +92,13 @@ public:
             }
         }
     }
-    void sample(const rt::TickRecord& r) { sample(r.controller, r.epoch, r.i0, r.theta, r.v, r.omega); }
-    void sample(const rt::SwingRecord& r) { sample(r.controller, r.epoch, r.i0, r.theta, r.v, r.omega); }
-    void sample(bool controller, std::uint32_t epoch, double i0, double theta, double v, double omega) {
+    void sample(const rt::TickRecord& r) { sample(r.controller, r.epoch, r.i0, r.theta, r.x, r.v, r.omega); }
+    void sample(const rt::SwingRecord& r) { sample(r.controller, r.epoch, r.i0, r.theta, r.x, r.v, r.omega); }
+    void sample(bool controller, std::uint32_t epoch, double i0, double theta, double x, double v, double omega) {
         if (epoch != epoch_) { st_ = core::PidState{}; st_.integral = i0; epoch_ = epoch; }
         double a = 0.0;
         if (controller) {
-            const core::PidResult pr = core::pidStep(pid_, st_, theta, v, kTs, &omega);
+            const core::PidResult pr = core::cascadeStep(pid_, st_, theta, x, v, kTs, &omega);
             st_ = pr.state;
             a = pr.a_cmd;
         }
@@ -181,6 +182,8 @@ TEST(remote_packets_match_the_python_golden_bytes) {
     CHECK(proto::unpackParams(b, proto::kParamsSize, &p));
     CHECK_EQ(p.params_id, 0x12345678u);
     CHECK_EQ(p.kd, 6.556);
+    CHECK_EQ(p.cart_kv, 1.0);
+    CHECK_EQ(p.cart_theta_max, 0.0698);
     CHECK_EQ(proto::packSample(goldenSample(), b), proto::kSampleSize);
     CHECK_EQ(hex(b, proto::kSampleSize), g.at("sample"));
     proto::Sample s;
@@ -196,7 +199,7 @@ TEST(remote_packets_match_the_python_golden_bytes) {
     CHECK_EQ(r.a_cmd, -1.25);
     CHECK_EQ(r.pc_proc_ns, 54321u);
     CHECK(!proto::unpackReply(b, proto::kReplySize - 1, &r));     // wrong size
-    b[4] = 1;                                                     // wrong version (1: before i0)
+    b[4] = 2;                                                     // wrong version (2: before the cart gains)
     CHECK(!proto::unpackReply(b, proto::kReplySize, &r));
     CHECK(proto::paramsId(goldenParams()) == proto::paramsId(goldenParams()));
     proto::Params q = goldenParams();

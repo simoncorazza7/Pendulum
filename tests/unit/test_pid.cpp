@@ -85,6 +85,61 @@ TEST(pid_golden_matches_python) {
     CHECK(saturatedRows > 100);   // the cases really exercise saturation
 }
 
+// Stage 3: the cascaded PID (outer cart loop -> theta_ref), inside and beyond its clamp, and switched off.
+TEST(cascade_golden_matches_python) {
+    auto cases = readCsv("tests/golden/cascade_cases.csv");
+    auto rows = readCsv("tests/golden/cascade_golden.csv");
+    CHECK(cases.size() == 3);
+    CHECK(rows.size() == 9000);
+    std::map<std::string, PidParams> params;
+    for (const auto& c : cases) {
+        PidParams p;
+        p.kp = num(c[1]); p.ki = num(c[2]); p.kd = num(c[3]); p.a_max = num(c[4]); p.v_max = num(c[5]);
+        p.v_taper = num(c[6]); p.i_max = num(c[7]); p.i_delay = num(c[8]); p.theta_ref = num(c[9]);
+        p.vel_fc = num(c[10]); p.cart_kx = num(c[11]); p.cart_kv = num(c[12]); p.cart_theta_max = num(c[13]);
+        CHECK_EQ(core::validate(p), std::string());
+        params[c[0]] = p;
+    }
+    std::map<std::string, PidState> state;
+    std::map<std::string, int> clamped;
+    int mismatches = 0;
+    for (const auto& r : rows) {
+        const PidParams& p = params.at(r[0]);
+        const double th = num(r[2]), x = num(r[3]), v = num(r[4]), dt = num(r[5]);
+        const double ref = p.theta_ref + core::cartThetaRef(p, x, v);
+        if (std::fabs(ref - p.theta_ref) == p.cart_theta_max && p.cart_theta_max > 0) ++clamped[r[0]];
+        auto res = core::cascadeStep(p, state[r[0]], th, x, v, dt);
+        state[r[0]] = res.state;
+        const double exp[5] = {num(r[6]), num(r[7]), num(r[8]), num(r[9]), num(r[10])};
+        const double got[5] = {ref, res.a_cmd, res.u, res.state.integral, res.state.vel_f};
+        for (int i = 0; i < 5; ++i)
+            if (!close(got[i], exp[i])) ++mismatches;
+        if ((res.saturated ? 1 : 0) != std::atoi(r[11].c_str())) ++mismatches;
+    }
+    CHECK_EQ(mismatches, 0);
+    CHECK(clamped["clamped"] > 500);      // the clamp case really clamps
+    CHECK_EQ(clamped["rig"], 0);           // the rig gains stay inside +-4 deg on these signals
+}
+
+TEST(cascade_off_is_exactly_the_angle_pid) {
+    PidParams p = basic();
+    PidState a, b;
+    for (int k = 0; k < 500; ++k) {
+        const double th = 0.01 * std::sin(0.05 * k), x = 0.1 * std::cos(0.01 * k), v = 0.2 * std::sin(0.02 * k);
+        const auto ra = pidStep(p, a, th, v, 0.002);
+        const auto rb = core::cascadeStep(p, b, th, x, v, 0.002);
+        CHECK_EQ(ra.a_cmd, rb.a_cmd);
+        a = ra.state;
+        b = rb.state;
+    }
+    p.cart_kx = 0.25; p.cart_kv = 1.0;
+    CHECK(!core::validate(p).empty());                 // outer loop on without a clamp
+    p.cart_theta_max = 0.07;
+    CHECK_EQ(core::validate(p), std::string());
+    CHECK(core::cartThetaRef(p, 0.1, 0.0) < 0);        // cart at +x: lean toward -x to pull it back
+    CHECK(core::cartThetaRef(p, 0.0, -0.2) > 0);       // cart moving toward -x: lean toward +x to stop it
+}
+
 TEST(design_gains_match_python) {
     auto rows = readCsv("tests/golden/design_gains.csv");
     CHECK(rows.size() == 3);
