@@ -34,6 +34,8 @@ constexpr std::uint32_t kMagicParams = 0x4D525050;   // 'P' 'P' 'R' 'M'
 constexpr std::uint32_t kMagicSample = 0x504D5350;   // 'P' 'S' 'M' 'P'
 constexpr std::uint32_t kMagicReply = 0x444D4350;    // 'P' 'C' 'M' 'D'
 constexpr std::size_t kHelloSize = 8, kParamsSize = 140, kSampleSize = 80, kReplySize = 36;
+static_assert(kParamsSize <= 256 && kSampleSize <= 256 && kReplySize <= 256,
+              "app::RemoteLink and py/remote_ctrl.py receive into 256-byte buffers");
 
 // SAMPLE flags
 constexpr std::uint16_t kSampleController = 1;       // the supervisor runs the controller on this sample (ENGAGED)

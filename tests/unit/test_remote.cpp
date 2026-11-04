@@ -173,7 +173,7 @@ std::uint32_t lcg(std::uint32_t x) { return x * 1664525u + 1013904223u; }
 TEST(remote_packets_match_the_python_golden_bytes) {
     const auto g = golden();
     CHECK(g.size() >= 4);
-    std::uint8_t b[128];
+    std::uint8_t b[256];                                          // >= every packet (128 overflowed from v3 on)
     CHECK_EQ(proto::packHello(b), proto::kHelloSize);
     CHECK_EQ(hex(b, proto::kHelloSize), g.at("hello"));
     CHECK_EQ(proto::packParams(goldenParams(), b), proto::kParamsSize);
