@@ -110,7 +110,8 @@ SwingRecord SwingUpRuntime::tick(hw::Hardware& hw, const hw::Sample& s, bool ove
                     else if (linkLost) enter(SwingPhase::DampOut, "remote link down");
                     else if (r.energy - 1.0 > c_.e_abort) enter(SwingPhase::DampOut, "energy above e_abort");
                     else if (t_ > c_.pump_max) enter(SwingPhase::DampOut, "no hand-over within pump_max");
-                    else if (std::fabs(r.theta_f) < c_.theta_sw && std::fabs(r.theta_f + r.omega / c_.w0) < c_.u_sw) {
+                    else if (std::fabs(r.theta_f) < c_.theta_sw && std::fabs(r.theta_f + r.omega / c_.w0) < c_.u_sw &&
+                             (c_.v_sw <= 0 || std::fabs(r.v + c_.g / c_.w0 * (r.theta_f + r.omega / c_.w0)) < c_.v_sw)) {
                         t_handover_ = t_;
                         pid_ = core::PidState{};
                         if (c_.preload) pid_.integral = r.omega / w2;   // docs/stage1_drift.md: free motion at engage

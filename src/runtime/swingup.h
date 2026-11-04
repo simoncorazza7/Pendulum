@@ -24,7 +24,8 @@
 //   KICK      a = +a_pump for kick_time: the law below cannot start from rest (theta' = 0)
 //   PUMP      a = sat_{a_pump}(k_e (E - E_ref) sign(theta' cos theta)) - kx x - kv x' (Astrom-Furuta + slow
 //             cart centring); E_ref a hair above upright. Hand-over to BALANCE when |theta| < theta_sw and
-//             |theta + theta'/w0| < u_sw (arriving along the stable manifold); integrator pre-loaded theta'/w0^2.
+//             |theta + theta'/w0| < u_sw (arriving along the stable manifold) and the cart speed predicted after
+//             the catch |v + (g/w0)(theta + theta'/w0)| < v_sw (Stage 3b gate); integrator pre-loaded theta'/w0^2.
 //   BALANCE   core::pidStep (the balance gains, a_max, v_max taper), angle only (Stage 1): the cart keeps its
 //             hand-over velocity, so the run normally ends at the soft limit. With `remote` (Stage 2b, docs/remote.md)
 //             the command is the PC's, computed from the sample remote_delay ticks earlier (the local PID runs as a
@@ -63,6 +64,8 @@ struct SwingUpConfig {
     double kick_time = 0.25;            // s
     double theta_sw = 0.17453292519943295;   // rad (10 deg)
     double u_sw = 0.10471975511965977;       // rad (6 deg), |theta + theta'/w0|
+    double v_sw = 0.0;                  // m/s, and |v + (g/w0)(theta + theta'/w0)| < v_sw: the predicted cart speed
+                                        // after the catch (each rad of u costs L_eq w0 = g/w0); 0: no speed gate
     double pump_max = 40.0;             // s in KICK + PUMP
     double balance_max = 30.0;          // s in BALANCE (normal end, then energy out)
     double damp_max = 25.0;             // s in DAMP_OUT, then a plain stop

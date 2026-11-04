@@ -71,6 +71,8 @@ BalanceConfig balanceFrom(const Config& cfg) {
     b.pid.cart_kx = cfg.getDouble("ctrl.cart_kx");
     b.pid.cart_kv = cfg.getDouble("ctrl.cart_kv");
     b.pid.cart_theta_max = cfg.getDouble("ctrl.cart_theta_max_deg") * kDeg;
+    b.pid.cart_ki = cfg.getDouble("ctrl.cart_ki");
+    b.pid.cart_i_max = cfg.getDouble("ctrl.cart_i_max_deg") * kDeg;
     const std::string why = core::validate(b.pid);
     if (!why.empty()) throw std::runtime_error("controller parameters: " + why);
     b.est_kind = estimatorKind(cfg.getString("ctrl.estimator"));
@@ -221,6 +223,7 @@ SwingUpConfig swingUpFromSession(const Config& cfg, const SessionConfig& sc) {
     u.kick_time = cfg.getDouble("swingup.kick_time");
     u.theta_sw = cfg.getDouble("swingup.theta_sw_deg") * kDeg;
     u.u_sw = cfg.getDouble("swingup.u_sw_deg") * kDeg;
+    u.v_sw = cfg.getDouble("swingup.v_sw");
     u.pump_max = cfg.getDouble("swingup.pump_max");
     u.balance_max = cfg.getDouble("swingup.balance_max");
     u.damp_max = cfg.getDouble("swingup.damp_max");
@@ -230,8 +233,8 @@ SwingUpConfig swingUpFromSession(const Config& cfg, const SessionConfig& sc) {
         throw std::runtime_error("swingup.a_pump / a_damp must be in (0, balance.a_max]");
     if (!(u.k_e > 0 && u.e_abort > u.e_ref && u.e_ref > -0.05 && u.kx >= 0 && u.kv >= 0 && u.kick_time > 0))
         throw std::runtime_error("swingup.k_e / e_ref / e_abort / kx / kv / kick_time out of range");
-    if (!(u.theta_sw > 0 && u.theta_sw < u.limits.theta_abort && u.u_sw > 0 && u.quiet_deg > 0))
-        throw std::runtime_error("swingup.theta_sw_deg / u_sw_deg / quiet_deg out of range (theta_sw < theta_abort)");
+    if (!(u.theta_sw > 0 && u.theta_sw < u.limits.theta_abort && u.u_sw > 0 && u.quiet_deg > 0 && u.v_sw >= 0))
+        throw std::runtime_error("swingup.theta_sw_deg / u_sw_deg / quiet_deg / v_sw out of range (theta_sw < theta_abort)");
     return u;
 }
 

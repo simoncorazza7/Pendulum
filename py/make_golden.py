@@ -284,7 +284,7 @@ def render_estimators() -> dict[str, str]:
     return {"estimator_golden.csv": NL.join(est) + NL, "pid_ext_golden.csv": NL.join(pid_lines) + NL}
 
 
-CASCADE_FIELDS = PARAM_FIELDS + ("cart_kx", "cart_kv", "cart_theta_max")
+CASCADE_FIELDS = PARAM_FIELDS + ("cart_kx", "cart_kv", "cart_theta_max", "cart_ki", "cart_i_max")
 
 
 def render_cascade() -> dict[str, str]:
@@ -292,11 +292,13 @@ def render_cascade() -> dict[str, str]:
     NL = chr(10)
     kp, ki, kd = design_gains(4.97, 0.054, 2 * 4.97, 0.7, 0.5 * 4.97)
     base = PidParams(kp=kp, ki=ki, kd=kd, a_max=2.0, v_max=0.3, i_max=1.0, i_delay=0.0, theta_ref=-0.0007, vel_fc=14.0)
-    defs = [("rig", replace(base, cart_kx=0.25, cart_kv=1.0, cart_theta_max=math.radians(4))),
-            ("clamped", replace(base, cart_kx=40.0, cart_kv=8.0, cart_theta_max=math.radians(2))),
+    defs = [("rig", replace(base, cart_kx=0.41, cart_kv=1.0, cart_theta_max=math.radians(4), cart_ki=0.05,
+                            cart_i_max=math.radians(2))),
+            ("clamped", replace(base, cart_kx=40.0, cart_kv=8.0, cart_theta_max=math.radians(2), cart_ki=30.0,
+                                cart_i_max=math.radians(1))),
             ("off", base)]
     cases_lines = ["case," + ",".join(CASCADE_FIELDS)]
-    rows = ["case,k,theta,x,v,dt,theta_ref,a_cmd,u,integral,vel_f,saturated"]
+    rows = ["case,k,theta,x,v,dt,theta_ref,a_cmd,u,integral,vel_f,saturated,x_int"]
     ts = 0.002
     for name, p in defs:
         cases_lines.append(name + "," + ",".join(repr(float(getattr(p, f))) for f in CASCADE_FIELDS))
@@ -308,7 +310,7 @@ def render_cascade() -> dict[str, str]:
             v = 0.12 * 2 * math.pi * 0.15 * math.cos(2 * math.pi * 0.15 * t) + 0.25 * math.sin(2 * math.pi * 0.5 * t)
             a, s, dbg = cascade_step(p, s, th, x, v, ts)
             rows.append(f"{name},{k},{th!r},{x!r},{v!r},{ts!r},{dbg['theta_ref']!r},{a!r},{dbg['u']!r},"
-                        f"{s.integral!r},{s.vel_f!r},{int(dbg['saturated'])}")
+                        f"{s.integral!r},{s.vel_f!r},{int(dbg['saturated'])},{s.x_int!r}")
     return {"cascade_cases.csv": NL.join(cases_lines) + NL, "cascade_golden.csv": NL.join(rows) + NL}
 
 

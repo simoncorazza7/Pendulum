@@ -214,3 +214,12 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   balance PID (`core::cascadeStep`, `control.cascade_step`, golden). Default ON: cart_kx 0.25, cart_kv 1.0 (w_x 0.5, zeta 1;
   `py/cascade_study.py`: 12/13 sim cases kept 30 s vs 0/13 angle only). Hand catches, swing-up BALANCE, remote (protocol
   v3). P outer loop parks ~0.1 m per count of reference error. PC 94/94. Not on the rig yet; 0/0 = Stage 1.
+- 2026-11-04 first Stage 3 rig sessions (7853407): hand catches 08-58-08 / 09-09-03 all 5 runs ended at the soft limit
+  at +139 mm after 4.7-8.7 s; swing-up local 09-15-27 0.2-18.5 s, remote 09-20-36 0.2-1.9 s. Cause 1: reference offset
+  +1.2/+1.4 counts today (stage1_report; yesterday +0.08): the inner loop tracks theta_ref within 0.3 counts, but the
+  P outer loop parks at g delta / kx = 0.13 m -> soft limit. Needs an outer integral (or the trim). Cause 2: hand-overs at
+  +228..+242 mm/s (v_max 0.3) end in 0.2-0.5 s -> hand-over speed gate. remote.delay_ticks back to 4 (Simon, d7b9710).
+- 2026-11-04 **Stage 3b built**: cart integral (kx 0.41, kv 1.0, ki 0.05, i_max 2 deg; reset per catch) + swing-up gate
+  swingup.v_sw 0.07 on |v + (g/w0) u| (rig: all >= 8 s balances had <= 62 mm/s). Sim at 1.3 counts: 20/29 vs P 2/29.
+  Protocol v4. PC 95/95. docs/stage3_cascade.md "Stage 3b". Not on the rig yet.
+

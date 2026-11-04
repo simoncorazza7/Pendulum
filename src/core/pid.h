@@ -30,6 +30,8 @@ struct PidParams {
     double cart_kx = 0;      // 1/s^2, Stage 3 outer loop: wanted cart accel -cart_kx x - cart_kv v (0, 0: angle only)
     double cart_kv = 0;      // 1/s
     double cart_theta_max = 0;   // rad, clamp of the outer loop's angle reference
+    double cart_ki = 0;      // 1/s^3, Stage 3b: outer-loop integral, -cart_ki * x_int in a_d (removes the parking offset)
+    double cart_i_max = 0;   // rad, clamp of |cart_ki x_int| / g
 };
 
 struct PidState {
@@ -38,6 +40,7 @@ struct PidState {
     double vel_f = 0;        // rad/s, filtered velocity estimate
     double prev_theta = 0;   // rad, previous measured angle (valid if has_prev)
     bool has_prev = false;
+    double x_int = 0;        // m*s, Stage 3b: integral of the cart position (cascadeStep only)
 };
 
 struct PidResult {
@@ -59,12 +62,14 @@ PidResult pidStep(const PidParams& p, const PidState& s, double theta, double v_
 constexpr double kGCascade = 9.81;   // m/s^2, the outer loop's lean per acceleration (Python: G_CASCADE)
 
 // Stage 3 outer loop (docs/stage3_cascade.md): the lean that makes the cart accelerate by
-// a_d = -cart_kx x - cart_kv v, clamped to +-cart_theta_max. Holding a lean theta takes a cart acceleration
-// g theta, so the angle loop turns this reference into that acceleration well below its own bandwidth.
-double cartThetaRef(const PidParams& p, double x_cart, double v_cart);
+// a_d = -cart_kx x - cart_kv v - cart_ki x_int, clamped to +-cart_theta_max (*clamped says whether it was).
+// Holding a lean theta takes a cart acceleration g theta, so the angle loop turns this reference into that
+// acceleration well below its own bandwidth.
+double cartThetaRef(const PidParams& p, double x_cart, double v_cart, double x_int = 0.0, bool* clamped = nullptr);
 
-// Cascaded PID (brief Stage 3): pidStep with theta_ref + cartThetaRef(x, v); x_cart from the track centre (m).
-// With cart_kx = cart_kv = 0 it is exactly pidStep. Mirrors control.cascade_step.
+// Cascaded PID (brief Stage 3): pidStep with theta_ref + cartThetaRef(x, v, x_int); x_cart from the track centre
+// (m). The cart integral (state.x_int) integrates only while the reference is inside its clamp, and
+// |cart_ki x_int| <= g cart_i_max. With all cart gains 0 it is exactly pidStep. Mirrors control.cascade_step.
 PidResult cascadeStep(const PidParams& p, const PidState& s, double theta, double x_cart, double v_cart,
                       double dt, const double* velEst = nullptr);
 

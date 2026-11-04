@@ -97,6 +97,7 @@ TEST(cascade_golden_matches_python) {
         p.kp = num(c[1]); p.ki = num(c[2]); p.kd = num(c[3]); p.a_max = num(c[4]); p.v_max = num(c[5]);
         p.v_taper = num(c[6]); p.i_max = num(c[7]); p.i_delay = num(c[8]); p.theta_ref = num(c[9]);
         p.vel_fc = num(c[10]); p.cart_kx = num(c[11]); p.cart_kv = num(c[12]); p.cart_theta_max = num(c[13]);
+        p.cart_ki = num(c[14]); p.cart_i_max = num(c[15]);
         CHECK_EQ(core::validate(p), std::string());
         params[c[0]] = p;
     }
@@ -106,19 +107,21 @@ TEST(cascade_golden_matches_python) {
     for (const auto& r : rows) {
         const PidParams& p = params.at(r[0]);
         const double th = num(r[2]), x = num(r[3]), v = num(r[4]), dt = num(r[5]);
-        const double ref = p.theta_ref + core::cartThetaRef(p, x, v);
-        if (std::fabs(ref - p.theta_ref) == p.cart_theta_max && p.cart_theta_max > 0) ++clamped[r[0]];
+        bool isClamped = false;
+        const double ref = p.theta_ref + core::cartThetaRef(p, x, v, state[r[0]].x_int, &isClamped);
+        if (isClamped) ++clamped[r[0]];
         auto res = core::cascadeStep(p, state[r[0]], th, x, v, dt);
         state[r[0]] = res.state;
-        const double exp[5] = {num(r[6]), num(r[7]), num(r[8]), num(r[9]), num(r[10])};
-        const double got[5] = {ref, res.a_cmd, res.u, res.state.integral, res.state.vel_f};
-        for (int i = 0; i < 5; ++i)
+        const double exp[6] = {num(r[6]), num(r[7]), num(r[8]), num(r[9]), num(r[10]), num(r[12])};
+        const double got[6] = {ref, res.a_cmd, res.u, res.state.integral, res.state.vel_f, res.state.x_int};
+        for (int i = 0; i < 6; ++i)
             if (!close(got[i], exp[i])) ++mismatches;
         if ((res.saturated ? 1 : 0) != std::atoi(r[11].c_str())) ++mismatches;
     }
     CHECK_EQ(mismatches, 0);
     CHECK(clamped["clamped"] > 500);      // the clamp case really clamps
     CHECK_EQ(clamped["rig"], 0);           // the rig gains stay inside +-4 deg on these signals
+    CHECK(std::fabs(state["rig"].x_int) > 1e-4);    // the cart integral ran
 }
 
 TEST(cascade_off_is_exactly_the_angle_pid) {

@@ -284,9 +284,9 @@ TEST(session_params_from_config) {
 }
 
 // Stage 3 (ctrl.cart_*, the config default): the same 1-count reference error that drives the angle-only PID into
-// the soft limit within seconds is held on the track. The proportional outer loop parks the cart off-centre
-// (x ~ g delta / cart_kx = 0.10 m for 1 count at kx 0.25; the pivot's stiction band of +-2.6 counts moves the
-// spot, 70 mm here) instead of letting it run.
+// the soft limit within seconds is held on the track. A P outer loop alone would park the cart off-centre at
+// x ~ g delta / cart_kx (Stage 3, kx 0.25: 70 mm here, the pivot's stiction band moving the spot); the Stage 3b
+// integral brings it back to the centre.
 TEST(session_cascade_holds_the_cart_on_the_track) {
     rt::SessionConfig c = rigSession();
     CHECK(c.balance.pid.cart_kx > 0 && c.balance.pid.cart_kv > 0);
@@ -303,9 +303,9 @@ TEST(session_cascade_holds_the_cart_on_the_track) {
     CHECK(r.ses.mode() == core::Mode::Engaged);   // still balancing after 20 s
     const double delta = 1.0 * 2 * kPi / 2400, xPark = 9.81 * delta / c.balance.pid.cart_kx;
     std::cout << "    cascade: 20 s balanced with a 1-count reference error, max |x| " << maxX * 1e3 << " mm, x now "
-              << r.sim.x() * 1e3 << " mm (P outer loop parks at " << xPark * 1e3 << " mm)\n";
+              << r.sim.x() * 1e3 << " mm (a P outer loop alone would park at " << xPark * 1e3 << " mm)\n";
     CHECK(maxX < 0.12);
-    CHECK(std::fabs(r.sim.x()) > 0.02 && std::fabs(r.sim.x()) < 0.12);   // parked off-centre, not at the limit
+    CHECK(std::fabs(r.sim.x()) < 0.02);                                 // back at the centre (the integral)
     CHECK(std::fabs(r.sim.v()) < 0.01);                                 // and at rest
     r.ses.requestGo();
     r.until(2000, [&](int) { return r.ses.phase() == rt::SessionPhase::AfterRun; });

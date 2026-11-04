@@ -67,3 +67,36 @@ distance), 30 s per case. Cases: 7 real swing-up hand-overs (10-02-18, 15-32-17;
 3. To compare with Stage 1: `--set ctrl.cart_kx=0 --set ctrl.cart_kv=0`.
 4. Watch for a slow sway (0.1–0.3 Hz) that grows: that would be the outer loop too fast for the real rig; halve
    cart_kx and cart_kv.
+
+## Stage 3b: cart integral and hand-over gate (2026-11-04)
+
+**What the rig showed** (Stage 3, P loop; sessions 08-58-08 … 09-36-34): 16 of 17 balances ended at the **+x** soft
+limit, including ones handed over moving toward −x. The angle loop tracked θ_ref within ~0.3 counts, but the cart
+barely accelerated while the measured pendulum leaned 2–3 counts: the reference error was **+1.2 … +1.4 counts**
+(`stage1_report.py balance`; +0.08 the day before). A P outer loop parks at g·δ/kx ≈ 0.13 m, i.e. at the soft limit.
+Separately, hand-overs with the cart near v_max ended within 0.2–0.5 s.
+
+**Integral.** a_d = −kx·x − kv·v − ki·∫x dt, gains from (s² + 2ζωs + ω²)(s + p). Anti-windup: ∫x only integrates while
+θ_ref is inside its clamp, and |ki·∫x|/g ≤ `cart_i_max` (2°; 1.3 counts needs 0.2°). Reset at each catch, on the Pi
+and the PC alike (`PidState.x_int`). `py/cascade_pi_study.py`, the 29 rig hand-overs of 11-03/04, sim offset 1.3 counts:
+
+| outer loop | kept 30 s | losses |
+|---|---|---|
+| P, kx 0.25, kv 1.0 (Stage 3) | 2/29 | 0.2–11 s |
+| **PI, ω 0.5, ζ 0.8, p 0.2: kx 0.41, kv 1.0, ki 0.05 (default)** | **20/29** | all within 1.2 s (the catch kick) |
+| PI, ω 0.5, ζ 1.0, p 0.15 / 0.25 | 18/29 | ≤ 1.4 s |
+| PI, ω 0.6, ζ 1.0, p 0.2 | 14/29 | ≤ 1.6 s |
+
+At a 2.5-count error every design keeps only 5–10/29: the integral (time constant ~5 s) is too slow to catch up
+before the P part has run the cart out. Keep the trim within ~1.5 counts.
+
+**Gate.** The catch changes the cart speed by about L_eq·ω₀·u = (g/ω₀)·u (34 mm/s per degree of u = θ + θ̇/ω₀). Hand
+over only if the predicted speed after the catch |v + (g/ω₀)(θ_f + θ̇/ω₀)| < `swingup.v_sw` = 0.07 m/s; otherwise the
+pendulum comes round again. On the rig (29 hand-overs): every balance ≥ 8 s had |v_pred| ≤ 62 mm/s; every one above
+90 mm/s ended within 2 s, even where the simulation held it. The prediction sweeps during the approach, so the gate
+takes the first tick in the angle window where it is inside (`swingup_speed_gate_picks_a_slow_hand_over`).
+
+**Tests (PC 95/95).** Cascade golden regenerated with the integral (x_int compared too); the angle-only momentum test
+now sets the cart gains to 0 explicitly and reproduces the pre-Stage-3 numbers exactly (+13.9 / +45.8 mm/s); the
+1-count session now returns the cart to 2 mm of the centre in 20 s (P loop: parked at 70 mm). Remote protocol
+version 4 (PARAMS + cart_ki, cart_i_max).

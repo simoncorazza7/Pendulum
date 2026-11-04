@@ -311,6 +311,8 @@ TEST(balance_engage_on_release_leaves_no_cart_momentum) {
         p.axis_a = 400000.0 / (2 * 13333.3); p.axis_v = 120000.0 / (2 * 13333.3);
         Rig rig(p);
         rig.cfg = rt::balanceFrom(Config::fromFile("config/pendctl.conf"));
+        rig.cfg.pid.cart_kx = rig.cfg.pid.cart_kv = rig.cfg.pid.cart_ki = 0;   // a Stage 1 property: the cart loop
+                                                                                // would move the cart on purpose
         rig.cfg.calib = p.truth;
         rig.cfg.calib.c_bottom = rig.sim.trueCBottomRelative();
         rig.cfg.sup.x_min = -0.27; rig.cfg.sup.x_max = 0.27;

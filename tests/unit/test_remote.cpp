@@ -59,7 +59,7 @@ proto::Params goldenParams() {
     p.params_id = 0x12345678;
     p.ts = 0.002; p.kp = 62.78; p.ki = 96.75; p.kd = 6.556; p.a_max = 2.0; p.v_max = 0.3; p.v_taper = 0.25;
     p.i_max = 1.0; p.i_delay = 0.0; p.theta_ref = 0.0; p.vel_fc = 14.0; p.cart_kx = 0.25; p.cart_kv = 1.0;
-    p.cart_theta_max = 0.0698;
+    p.cart_theta_max = 0.0698; p.cart_ki = 0.05; p.cart_i_max = 0.0349;
     return p;
 }
 proto::Sample goldenSample() {
@@ -184,6 +184,7 @@ TEST(remote_packets_match_the_python_golden_bytes) {
     CHECK_EQ(p.kd, 6.556);
     CHECK_EQ(p.cart_kv, 1.0);
     CHECK_EQ(p.cart_theta_max, 0.0698);
+    CHECK_EQ(p.cart_i_max, 0.0349);
     CHECK_EQ(proto::packSample(goldenSample(), b), proto::kSampleSize);
     CHECK_EQ(hex(b, proto::kSampleSize), g.at("sample"));
     proto::Sample s;
@@ -199,7 +200,7 @@ TEST(remote_packets_match_the_python_golden_bytes) {
     CHECK_EQ(r.a_cmd, -1.25);
     CHECK_EQ(r.pc_proc_ns, 54321u);
     CHECK(!proto::unpackReply(b, proto::kReplySize - 1, &r));     // wrong size
-    b[4] = 2;                                                     // wrong version (2: before the cart gains)
+    b[4] = 3;                                                     // wrong version (3: before the cart integral)
     CHECK(!proto::unpackReply(b, proto::kReplySize, &r));
     CHECK(proto::paramsId(goldenParams()) == proto::paramsId(goldenParams()));
     proto::Params q = goldenParams();
@@ -485,4 +486,36 @@ TEST(remote_swingup_link_down_while_pumping_removes_energy) {
     CHECK(r.rt.done());
     CHECK(!r.limit);
     CHECK(!r.sim.crashed());
+}
+
+// Stage 3b hand-over gate (swingup.v_sw): the hand-over happens only at a tick where the predicted post-catch cart
+// speed |v + (g/w0)(theta_f + theta'/w0)| is inside the gate. During the approach that prediction sweeps (the cart
+// accelerates), so the gate picks the moment in the window; a tighter gate never hands over earlier, and with the
+// gate off (0) the first tick in the angle window is taken.
+TEST(swingup_speed_gate_picks_a_slow_hand_over) {
+    const hw::SimHwParams p = swingTrack();
+    auto handover = [&](double vsw, double* vPred) {
+        rt::SwingUpConfig c = swingConfig(p);
+        c.v_sw = vsw;
+        SwingRun r(c, p, nullptr);
+        r.until(40000, [&](int) { return r.rt.done() || r.handover() >= 0; });
+        const int k0 = r.handover();
+        if (k0 < 0) return -1.0;
+        const rt::SwingRecord& w = r.recs[static_cast<std::size_t>(k0)];
+        *vPred = w.v + c.g / c.w0 * (w.theta_f + w.omega / c.w0);
+        return k0 * kTs;
+    };
+    double vOff = 0, vCfg = 0, vTight = 0;
+    const rt::SwingUpConfig base = swingConfig(p);
+    CHECK(base.v_sw > 0.0);                                // the config default has the gate on
+    const double tOff = handover(0.0, &vOff), tCfg = handover(base.v_sw, &vCfg), tTight = handover(0.01, &vTight);
+    std::printf("    hand-over: gate off %.2f s (v_pred %+.0f mm/s), %.2f m/s %.2f s (%+.0f), 0.01 m/s %.2f s (%+.0f)\n",
+                tOff, vOff * 1e3, base.v_sw, tCfg, vCfg * 1e3, tTight, vTight * 1e3);
+    CHECK(tOff > 0 && tCfg > 0);
+    CHECK(std::fabs(vCfg) < base.v_sw);
+    CHECK(tCfg >= tOff);
+    if (tTight > 0) {                                      // it may also never come
+        CHECK(std::fabs(vTight) < 0.01);
+        CHECK(tTight >= tCfg);
+    }
 }
