@@ -9,12 +9,14 @@ not a measurement. Values the brief asks us to measure are still to be measured.
 |---|---|---|
 | Belt | GT2, 2 mm pitch | |
 | Motor pulley | 60 teeth, 8 mm bore | 120 mm of belt per motor rev |
+| Idler (belt tensioner, §4.6) | washers + one 8×22×7 mm ball bearing (608) | flat idler on an 8 mm axle; tension set with a nut |
 | Motor | 23HS2430, 1.8° (200 full steps/rev), 3 A | |
 | Microstepping | 1/8 → 1600 µsteps/rev (protocol table also says 1600/rev) | **≈ 13 333 µsteps/m, 75 µm/µstep** (to be checked in 0.8) |
-| Rail | MGN12, 700 mm (BOM: "ca. 60–70 cm") | usable travel < 0.7 m |
+| Rail | MGN12, 700 mm (BOM: "ca. 60–70 cm") | **wrong size: the rig has MGN15** (block holes 25 mm apart, Simon 2026-11-03); usable travel < 0.7 m. The BOM's own link is an **MGN15H 600 mm** rail (roboter-bausatz RBS12934), so the length may be 600 mm: measure. See `parts_reference.md` |
 | Motor mount | rubber isolators (fixed resonance-induced step loss) | |
 | Base | 85 × 35 cm wooden board | |
 | Pendulum | M3 threaded rod + weight, screwed into a pulley on the encoder shaft (replacing a grub screw) | no length/mass given |
+| Encoder holder (§5.1) | a thin rubber layer between holder and cart, tried on the old tube rail | if still there, a 28 Hz suspect |
 
 ## Electronics (Appendix B schematic, matches the brief's pin map)
 - Encoder B38S6G5-600B-G24N: NPN OC, VCC from Pi 5 V, Phase 1 → GPIO10, Phase 2 → GPIO19.
