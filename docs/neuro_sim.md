@@ -100,12 +100,79 @@ The 4-input network is plausible on real data: bounded, rarely saturated, about 
 recurrent network is not: its output is unrelated to the PID's and pinned at its limit a quarter of the time. Its
 recurrent velocity estimate does not survive real quantisation and vibration. That is the same thin margin as section 1.
 
-## 5. Where this stands
+## 5. Re-evolution at the PID's effort
 
-- Section 8 of the explainer, steps 1–4, are done in simulation (steps 3 and 4 above).
-- A rig candidate exists: the 4-input network (`logs/2026-11-19T11-14-39_neuro-rig-4t-s1/best.json`). It is a static
-  linear controller, so it is effectively an evolved LQR, not a recurrent one. Pasemann's recurrent, angle-only idea does
-  not carry over to this rig as it stands.
-- Before any rig run: lower its effort (a higher cost on mean |a| and on command changes), re-evolve with the
-  remote path's delay stalls, and give it its own PC program plus its own launcher script beside `remote.sh`
-  (not `swingup.sh`). Then it needs Simon's go for that specific run. None of this is built yet.
+The first 4-input winner bought its survival with 1.7× the PID's effort. Three more runs (`--budget --delay 4
+--delay-max 7 --stall-rate 0.5`) made the PID's own effort free (mean |a| 0.18 m/s², 4.9 command changes per s) and
+anything above it expensive. They also trained with the remote path's delay range and late replies: the Pi holds the
+last command for 1–3 ticks, 0.5 times per second. One run started from the first winner, two from empty networks.
+They were tested on fresh draws: 300 runs of 30 s, `rig.TEST`, seed 7. With 0.5 late replies per second, no number moves
+by more than 1 point or 2 mm.
+
+| controller | survived 30 s | median end abs x | mean abs a | command changes |
+|---|---|---|---|---|
+| rig PID + cart loop (Stage 3b) | 81 % | 6 mm | 0.18 m/s² | 4.9 /s |
+| first 4-input winner (no budget) | 85 % | 13 mm | 0.31 m/s² | 9.0 /s |
+| budget, started from it | 85 % | 29–31 mm | 0.18 m/s² | 4.5 /s |
+| budget, from scratch, seed 2 | 83 % | 16 mm | 0.16 m/s² | 3.7 /s |
+| budget, from scratch, seed 3 | 81 % | 15–16 mm | 0.15 m/s² | 3.8 /s |
+
+At the PID's effort, evolution finds the PID again. All three winners are one neuron with almost no recurrence; the
+seeded one keeps a −0.21 self-loop. In physical units they are a ≈ 43–64 θ + 5.5 ω + 6–9 x + 7–8 v. Compare the PID's
+63 θ + 6.5 ω, and its cart loop's 2.6 x + 6.4 v plus an integral. On the same draws they survive as often as the PID,
+0–4 points more. With no integral, a reference error parks the cart 15–31 mm from centre instead of 6 mm.
+
+Replayed on the logged rig runs, the seeded winner now acts like the PID. On the three 30 s balances of
+2026-11-04T10-16-08 its commands correlate 0.67–0.72 with the PID's (first winner: 0.29–0.40), at the same rms
+(0.35–0.39 against 0.34–0.38 m/s²). It changes slightly less per update and is almost never at its limit (0.1 %).
+On the 2026-11-03 remote session the correlation is 0.48–0.73.
+
+## 6. Headroom: would more computing on the PC help?
+
+`py/headroom_study.py` takes every start the PID or the network loses on the same 300 test draws and asks whether any
+controller could catch it within the rig's limits. Linear programs decide feasibility over 4 s, ending at rest, with the
+command delay respected. Two versions:
+- relaxed: no margin, the full 22°, and Coulomb friction chosen in the controller's favour. A "no" here is final.
+- robust: 1 cm of slack beyond the rig's 1 cm margin, staying within 18°.
+An oracle MPC (true state and plant, re-planning every 40 ms) then tries each start in the nonlinear model.
+The oracle holds all 40 sampled starts that both controllers keep, and the 7 slow drifts that only the PID loses.
+
+| the 45 starts both controllers lose | starts |
+|---|---|
+| no acceleration profile catches them (2 m/s², 0.3 m/s, ±0.15 m with braking distance, 8–14 ms delay) | 22 |
+| catchable only with zero slack: the cart runs at v_max and grazes the braking boundary | 20 |
+| catchable with 1 cm of slack | 3 (the oracle MPC holds 1) |
+
+The failures sort by the divergent lean at engage, ξ₀ = θ₀ + θ̇₀/ω₀. Below 4° both controllers keep 98–100 %; at
+4–6° about half; at 6–8° none. After a catch the cart moves at about v₀ + (g/ω₀) ξ₀. That is the swing-up gate's
+predicted speed, and for 6–8° it is 0.21–0.28 m/s, inside the v_max taper. The best of PID, network and oracle keeps
+256 of 300 (85 %); the network alone keeps 254. **At today's limits, more computing buys at most about 1 point.**
+
+The binding constraints are the limits themselves. Here are the same 45 starts at the config's own priors for after
+Stage 0.9:
+
+| a_max | v_max | catchable with 1 cm slack | catchable at all |
+|---|---|---|---|
+| 2.0 m/s² (balance mode now) | 0.3 m/s (now) | 3 | 23 |
+| 2.0 m/s² | 0.5 m/s | 13 | 27 |
+| 3.0 m/s² | 0.3 m/s | 21 | 28 |
+| 3.0 m/s² (`ctrl.a_max` prior) | 0.5 m/s (`ctrl.v_max` prior) | 28 | 38 |
+
+At 3 m/s² and 0.5 m/s, 28 of the 45 become robustly catchable: up to about 94 % on these draws, against 86 % for the
+best possible controller at today's limits. Stage 0.9 has to show whether the motor gets there without losing steps,
+without growing the 28 Hz mode and without blowing the 1 A VMOT fuse. The PID would then be retuned, or the network
+re-evolved, for the new limits.
+
+## 7. Where this stands
+
+- Steps 1–4 of the explainer's section 8 are done in simulation, now also at the PID's effort and the remote path's
+  timing.
+- Result: on this rig, with the Pi's velocity estimate, evolution converges on the tuned PID + cart loop without its
+  integral. It does not beat it: survival is equal within noise and centring is worse. Pasemann's recurrent, angle-only
+  design is fragile here (sections 3–4).
+- Headroom (section 6): the remaining failures come from the actuator limits, not the controller. Even an oracle MPC
+  adds about 1 point. Raising a_max and v_max after Stage 0.9 is the lever (about +9 points), not computing power.
+- A rig run would therefore demonstrate an evolved controller, not improve balancing. The candidate is
+  `logs/2026-11-19T15-09-24_neuro-rig-4t-budget-seeded-s1/best.json`, the closest to the PID on replay. It would need
+  its own PC program and launcher script beside `remote.sh` (not `swingup.sh`), a test against
+  `pendctl --mode remote-sim`, and Simon's go for each run. None of that is built.

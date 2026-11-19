@@ -23,6 +23,7 @@ import argparse
 import math
 import pathlib
 import sys
+from dataclasses import replace
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
@@ -130,13 +131,14 @@ def rig_report(policy, ics: dict, spec: rig.RigSpec, t: float) -> dict:
 def cmd_rig(args) -> int:
     g = Genome.load(args.net)
     spec = rig.RigSpec(n_in=g.n_in, net_every=int(g.meta.get("net_every", 5)))
-    ics = rig.draw(np.random.default_rng(args.seed), args.runs, rig.TEST, spec)
+    ics = rig.draw(np.random.default_rng(args.seed), args.runs, replace(rig.TEST, stall_rate=args.stall_rate), spec)
     rows = [("network", rig_report(Batch([g]), ics, spec, args.t))]
     if args.baseline:
         rows.append(("rig PID + cart loop (Stage 3b)",
                      rig_report(rig.PidPolicy(), ics, rig.RigSpec(n_in=g.n_in, net_every=1), args.t)))
     print(f"{args.net}: {g.n_in} inputs, network every {spec.net_every} ticks; {args.runs} runs of {args.t:.0f} s "
-          f"on the rig model, start states and plants from rig.TEST (seed {args.seed})\n")
+          f"on the rig model, start states and plants from rig.TEST (seed {args.seed})"
+          + (f", late replies {args.stall_rate:g}/s" if args.stall_rate else "") + "\n")
     print(f"| controller | survived {args.t:.0f} s | median failure time | median end abs x (survivors) "
           f"| mean abs a | command changes |")
     print("|---|---|---|---|---|---|")
@@ -212,6 +214,8 @@ def main() -> int:
     q.add_argument("--t", type=float, default=30.0)
     q.add_argument("--seed", type=int, default=7)
     q.add_argument("--baseline", action="store_true", help="also run the rig's PID + cart loop on the same draws")
+    q.add_argument("--stall-rate", type=float, default=0.0,
+                   help="late replies per second on the remote path (the Pi holds the command 1-3 ticks)")
     r_ = sub.add_parser("replay")
     r_.add_argument("net")
     r_.add_argument("runs", nargs="+", help="run directories with data.csv (logs/<time>_balance)")

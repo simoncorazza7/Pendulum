@@ -63,11 +63,14 @@ class Draw:
     bJ: tuple = (0.054, 0.054)              # 1/s (plant.bJ)
     coulomb: tuple = (0.168, 0.168)         # rad/s^2 (plant.coulomb)
     delay_ticks: tuple = (4, 4)             # inclusive (remote.delay_ticks 4; stalls to 7 seen)
+    stall_rate: float = 0.0                 # 1/s, late replies on the remote path: the Pi holds the previous command
+    stall_ticks: tuple = (1, 3)             # inclusive, ticks held per late reply (remote.max_miss 5 would abort)
 
 
 TRAIN = Draw()
 TEST = Draw(theta_deg=3.5, omega=0.4, x=0.03, v=0.03, ref_counts=2.0, w0=(4.82, 5.12), bJ=(0.03, 0.08),
             coulomb=(0.10, 0.25), delay_ticks=(4, 7))
+REMOTE = Draw(delay_ticks=(4, 7), stall_rate=0.5)   # training with the remote path's delay range and late replies
 
 
 def draw(rng: np.random.Generator, K: int, d: Draw, spec: RigSpec = RigSpec()) -> dict:
@@ -78,7 +81,9 @@ def draw(rng: np.random.Generator, K: int, d: Draw, spec: RigSpec = RigSpec()) -
             "v0": rng.uniform(-1, 1, K) * d.v,
             "ref": rng.uniform(-1, 1, K) * d.ref_counts * q,
             "w0": rng.uniform(*d.w0, K), "bJ": rng.uniform(*d.bJ, K), "coulomb": rng.uniform(*d.coulomb, K),
-            "delay": rng.integers(d.delay_ticks[0], d.delay_ticks[1] + 1, K)}
+            "delay": rng.integers(d.delay_ticks[0], d.delay_ticks[1] + 1, K),
+            # drawn last, so the values above stay the same for a given seed as before stalls existed
+            "stall_rate": d.stall_rate, "stall_ticks": d.stall_ticks, "stall_seed": int(rng.integers(2 ** 31))}
 
 
 def measure(th, spec: RigSpec, ref):
@@ -147,8 +152,11 @@ class PidPolicy:
 def run(policy, ics: dict, spec: RigSpec = RigSpec(), t_max: float = 10.0, trace: tuple | None = None) -> dict:
     """Run a Batch of networks (or another policy, e.g. PidPolicy) from the K start states and plants in ics.
 
+    Late replies (ics stall_rate > 0): a stall starts in each run at that rate and holds the previously applied
+    command for stall_ticks ticks, as the Pi does when a remote reply misses its slot; one schedule per run, the same
+    for every network in the batch.
     Returns (P, K) arrays: perf (s), IA (m/s^2), DU (1/s), t_fail (s; t_max if it never failed), alive, and
-    end_x (m) where each run ended. trace (p, k): also t, x, v, theta, a_cmd of that run.
+    end_x (m) where each run ended. trace (p, k): also t, x, v, theta, a_cmd, a_app (applied) of that run.
     """
     net = isinstance(policy, Batch)
     if net and policy.n_in != spec.n_in:
@@ -183,7 +191,13 @@ def run(policy, ics: dict, spec: RigSpec = RigSpec(), t_max: float = 10.0, trace
     q = 2 * math.pi / spec.cpr
     cnt_prev = np.floor((th - thd * spec.ts) / q + spec.phase)
     ex1, ex2, ey1, ey2 = thd.copy(), thd.copy(), thd.copy(), thd.copy()
-    rec = {"t": [], "x": [], "v": [], "theta": [], "a_cmd": []} if trace is not None else None
+    stall_rate = float(ics.get("stall_rate", 0.0))
+    if stall_rate > 0:
+        srng = np.random.default_rng(int(ics["stall_seed"]))
+        s_lo, s_hi = ics.get("stall_ticks", (1, 3))
+        hold_left = np.zeros(K, int)
+    a_prev = np.zeros(shape)
+    rec = {"t": [], "x": [], "v": [], "theta": [], "a_cmd": [], "a_app": []} if trace is not None else None
     for k in range(n):
         cnt = np.floor(th / q + spec.phase)
         xin = (cnt - cnt_prev) * q / spec.ts
@@ -212,6 +226,12 @@ def run(policy, ics: dict, spec: RigSpec = RigSpec(), t_max: float = 10.0, trace
             u_prev = u
         buf[k % (D + 1)] = a_cmd
         a_app = buf[(k - delay) % (D + 1), :, cols].T        # each run's own delay
+        if stall_rate > 0:
+            start = (hold_left == 0) & (srng.random(K) < stall_rate * spec.ts)
+            hold_left = np.where(start, srng.integers(s_lo, s_hi + 1, K), hold_left)
+            a_app = np.where((hold_left > 0)[None, :], a_prev, a_app)
+            hold_left = np.maximum(hold_left - 1, 0)
+        a_prev = a_app
         th1, thd1, x1, v1 = th, thd, x, v
         for _ in range(spec.substeps):
             a_r = axis_cap(a_app, v1, spec)
@@ -237,6 +257,7 @@ def run(policy, ics: dict, spec: RigSpec = RigSpec(), t_max: float = 10.0, trace
             rec["v"].append(v[p, kk])
             rec["theta"].append(th[p, kk])
             rec["a_cmd"].append(a_cmd[p, kk])
+            rec["a_app"].append(a_app[p, kk])
         if not alive.any():
             break
     out = {"perf": perf, "IA": IA, "DU": DU, "t_fail": t_fail, "alive": alive, "end_x": x}

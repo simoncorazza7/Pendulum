@@ -186,6 +186,20 @@ def main() -> int:
     check("rig model: an empty network lets the pole fall in about acosh(22/2)/w0",
           not r["alive"][0, 0] and abs(t_f - t_free) < 0.1, f"{t_f:.2f} s vs {t_free:.2f} s")
 
+    # 12. remote-path late replies hold the applied command; without them it changes every tick
+    spec1 = rig.RigSpec(n_in=3, net_every=1)
+    g = Genome(3, "t")
+    g.w[(3, 0)], g.w[(3, 1)] = 1.0, 3.0              # x and theta: the command moves every tick once the cart does
+    base = {"th0": np.array([0.01]), "thd0": np.zeros(1), "x0": np.zeros(1), "v0": np.zeros(1), "ref": np.zeros(1),
+            "w0": np.array([4.97]), "bJ": np.array([0.054]), "coulomb": np.array([0.0]), "delay": np.array([4])}
+    r0 = rig.run(Batch([g]), base, spec1, t_max=0.4, trace=(0, 0))
+    r1 = rig.run(Batch([g]), dict(base, stall_rate=200.0, stall_ticks=(1, 3), stall_seed=5), spec1, t_max=0.4,
+                 trace=(0, 0))
+    rep0 = float(np.mean(np.diff(r0["trace"]["a_app"][10:]) == 0))
+    rep1 = float(np.mean(np.diff(r1["trace"]["a_app"][10:]) == 0))
+    check("late replies hold the applied command (stall_rate)", rep0 < 0.05 and rep1 > 0.3,
+          f"held ticks {100 * rep0:.0f} % -> {100 * rep1:.0f} %")
+
     print(f"\n{'all passed' if failures == 0 else f'{failures} FAILED'}")
     return 1 if failures else 0
 

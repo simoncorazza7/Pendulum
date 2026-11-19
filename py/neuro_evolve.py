@@ -24,7 +24,7 @@ import json
 import pathlib
 import sys
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
@@ -40,12 +40,16 @@ HERE = pathlib.Path(__file__).resolve().parent
 class Costs:
     n: float                 # per neuron (outputs + hidden)
     s: float                 # per synapse
-    f: float                 # per unit of mean |command| (bench: N, rig: m/s^2)
-    du: float = 0.0          # rig: per unit of command change rate (1/s)
+    f: float                 # per unit of mean |command| above f_budget (bench: N, rig: m/s^2)
+    du: float = 0.0          # rig: per unit of command change rate above du_budget (1/s)
+    f_budget: float = 0.0    # rig: mean |a| that is free (m/s^2)
+    du_budget: float = 0.0   # rig: command changes per second that are free
 
 
 BENCH_COSTS = Costs(n=0.2, s=0.05, f=0.1)
 RIG_COSTS = Costs(n=0.1, s=0.02, f=0.5, du=0.02)
+# --budget: the rig PID's own effort on rig.TEST (mean |a| 0.18 m/s^2, 4.9 command changes per s) is free, more costs steeply
+RIG_BUDGET_COSTS = Costs(n=0.1, s=0.02, f=10.0, du=0.2, f_budget=0.18, du_budget=4.9)
 
 
 def sizes(pop):
@@ -69,7 +73,8 @@ def rig_evaluator(K: int, t_max: float, costs: Costs, rng, spec: rig.RigSpec, dr
         r = rig.run(Batch(pop), ics, spec, t_max=t_max)
         P, IA, DU = r["perf"].mean(1), r["IA"].mean(1), r["DU"].mean(1)
         Nn, Ns = sizes(pop)
-        f = P - costs.n * Nn - costs.s * Ns - costs.f * IA - costs.du * DU
+        f = (P - costs.n * Nn - costs.s * Ns - costs.f * np.maximum(0.0, IA - costs.f_budget)
+             - costs.du * np.maximum(0.0, DU - costs.du_budget))
         return f, {"P": P, "cmd": IA, "du": DU, "Nn": Nn, "Ns": Ns, "t_fail": r["t_fail"].mean(1)}
     return evaluate
 
@@ -82,13 +87,17 @@ def bench_test(g: Genome) -> tuple[float, dict]:
     return ok - 0.01 * g.n_synapses(), {"grid_balanced": ok, "grid_inside": int(inside.sum())}
 
 
-def rig_test(g: Genome, spec: rig.RigSpec, runs: int = 200, seed: int = 12345) -> tuple[float, dict]:
-    ics = rig.draw(np.random.default_rng(seed), runs, rig.TEST, spec)
+def rig_test(g: Genome, spec: rig.RigSpec, runs: int = 200, seed: int = 12345, draw: rig.Draw = rig.TEST,
+             costs: Costs | None = None) -> tuple[float, dict]:
+    ics = rig.draw(np.random.default_rng(seed), runs, draw, spec)
     r = rig.run(Batch([g]), ics, spec, t_max=20.0)
     alive = r["alive"][0]
     end = float(np.median(np.abs(r["end_x"][0][alive]))) if alive.any() else float("nan")
-    return float(alive.mean()) - 0.001 * g.n_synapses(), {"survived_20s": float(alive.mean()), "median_end_x": end,
-                                                          "IA": float(r["IA"][0].mean()), "DU": float(r["DU"][0].mean())}
+    IA, DU = float(r["IA"][0].mean()), float(r["DU"][0].mean())
+    score = float(alive.mean()) - 0.001 * g.n_synapses()
+    if costs is not None and (costs.f_budget or costs.du_budget):     # over-budget effort lowers the pick's score
+        score -= 0.2 * max(0.0, IA - costs.f_budget) + 0.01 * max(0.0, DU - costs.du_budget)
+    return score, {"survived_20s": float(alive.mean()), "median_end_x": end, "IA": IA, "DU": DU}
 
 
 def main() -> int:
@@ -104,6 +113,12 @@ def main() -> int:
     ap.add_argument("--rig-inputs", type=int, choices=[3, 4], default=3,
                     help="rig: 3 = x, theta, v (velocity from recurrence); 4 = + the Pi's velocity estimate")
     ap.add_argument("--delay", type=int, default=4, help="rig: command delay in ticks (remote path: 4)")
+    ap.add_argument("--delay-max", type=int, default=None, help="rig: draw each run's delay from --delay..--delay-max")
+    ap.add_argument("--stall-rate", type=float, default=0.0,
+                    help="rig: late replies per second; the Pi holds the previous command for 1-3 ticks")
+    ap.add_argument("--budget", action="store_true",
+                    help="rig: the PID's effort (mean |a| 0.18 m/s^2, 4.9 changes/s) is free, more costs steeply")
+    ap.add_argument("--start", default="", help="start from copies of this network (default: empty, as the paper)")
     ap.add_argument("--net-every", type=int, default=5, help="rig: ticks per network update (5: 100 Hz)")
     ap.add_argument("--save-every", type=int, default=25)
     ap.add_argument("--print-every", type=int, default=50)
@@ -112,6 +127,7 @@ def main() -> int:
 
     rng = np.random.default_rng(a.seed)
     prm = ens3.Ens3Params(pop=a.pop)
+    dmax = a.delay_max if a.delay_max is not None else a.delay
     if a.env == "bench":
         n_in = a.inputs or 4
         K = a.k or 2
@@ -121,16 +137,18 @@ def main() -> int:
     else:
         n_in = a.rig_inputs
         K = a.k or 4
-        costs = RIG_COSTS
+        costs = RIG_BUDGET_COSTS if a.budget else RIG_COSTS
         spec = rig.RigSpec(n_in=n_in, net_every=a.net_every, substeps=2)
-        draw = rig.Draw(delay_ticks=(a.delay, a.delay))
+        draw = rig.Draw(delay_ticks=(a.delay, dmax), stall_rate=a.stall_rate)
         evaluate = rig_evaluator(K, 10.0, costs, rng, spec, draw)
     stamp = datetime.datetime.now().strftime("%Y-%m-%dT%H-%M-%S")
-    out = pathlib.Path(a.out) if a.out else HERE.parent / "logs" / f"{stamp}_neuro-{a.env}-{n_in}{a.cls}-s{a.seed}"
+    tag = ("-budget" if a.budget else "") + ("-seeded" if a.start else "")
+    out = pathlib.Path(a.out) if a.out else HERE.parent / "logs" / f"{stamp}_neuro-{a.env}-{n_in}{a.cls}{tag}-s{a.seed}"
     out.mkdir(parents=True, exist_ok=True)
     meta = {"env": a.env, "inputs": n_in, "cls": a.cls, "gens": a.gens, "seed": a.seed, "k": K,
             "ens3": asdict(prm), "costs": asdict(costs), "rig_spec": asdict(spec) if spec else None,
-            "delay": a.delay if a.env == "rig" else None}
+            "delay": [a.delay, dmax] if a.env == "rig" else None,
+            "stall_rate": a.stall_rate if a.env == "rig" else None, "start": a.start or None}
     (out / "run.json").write_text(json.dumps(meta, indent=1), encoding="utf-8")
 
     log = open(out / "log.csv", "w", newline="", encoding="utf-8")
@@ -147,7 +165,8 @@ def main() -> int:
             g = pop[b].copy()
             g.meta = {"env": a.env, "gen": gen, "seed": a.seed, "fitness": float(fit[b])}
             if a.env == "rig":
-                g.meta.update({"net_every": a.net_every, "delay_ticks": a.delay})
+                g.meta.update({"net_every": a.net_every, "delay_ticks": [a.delay, dmax], "stall_rate": a.stall_rate,
+                               "budget": a.budget})
             p = out / f"elite_{gen:05d}.json"
             g.save(p)
             elites.append((gen, p))
@@ -157,7 +176,14 @@ def main() -> int:
                   f"t_fail {info['t_fail'][b]:6.2f} s  neurons {int(info['Nn'][b])}  synapses {int(info['Ns'][b])}  "
                   f"{time.time() - t0:6.0f} s", flush=True)
 
-    ens3.evolve(evaluate, n_in, a.cls, prm, a.gens, rng, on_generation)
+    start = None
+    if a.start:
+        g0 = Genome.load(a.start)
+        if g0.n_in != n_in or g0.cls != a.cls:
+            raise SystemExit(f"--start {a.start}: {g0.n_in} inputs, class {g0.cls}; this run needs {n_in}, {a.cls}")
+        g0.meta = {}
+        start = [g0] * prm.pop
+    ens3.evolve(evaluate, n_in, a.cls, prm, a.gens, rng, on_generation, start=start)
     log.close()
 
     # final pick: the elites of the last 40 % of the run, scored on a fixed test set
@@ -165,7 +191,11 @@ def main() -> int:
     scored = []
     for gen, p in cands:
         g = Genome.load(p)
-        score, rep = bench_test(g) if a.env == "bench" else rig_test(g, rig.RigSpec(n_in=n_in, net_every=a.net_every))
+        if a.env == "bench":
+            score, rep = bench_test(g)
+        else:
+            score, rep = rig_test(g, rig.RigSpec(n_in=n_in, net_every=a.net_every),
+                                  draw=replace(rig.TEST, stall_rate=a.stall_rate), costs=costs)
         scored.append((score, gen, p, rep))
         print(f"  test elite gen {gen}: {rep}", flush=True)
     score, gen, p, rep = max(scored, key=lambda s: s[0])

@@ -232,4 +232,9 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   with output-at-once + semi-implicit Euler (explicit Euler: 2-input nets 0 %). `py/neuro/rig.py` = pendel.plant/pid_step/BdLp2
   exactly. Unseen plants, 300 x 30 s: PID + cart loop 81 %, evolved 4-input net (x, theta, v, omega; one neuron, no recurrence)
   85 % at 1.7x effort; 3-input recurrent nets fragile, not sane on replayed rig logs. No PC program, no launcher, no rig run.
+  Re-evolved at the PID's effort (`--budget`, delays 4-7, late replies): 81-85 % at 0.15-0.18 m/s^2; the gains converge on
+  the PID's own (a ~ 43-64 theta + 5.5 omega + 6-9 x + 7-8 v, no integral: ends 15-31 mm off centre vs 6 mm). No gain over the PID.
+  Headroom (`py/headroom_study.py`, LP feasibility + oracle MPC): of 45 starts both lose, 22 uncatchable by any controller at
+  a_max 2 / v_max 0.3, 20 only with zero slack, 3 robust: more PC compute buys <= 1 point. a_max 3 / v_max 0.5 (the ctrl.*
+  priors) makes 28 of 45 robustly catchable (~94 %): Stage 0.9's actuator limits are the lever.
 
