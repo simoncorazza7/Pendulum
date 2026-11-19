@@ -8,8 +8,8 @@ member who knows basic programming and calculus and has never seen this project.
 - **Deeper, dated design notes** (derivations, measurements, decisions) stay in the other files in `docs/`. This
   document links to them where they add detail.
 
-**What this describes.** Branch `control-dev` at commit `fad2469` (2026-11-04), plus the uncommitted working-tree
-edits present on 2026-11-18. Every number below comes from that code, from `config/pendctl.conf`, or from the
+**What this describes.** Branch `control-dev` as committed on 2026-11-19; its controller code and settings are those
+of commit `fad2469` (2026-11-04). Every number below comes from that code, from `config/pendctl.conf`, or from the
 measurement documents in `docs/`. Where something is not in the repo, a callout says so:
 
 > ⚠️ TODO / unverified: callouts like this one mark facts that are missing from the repo or not yet checked. Do
@@ -1264,12 +1264,11 @@ Pi's header GPIOs (`docs/stage0_discovery.md`). A boot setting holds GPIO24 high
 | `pcb/` | KiCad design of the carrier PCB | — |
 | `docs/` | this document, the guide, and the dated design notes | — |
 
-> ⚠️ TODO / unverified: **where the current code lives.** GitHub (`origin`,
-> `https://github.com/simoncorazza7/Pendulum.git`) has only a `main` branch, last fetched at `5da1513`. The branch
-> this document describes, `control-dev`, exists only on the development PC and on the Pi (remote `pi`), not on GitHub. GitHub's
-> `main` is internally inconsistent: its Pi code speaks remote protocol version 1, but its `py/remote_ctrl.py`
-> speaks version 4, so remote mode cannot link if both halves come from GitHub `main`. See the guide, §4
-> ("Getting the code").
+> ⚠️ TODO / unverified: **GitHub's `main` is out of date.** GitHub (`origin`,
+> `https://github.com/simoncorazza7/Pendulum.git`) has the branch this document describes, `control-dev` (since
+> 2026-11-19), and an older `main` (`5da1513`) that is internally inconsistent: its Pi code speaks remote protocol
+> version 1, but its `py/remote_ctrl.py` speaks version 4, so remote mode cannot link if both halves come from
+> GitHub `main`. Use `control-dev`; see the guide, §4 ("Getting the code").
 
 ### 5.2 Programs and modes
 

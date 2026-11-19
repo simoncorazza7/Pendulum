@@ -10,7 +10,8 @@ appear where the steps differ.
 
 - **Theory, hardware, software design, all symbols:** [`docs/01_theory_and_technical_reference.md`](01_theory_and_technical_reference.md).
   This guide uses its notation (θ, $x$, $a$, $K_p$, $N$, …) and links to its sections as "reference §n".
-- **What this describes:** branch `control-dev` at commit `fad2469` (2026-11-04).
+- **What this describes:** branch `control-dev` as committed on 2026-11-19 (controller code and settings as of
+  commit `fad2469`, 2026-11-04).
 
 > ⚠️ TODO / unverified: callouts like this one mark steps the repo does not settle. Check them
 > before relying on them.
@@ -220,16 +221,11 @@ The repository's GitHub address, from its configured remote (`git remote -v`):
 https://github.com/simoncorazza7/Pendulum.git
 ```
 
-> ⚠️ TODO / unverified: **GitHub does not have the current code.** As of 2026-11-18, GitHub has only the branch
-> `main` (`5da1513`). The working branch `control-dev`, which everything in these documents describes, exists on
-> the development PC and on the Pi, not on GitHub.
->
-> GitHub's `main` is also inconsistent with itself: its Pi code speaks remote protocol version 1, but its
-> `py/remote_ctrl.py` speaks version 4, so remote mode would never link (§8).
->
-> Until `control-dev` is pushed to GitHub, the `git switch control-dev` step below fails with "invalid
-> reference". Until then, clone the Pi's copy instead, which is what the rig runs (this needs the SSH access of
-> §6): `git clone pendel@pendel.local:Pendel-main Pendel-main`.
+Use the branch **`control-dev`** (on GitHub since 2026-11-19): everything in these documents describes it.
+
+> ⚠️ TODO / unverified: GitHub's **`main`** (`5da1513`) is older than `control-dev` and inconsistent with itself:
+> its Pi code speaks remote protocol version 1, but its `py/remote_ctrl.py` speaks version 4, so remote mode would
+> never link (§8). Don't use `main` until it is brought up to date.
 
 ### 4.3 Authentication
 
@@ -275,8 +271,7 @@ git switch control-dev
 git status
 ```
 
-`git status` should say `On branch control-dev` and `nothing to commit, working tree clean`. (See the TODO in
-§4.2 about `git switch control-dev`.)
+`git status` should say `On branch control-dev` and `nothing to commit, working tree clean`.
 
 **Later, to get the newest version:**
 
@@ -878,7 +873,7 @@ git push pi control-dev
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | `git clone` keeps asking for a user name, or says `Repository not found` | the repo is private and your account has no access, or git used another account | make sure your GitHub account has access; sign in through the browser window (§4.3 A) or use SSH (§4.3 C) |
-| `fatal: invalid reference: control-dev` | GitHub has no `control-dev` branch | clone the Pi's copy instead (TODO in §4.2) |
+| `fatal: invalid reference: control-dev` | your copy has not fetched the branch yet (for example, cloned before it was on GitHub) | `git fetch origin`, then `git switch control-dev` again |
 | `Permission denied (publickey)` from `git@github.com` | your SSH key is not added to GitHub | add the `.pub` key on GitHub; test with `ssh -T git@github.com` |
 | `git push pi` rejected: `fetch first` / `non-fast-forward` | someone pushed to the Pi since your last pull | `git pull --rebase pi control-dev`, then push again |
 | `git push pi` rejected: `Working directory has unstaged changes` | someone edited files on the Pi | stop; look at `git status` on the Pi before anything else; never force |
@@ -981,8 +976,6 @@ ssh-keygen -t ed25519 -C "your-name"
 type $env:USERPROFILE\.ssh\id_ed25519.pub | ssh pendel@pendel.local "mkdir -p ~/.ssh && chmod 700 ~/.ssh && tr -d '\r' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
 git remote add pi pendel@pendel.local:Pendel-main
 ```
-
-(`git switch control-dev`: see the TODO in §4.2.)
 
 **Update the code and the Pi:**
 

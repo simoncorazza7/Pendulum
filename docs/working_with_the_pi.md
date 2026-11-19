@@ -13,9 +13,7 @@ and 2 touches the rig.
    cd Pendel-main
    git switch control-dev
    ```
-   GitHub has only the `main` branch so far (checked 2026-11-18): `control-dev` lives on the development PC and on
-   the Pi, so `git switch control-dev` fails with "invalid reference" until it is pushed there. Until
-   then, clone the Pi's copy instead (it needs the SSH access of part 3): `git clone pendel@pendel.local:Pendel-main`.
+   `control-dev` is the current branch (on GitHub since 2026-11-19); GitHub's `main` is older and out of date.
 3. **Stay current** whenever something new has been pushed: `git pull`.
 
 ## 2. Where to start reading
