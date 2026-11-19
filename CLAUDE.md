@@ -8,7 +8,9 @@ a value or convention is established, and at the end of every session.
 Simon (mechatronics student) is continuing a 2025 bachelor-thesis rig. Current scope: **Stage 0**
 (bring-up, audit, identification) and **Stage 1** (on-Pi angle-only balance PID). Exceptions (Simon): swing-up
 (Stage 4, 10-14; `./swingup.sh`, `docs/swingup_notes.md`); remote controller on the PC (Stage 2b, 10-19;
-`./remote.sh`, `docs/remote.md`); cascaded cart loop (Stage 3, 11-03; `docs/stage3_cascade.md`). Nothing else beyond.
+`./remote.sh`, `docs/remote.md`); cascaded cart loop (Stage 3, 11-03; `docs/stage3_cascade.md`); evolved neurocontrollers
+(Pasemann 1998 / ENS³, 11-19), **simulation only** (`./neuro_sim.sh`, `py/neuro/`, `docs/neuro_sim.md`): a separate method
+with its own launcher, never inside `swingup.sh` or the swing-up code (Simon). Nothing else beyond.
 Explain the reasoning behind design choices.
 
 ## Safety rules (non-negotiable)
@@ -226,4 +228,8 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   e2e 4/4 (one earlier abort = a 464 ms stall of the non-RT Python on the Pi). Rig `10-16-08` (local swing-up, Stage 3b):
   6/7 handed over, **3 x 30 s**, 3.9 / 3.5 / 0.7 s; gate refused run 5 (v_pred 106 mm/s) -> came round -> soft limit
   while pumping. Open: cart wanders +-90..136 mm while balancing; the gate ignores x (run 2 accepted at x +68 mm).
+- 2026-11-19 **ENS³ neurocontrollers, simulation only** (`docs/neuro_sim.md`, `./neuro_sim.sh test` 14/14): paper reproduced only
+  with output-at-once + semi-implicit Euler (explicit Euler: 2-input nets 0 %). `py/neuro/rig.py` = pendel.plant/pid_step/BdLp2
+  exactly. Unseen plants, 300 x 30 s: PID + cart loop 81 %, evolved 4-input net (x, theta, v, omega; one neuron, no recurrence)
+  85 % at 1.7x effort; 3-input recurrent nets fragile, not sane on replayed rig logs. No PC program, no launcher, no rig run.
 
