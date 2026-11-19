@@ -1,8 +1,10 @@
 # Swing-up by energy pumping: notes and feasibility (2026-10-14)
 
-Brief §7 puts this in **Stage 4** ("energy-based swing-up and hand-over to the balance controller, within track
-limits"). It is not in the current scope (Stages 0–1), so nothing here is built into pendctl. This is the theory
-and a feasibility simulation for the discussion with Simon (`py/swingup_study.py`).
+Brief §4 puts this in **Stage 4** ("energy-based swing-up and hand-over to the balance controller, within track
+limits"). §1–5 are the theory and the feasibility simulation written for the discussion with Simon
+(`py/swingup_study.py`), before anything was built. Simon then pulled swing-up forward: §6 describes its
+implementation in pendctl (`rt::SwingUpRuntime`, `./swingup.sh`, 2026-10-14) and §7 the first rig test. Since the
+Stage 3 cascade (2026-11-03), the balance phase after the hand-over also runs the cart loop (`docs/stage3_cascade.md`).
 
 ## 1. Energy and how the cart changes it
 

@@ -4,6 +4,11 @@ A self-contained explainer of what we are building, why it works, how the softwa
 each step of the plan exists. Numbers are the measured ones (status 2026-10-12). Details and evidence live
 in the step documents linked throughout; this file ties them together.
 
+> Later changes (`CLAUDE.md`, Status): the velocity filter moved to 14 Hz (2026-10-14); the pivot was rebuilt on
+> 2026-11-02 (ω₀ 4.97 rad/s, b/J 0.054 1/s, Coulomb 0.168 rad/s²; the same design now gives Kp 62.78, Ki 97.51,
+> Kd 6.492); the swing-up, the remote mode and the Stage 3/3b cart loop were added. Current values:
+> `config/pendctl.conf` and `docs/01_theory_and_technical_reference.md`.
+
 Contents
 1. The rig and the task
 2. Background theory
@@ -18,7 +23,7 @@ Contents
 ## 1. The rig and the task
 
 ### 1.1 Hardware
-- **Cart** on an MGN12 linear rail, driven by a GT2 belt over a 60-tooth pulley (120 mm of belt per motor
+- **Cart** on an MGN15 linear rail (the thesis says MGN12), driven by a GT2 belt over a 60-tooth pulley (120 mm of belt per motor
   turn) by a **NEMA 23 stepper** (23HS2430, 200 full steps/rev) through an **A4988 driver** at 24 V.
   The driver's microstep pins MS1/MS2 select the step size: 1/8 step gives 1600 steps per motor turn,
   i.e. **13 333 steps per metre** (75 µm per step).
@@ -45,8 +50,8 @@ seen directly; it's found by driving to a switch and comparing where it triggers
 
 ### 1.3 The task (the brief)
 - **Stage 0**: bring the rig up safely, audit the inherited code, measure everything the controller
-  depends on, and build a validated simulation. Gates A and B are review points where Simon decides.
-- **Stage 1**: an **angle-only PID** running entirely on the Pi catches the pendulum when Simon releases
+  depends on, and build a validated simulation. Gates A and B are review points where the project stops for a decision.
+- **Stage 1**: an **angle-only PID** running entirely on the Pi catches the pendulum when the operator releases
   it near upright and holds it there. No swing-up and **no cart-position feedback**: the cart is allowed to
   drift until a soft limit stops it. Gate C closes Stage 1.
 
@@ -251,24 +256,24 @@ run timer, a stop request, or the **soft limit**: the cart's position plus the d
 ends a normal Stage 1 run: the cart drifts, the supervisor brakes it before the switches.
 
 ### 3.7 Safety engineering
-Nothing moves without a reason and a go:
+Nothing moves without a reason and a checklist:
 - **Driver off by default**: EN is held high from boot; every program switches it off on exit, on a
   signal, and on a crash.
-- **No motion without Simon's explicit go for that specific run**, with the motion envelope stated first
+- **No motion without the motion envelope stated first** for that specific run
   (direction, distance, speed, acceleration, duration, how it ends, how to abort).
 - **Mock chip first**: every new mode is tested on the simulated GPIO chip, with the kernel's trace of
   every pin write checked (e.g. "EN never went low").
 - **Shadow mode** runs the full controller on the real sensors with the motor pins *never requested*:
   the safest possible real test of signs, logic and timing.
 - After the stale-binary incident (2026-10-08): delete binaries before building, gate runs on a
-  successful build, never run anything that can open the real chip without a go.
+  successful build, never start anything that can open the real chip unintentionally.
 
 ### 3.8 The testing pyramid
 1. Unit tests (63 on the PC and the Pi), including golden comparisons with Python.
 2. Closed-loop tests on the simulated rig: catches, aborts, sign errors, delays, the hand on the rod.
 3. Mock-chip tests of the real program (21 checks: calibration, enabling, braking, refusals).
 4. Shadow runs on the real sensors (no motion possible).
-5. Motion runs with a stated envelope and a go, smallest first.
+5. Motion runs with a stated envelope and a checklist, smallest first.
 
 ---
 
@@ -303,7 +308,7 @@ pinning; scope check of the STEP pin. *Result:* p99 35 µs under load, no overru
 (heatsink since fitted). *Why:* the delay budget for the design, and proof that the Pi alone can run the
 loop.
 
-**0.6 Encoder integrity.** Record every raw edge while Simon turns and swings the pendulum; compare
+**0.6 Encoder integrity.** Record every raw edge while the operator turns and swings the pendulum; compare
 decoders offline. *Result:* exactly 2400 counts/rev, no lost or wrong edges in 0.7 million, no drift
 over many turns; one startup loss mechanism found and fixed. *Why:* the angle is the controller's only
 measurement; a miscounting encoder means a wrong upright and a cart that runs off.
@@ -338,8 +343,8 @@ rests on the simulation; it's only trustworthy once it reproduces real data.
 **Gate B: design review** (`docs/gateB_report.md`). Measured parameters with uncertainties, issues fixed,
 the proposed design with predicted margins, the catch region, drift predictions, acceptance thresholds.
 *Key finding:* every candidate tuning catches the same region, θ₀ + θ̇₀/ω₀ ≲ 10° with the placeholder
-limits, so **the catch region is set by the actuator, not the gains**. *Why:* the gate is where Simon
-decides, with the evidence in one place, whether the cart may try to catch the pendulum.
+limits, so **the catch region is set by the actuator, not the gains**. *Why:* the gate is where, with the evidence in one
+place, the review decides whether the cart may try to catch the pendulum.
 
 ### Stage 1: catching and balancing
 

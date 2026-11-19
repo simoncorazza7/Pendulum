@@ -122,7 +122,7 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 
 ## Status (details: `docs/session_log.md`)
 - Claude runs on Simon's Windows PC, drives the Pi over SSH (host key ED25519
-  SHA256:+/uYSPx4f31bInTJd3Lgdp3Fgh76LSaEVURRtlaBABE, new Pi 10-23). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (88).
+  SHA256:+/uYSPx4f31bInTJd3Lgdp3Fgh76LSaEVURRtlaBABE, new Pi 10-23). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (95).
   Pi = 192.168.0.102 on the lab LAN; pendel.local resolves only from PowerShell/Windows ssh, not Git Bash.
 - Done: 0.1–0.5 (scope check passed 2026-10-09), Gate A. GPIO24 held high from boot (`gpio=24=op,dh`).
 - E-stop: the rocker switch (cuts motor AND Pi); a motor-only switch (+ bulk cap at VMOT) before the aggressive 0.9 runs.
@@ -222,4 +222,8 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 - 2026-11-04 **Stage 3b built**: cart integral (kx 0.41, kv 1.0, ki 0.05, i_max 2 deg; reset per catch) + swing-up gate
   swingup.v_sw 0.07 on |v + (g/w0) u| (rig: all >= 8 s balances had <= 62 mm/s). Sim at 1.3 counts: 20/29 vs P 2/29.
   Protocol v4. PC 95/95. docs/stage3_cascade.md "Stage 3b". Not on the rig yet.
+  Pi (fad2469): 95/95 after fixing a 128-byte test buffer (PARAMS 140 B overflowed it: UB, wrong value on ARM only);
+  e2e 4/4 (one earlier abort = a 464 ms stall of the non-RT Python on the Pi). Rig `10-16-08` (local swing-up, Stage 3b):
+  6/7 handed over, **3 x 30 s**, 3.9 / 3.5 / 0.7 s; gate refused run 5 (v_pred 106 mm/s) -> came round -> soft limit
+  while pumping. Open: cart wanders +-90..136 mm while balancing; the gate ignores x (run 2 accepted at x +68 mm).
 

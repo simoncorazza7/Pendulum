@@ -55,7 +55,7 @@ What you do and what you see:
 
 **Reduced limits.**
 - a_max = 2.0 m/s² and v_max = 0.3 m/s (`balance.a_max`, `balance.v_max`); they replace `ctrl.a_max` and `ctrl.v_max` in this mode only.
-- The gains are the Gate B draft design: pole placement ω_c = 2ω₀, ζ = 0.7, p = 0.5ω₀, giving Kp 62.8, Ki 96.7, Kd 6.56. BD+LP2 at 20 Hz, Ts 2 ms.
+- The gains are the Gate B draft design: pole placement ω_c = 2ω₀, ζ = 0.7, p = 0.5ω₀, giving Kp 62.8, Ki 96.7, Kd 6.56. BD+LP2 at 20 Hz, Ts 2 ms. (On the 2026-11-02 pivot, ω₀ 4.97, the same design gives Kp 62.78, Ki 97.51, Kd 6.492, and the filter is now 14 Hz.)
 - a_max is 2/3 of the PRIOR value, inside what the 0.10 pulse and damp runs exercised more gently (1 m/s²).
 - v_max 0.3 m/s is 4000 µsteps/s, about 150 rpm.
 

@@ -27,8 +27,9 @@ back for outputs. Assume worst case latency (try and test what that is) to keep 
   only if it carries the id of those parameters, so the PC cannot run stale gains. The PC resets its PID at each
   new engagement (epoch), with the integrator at the sample's `i0`: the Pi's pre-load for that engagement (the
   swing-up hand-over's θ̇/ω₀², else 0). Protocol version 2 (2026-11-03) added `i0`; version 3 (same day) added the
-  Stage 3 cart-loop gains to PARAMS, and the PC runs `control.cascade_step` on x, v (`docs/stage3_cascade.md`). An
-  older PC program is ignored, so with an old copy of `py/remote_ctrl.py` the link never comes up (pull it on the PC).
+  Stage 3 cart-loop gains to PARAMS, and the PC runs `control.cascade_step` on x, v (`docs/stage3_cascade.md`);
+  version 4 (2026-11-04) added the Stage 3b cart integral (`cart_ki`, `cart_i_max`). An older PC program is
+  ignored, so with an old copy of `py/remote_ctrl.py` the link never comes up (pull it on the PC).
 - **Shadow check.** While engaged, the Pi also runs its own PID on the same samples (`a_local`) and logs
   |PC − local| per reply. It is 0 when the network loses nothing (Python and C++ PID are golden-matched), so any
   scaling or sign error in the chain would show at once.
@@ -86,7 +87,11 @@ Measured so far:
 | localhost, WSL on Simon's laptop | `tests/remote/run_remote_e2e.sh` (C++ link + PC program) | 0.13 / 0.63 / 1.48 | 1 |
 | laptop Wi-Fi → router → Pi wired, 10 s | `py/net_probe_*` (Python both ends) | 1.27 / 8.0 / 11.2 | 6 (→ delay_ticks 7) |
 | Simon's wired PC → Pi (2026-11-03, 1.4 min, 42 085 replies, 0 lost) | `remote-sim` + `py/remote_ctrl.py` (`logs/2026-11-03T14-14-50_remote-sim`) | 0.46 / 2.39 / 4.17 | 3 (→ 4) |
-| same wired PC, first rig session (2026-11-03, 5.8 min, 172 907 replies, 0 lost) | `./remote.sh` (`logs/2026-11-03T14-32-03_balance`) | 0.41 / 2.50 / 13.2 (clustered stalls) | 7; 6 leaves 2 single late ticks → delay_ticks **6**, now the default |
+| same wired PC, first rig session (2026-11-03, 5.8 min, 172 907 replies, 0 lost) | `./remote.sh` (`logs/2026-11-03T14-32-03_balance`) | 0.41 / 2.50 / 13.2 (clustered stalls) | 7; 6 leaves 2 single late ticks → delay_ticks **6** (the default until 2026-11-04) |
+
+**Current default: `remote.delay_ticks = 4`** (8 ms, PM ≈ 38°), set back by Simon on 2026-11-04: the remote session
+`2026-11-04T09-20-36_balance` (146 k replies) had one stall of 14.3 ms, i.e. 7 late replies at 4 ticks with at most 4
+in a row (the abort is at 5; `config/pendctl.conf`, comment on `remote.delay_ticks`).
 
 A 10-minute Wi-Fi run ended when the laptop left the lab network. On Wi-Fi the worst case includes the link
 dropping out entirely, which no delay covers; the brief says wired Ethernet.
@@ -110,10 +115,19 @@ So the round trips of these runs say nothing about the real Pi; only the PC's an
 
 1. **Latency, no motion** (simulated pendulum on the Pi, no GPIO; the real loop, link and PC program):
    - PC: `python py/remote_ctrl.py --host pendel.local`
-   - Pi: `make build/pendctl && build/pendctl --mode remote-sim --set remote.delay_ticks=10 --set remote.sim_seconds=600`
-     (`sudo` for SCHED_FIFO timing, as on the rig).
+   - Pi: `make build/pendctl && build/pendctl --mode remote-sim --set remote.delay_ticks=10 --set remote.sim_seconds=600 --set plant.coulomb=0`
+     (`sudo` for SCHED_FIFO timing, as on the rig; `plant.coulomb=0` because with the 11-02 pivot friction the
+     simulated rod sticks at upright and the cart runs off, see "Open").
    - Then on the PC: `py/fetch_runs.py` and `py/remote_report.py logs/<time>_remote-sim`. The report prints the
      round-trip distribution, the late replies for every N, and the delay_ticks to use.
+   - With the PC program's log next to it (`logs/<time>_remote-pc`, found by time, or `--pc DIR`), the report also
+     splits each round trip by direction (2026-11-06): Pi → PC, PC processing, PC → Pi, each as excess over its
+     own floor, without synchronised clocks. Pi → PC uses the fact that sample k leaves at k·2 ms, so the PC's
+     receive time minus k·2 ms only drifts (the fastest sample of each second is the floor). PC → Pi is what is
+     left of the round trip. The report lists the slow replies with their legs, and `latency.png` gets a second
+     row. A stall tells the direction, not the machine: to tell the network from a network card, change one thing
+     (direct cable, power-saving settings) and compare. Checked on synthetic logs with known stalls in each leg and
+     a drifting, slewed PC clock (all three found in the right leg at the right size).
    - A long run is lost if the ssh session drops; use `tmux` or `nohup` for 10 minutes.
 2. **Set the delay:** `remote.delay_ticks` in `config/pendctl.conf`, or `--set` on the command line.
 3. **A second remote-sim run with that delay:** it must complete with 0 missed ticks.
@@ -151,12 +165,15 @@ normally pass without a rule.
 
 - The wired-PC measurement (procedure step 1) is done (2026-11-03, above). Open: a 10-minute confirming run at
   delay_ticks 4 (`--set remote.sim_tap_period=0 --set plant.coulomb=0`: the simulated 11-02 pivot friction sticks the rod
-  at upright and the cart drifts off, and taps make the angle-only drift end a run within ~1.5 min), and the first rig run.
-- On the Pi: `make` and `make test`, the gpio-mockup balance test (local mode unchanged?), a short remote-sim.
+  at upright and the cart drifts off, and taps make the angle-only drift end a run within ~1.5 min). The first rig run
+  is done (`2026-11-03T14-32-03_balance`, above).
+- On the Pi, done: `make test` 95/95 and the e2e test 4/4 at `fad2469`, and the remote-sim runs above. Not recorded:
+  the gpio-mockup balance test (local mode unchanged?).
 - Late replies count by tick, so after a loop overrun the catch-up ticks shrink the delay in time. On the Pi
   overruns are aborts (3 in a row) and have not happened in 1.26 M logged ticks; under WSL the loop stalled 49 ms
   once.
-- Remote swing-up is built and tested on the PC (91/91) but not yet run on the rig. The pre-load at release for
+- Remote swing-up ran on the rig on 2026-11-03 (`15-32-17_balance`: 5 of 7 handed over, two balanced the full 30 s
+  remotely; `CLAUDE.md`). The pre-load at release for
   hand catches (`ctrl.preload` with `sup.engage_on_release`) is no longer refused in remote mode (it goes as `i0`),
   but it is untested there and stays off by default.
 - `remote-sim` simulates the configured pivot friction; with the 11-02 pivot pass `--set plant.coulomb=0` (the rod
