@@ -4,7 +4,7 @@
 // Per event: line (0 = A, 1 = B), kernel edge type, kernel timestamp, time the event was read,
 // the levels of A and B read right after the batch, and the batch size of that read.
 // The lines are requested as inputs only; nothing is driven. By default the chip must be
-// gpio-mockup; the real chip needs enc.allow_real_chip=true (Simon's go).
+// gpio-mockup; the real chip needs enc.allow_real_chip=true.
 
 #include <cstdint>
 #include <cstdio>
@@ -51,7 +51,7 @@ int runEncoderLog(const Config& cfg, const std::string& configPath, const std::s
     const std::string label = gpiod_chip_label(chip);
     if (label != "gpio-mockup-A" && !allowReal) {
         std::cerr << "refusing: " << chipName << " is '" << label << "'. Reading the real encoder needs "
-                  << "enc.allow_real_chip=true (with Simon's go).\n";
+                  << "enc.allow_real_chip=true.\n";
         gpiod_chip_close(chip);
         return 2;
     }

@@ -8,7 +8,7 @@
 #include "hw/hardware.h"
 
 // Start-up upright reference (Stage 0.7 procedure, run at every program start: the encoder has no
-// index). Simon gives the hanging pendulum a small swing and lets go; this collects the edge
+// index). The operator gives the hanging pendulum a small swing and lets go; this collects the edge
 // crossings and repeatedly fits u = c + e^{-sigma t}(a cos wt + b sin wt) (core::fitOffset, sigma
 // from identification) over the last `window` seconds, with the pendulum's amplitude-dependent
 // frequency w = w0 (1 - A^2/16) for the window's amplitude A (rad). On the 2026-10-09 free decay

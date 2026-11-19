@@ -14,7 +14,7 @@ PiHw::PiHw(const std::string& chipName, const PiPins& pins, bool allowRealChip, 
         gpiod_chip_close(chip_);
         chip_ = nullptr;
         throw std::runtime_error("refusing " + chipName + " ('" + label_ +
-                                 "'): the real rig needs allow_real_chip=true (Simon's go)");
+                                 "'): the real rig needs allow_real_chip=true");
     }
     // Bring-up mode: no homing, EN stays 1 (driver off) until enableDriver().
     axis_ = std::make_unique<Axis>(chip_, pins.step, pins.dir, pins.en, pins.limit_right, pins.limit_left,

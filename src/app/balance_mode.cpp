@@ -2,9 +2,9 @@
 // hw::PiHw. HARDWARE ACTION: it homes the cart from switch to switch, balances and re-centres.
 // docs/stage1_demo.md; ./demo.sh runs it on the rig after a checklist.
 //
-//   1. calibration (driver off): Simon swings the hanging pendulum; c_bottom from the free swing
+//   1. calibration (driver off): the operator swings the hanging pendulum; c_bottom from the free swing
 //   2. Enter: homing (right switch, left switch: span = step-mode check, centre)
-//   3. arms by itself when the pendulum hangs still; Simon lifts it; ENGAGED rings the terminal bell
+//   3. arms by itself when the pendulum hangs still; the operator lifts it; ENGAGED rings the terminal bell
 //   4. a run ends at the soft limit, theta_abort, Enter (stop) or any other abort: controlled stop,
 //      cart held; Enter re-centres (touches the nearer switch: step-loss audit) and re-arms
 //   q + Enter or Ctrl-C: controlled stop, driver off, logs. Refuses the real chip unless

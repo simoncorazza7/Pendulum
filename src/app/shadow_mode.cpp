@@ -4,7 +4,7 @@
 // runtime runs with actuate = false, so nothing can move. Sequence:
 //   1. start-up calibration: c_bottom from a small free swing (app::calibrateAtStart);
 //   2. the runtime arms automatically whenever IDLE (refused unless the pendulum hangs still);
-//      Simon lifts it to upright -> ENGAGED; tilting it shows the would-be command a_cmd
+//      the operator lifts it to upright -> ENGAGED; tilting it shows the would-be command a_cmd
 //      (top toward +x = toward the LEFT switch must give a_cmd > 0); beyond theta_abort -> STOPPING
 //      -> IDLE; lowering it re-arms.
 // Logs every tick (TickRecord) including the calibration phase. Refuses the real chip unless

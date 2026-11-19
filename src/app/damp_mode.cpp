@@ -1,6 +1,6 @@
 // damp (Stage 1 hardware step 2): hanging active-damping test, rt::DampRuntime on hw::PiHw.
 //
-// 1. Start-up calibration with the driver OFF (c_bottom from the small free swing Simon starts).
+// 1. Start-up calibration with the driver OFF (c_bottom from the small free swing the operator starts).
 // 2. Driver on, cart holds (a = 0) until the next zero crossing of the swing, then a = -gain * phi'
 //    for damp.duration s: the swing should die out at zeta_h * w0 (open loop it barely decays).
 // 3. Controlled stop, driver off. Any abort (switch, phi or v too large, soft limit, encoder fault,

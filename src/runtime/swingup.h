@@ -11,7 +11,7 @@
 #include "hw/hardware.h"
 #include "runtime/remote.h"
 
-// Energy-based swing-up and hand-over to the balance PID (brief Stage 4, pulled forward by Simon on
+// Energy-based swing-up and hand-over to the balance PID (brief Stage 4, pulled forward on
 // 2026-10-14; docs/swingup_notes.md). One run from the hanging pendulum, on any hw::Hardware; portable.
 // The caller passes the sample each tick (one read per tick, as rt::Mover) and owns the driver enable.
 //
@@ -26,8 +26,9 @@
 //             cart centring); E_ref a hair above upright. Hand-over to BALANCE when |theta| < theta_sw and
 //             |theta + theta'/w0| < u_sw (arriving along the stable manifold) and the cart speed predicted after
 //             the catch |v + (g/w0)(theta + theta'/w0)| < v_sw (Stage 3b gate); integrator pre-loaded theta'/w0^2.
-//   BALANCE   core::pidStep (the balance gains, a_max, v_max taper), angle only (Stage 1): the cart keeps its
-//             hand-over velocity, so the run normally ends at the soft limit. With `remote` (Stage 2b, docs/remote.md)
+//   BALANCE   core::cascadeStep (the balance gains, a_max, v_max taper, plus the Stage 3/3b cart loop; with the cart
+//             gains at 0 it is the Stage 1 angle-only PID, and the cart keeps its hand-over velocity until the soft
+//             limit). With `remote` (Stage 2b, docs/remote.md)
 //             the command is the PC's, computed from the sample remote_delay ticks earlier (the local PID runs as a
 //             shadow, a_local); a late reply holds the previous command; remote_max_miss in a row, or the link
 //             going down, -> BRAKE ("remote link"). The pre-load goes to the PC as the epoch's i0.

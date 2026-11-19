@@ -14,7 +14,7 @@ SensorHw::SensorHw(const std::string& chipName, const PiPins& pins, bool allowRe
         gpiod_chip_close(chip_);
         chip_ = nullptr;
         throw std::runtime_error("refusing " + chipName + " ('" + label_ +
-                                 "'): the real rig needs allow_real_chip=true (Simon's go)");
+                                 "'): the real rig needs allow_real_chip=true");
     }
     reader_ = std::make_unique<EdgeReader>(chip_, pins.enc_a, pins.enc_b);
 }

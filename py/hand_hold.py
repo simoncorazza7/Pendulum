@@ -35,7 +35,7 @@ W0, BJ, COUL = 4.931, 0.024, 0.0117
 PLANT = PlantParams(w0=W0, bJ=BJ, coulomb=COUL)
 ACT = ActuatorParams(axis_a=400000 / (2 * 13333), axis_v=120000 / (2 * 13333), compute_delay=0.0005)
 SENS = SensorParams()
-L_H = 0.40          # m, grip height on the rod (Simon holds the rod near the top; L_eq = 0.40 m)
+L_H = 0.40          # m, grip height on the rod (the operator holds the rod near the top; L_eq = 0.40 m)
 
 
 def pid(a_max, v_max):

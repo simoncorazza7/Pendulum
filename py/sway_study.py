@@ -2,7 +2,7 @@
 
     .venv/Scripts/python py/sway_study.py
 
-Rig (Simon): runs 2-5 sat still (RMS theta 0.08 deg, as simulated) but drifted off in 1.3-3.3 s; runs 6-8
+Rig: runs 2-5 sat still (RMS theta 0.08 deg, as simulated) but drifted off in 1.3-3.3 s; runs 6-8
 balanced 11-36 s while the cart visibly swayed (RMS theta 1.1-1.6 deg, |v| up to v_max 0.3 m/s, 4-9 %
 of samples at the 2 m/s^2 limit). The validated model (docs/stage0_12_sim.md) does not sway, so something it
 leaves out must. Each candidate below is added alone to the identified plant with the demo controller
