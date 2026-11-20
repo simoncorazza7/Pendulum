@@ -30,6 +30,7 @@ int runDamp(const Config& cfg, const std::string& configPath, const std::string&
 int runBalance(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 int runRemoteSim(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 int runPcbTest(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
+int runActuator(const Config& cfg, const std::string& configPath, const std::string& cmdLine);
 
 }
 

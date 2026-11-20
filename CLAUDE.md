@@ -124,7 +124,7 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 
 ## Status (details: `docs/session_log.md`)
 - Claude runs on Simon's Windows PC, drives the Pi over SSH (host key ED25519
-  SHA256:+/uYSPx4f31bInTJd3Lgdp3Fgh76LSaEVURRtlaBABE, new Pi 10-23). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (95).
+  SHA256:+/uYSPx4f31bInTJd3Lgdp3Fgh76LSaEVURRtlaBABE, new Pi 10-23). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (106 on the PC since 11-19; the Pi last ran 95).
   Pi = 192.168.0.102 on the lab LAN; pendel.local resolves only from PowerShell/Windows ssh, not Git Bash.
 - Done: 0.1–0.5 (scope check passed 2026-10-09), Gate A. GPIO24 held high from boot (`gpio=24=op,dh`).
 - E-stop: the rocker switch (cuts motor AND Pi); a motor-only switch (+ bulk cap at VMOT) before the aggressive 0.9 runs.
@@ -237,4 +237,12 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   Headroom (`py/headroom_study.py`, LP feasibility + oracle MPC): of 45 starts both lose, 22 uncatchable by any controller at
   a_max 2 / v_max 0.3, 20 only with zero slack, 3 robust: more PC compute buys <= 1 point. a_max 3 / v_max 0.5 (the ctrl.*
   priors) makes 28 of 45 robustly catchable (~94 %): Stage 0.9's actuator limits are the lever.
+- 2026-11-19 **0.9 actuator test built** (`docs/stage0_9_actuator.md`: plan, blocks B0-B6 with commands; sizing
+  `py/actuator_sizing.py`). `pendctl --mode actuator` (`rt::ActuatorTest`, `src/app/actuator_mode.cpp`, `actuator.*` keys)
+  + `./actuator.sh`: homes, then ladders of out-and-back reps (return at T0 leaves the pendulum ~at rest), oneway/bang/
+  chirp/table profiles, switch-touch audit after each rep (pass +-3 usteps, 4-7 repeat, >= 8 fail + skip that speed; one
+  slip = 32); aborts brake at the rung's a. `py/actuator_report.py` (audit, step-generator delay, pendulum fit with
+  Coulomb, 28 Hz, a_rel, 50-70 % limits), `py/actuator_replay.py` (rig a_cmd -> table). PC 106/106 (11 new), WSL g++
+  syntax check of the Pi sources OK. NOT yet on the Pi: make, make test, tests/mock/run_actuator_mock.sh (A1-A6).
+  Baseline: 2 m/s^2 at <= 0.3 m/s proven (22 audits <= 2 usteps). Open: Vref, motor-only cut, end-stop padding.
 

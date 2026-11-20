@@ -19,6 +19,9 @@
 //                  py/remote_ctrl.py balances it over UDP with the constant delay remote.delay_ticks.
 //   pcb-test       bring-up test of the carrier PCB, one stage per run (pcbtest.stage C / D / E; only E moves
 //                  the motor). Refuses the real chip unless pcbtest.allow_real_chip=true (pcbtest.sh).
+//   actuator       Stage 0.9 actuator capability: homes, then a ladder of hard moves with the pendulum hanging and a
+//                  switch-touch step-loss audit after each (interactive). Refuses the real chip unless
+//                  actuator.allow_real_chip=true (actuator.sh, docs/stage0_9_actuator.md).
 // Usage:
 //   pendctl --mode MODE [--config config/pendctl.conf] [--set key=value ...]
 //
@@ -62,7 +65,7 @@ void onTerminate(int sig) {
 }
 
 void usage() {
-    std::cout << "Usage: pendctl --mode log-selftest|timing-probe|encoder-log|move|shadow|damp|balance|remote-sim|pcb-test [--config FILE] "
+    std::cout << "Usage: pendctl --mode log-selftest|timing-probe|encoder-log|move|shadow|damp|balance|remote-sim|pcb-test|actuator [--config FILE] "
                  "[--set key=value ...]\n";
 }
 
@@ -101,6 +104,7 @@ int main(int argc, char** argv) {
         else if (mode == "balance") rc = app::runBalance(cfg, configPath, cmdLine);
         else if (mode == "remote-sim") rc = app::runRemoteSim(cfg, configPath, cmdLine);
         else if (mode == "pcb-test") rc = app::runPcbTest(cfg, configPath, cmdLine);
+        else if (mode == "actuator") rc = app::runActuator(cfg, configPath, cmdLine);
         else usage();
     } catch (const std::exception& e) {
         std::cerr << "pendctl: " << e.what() << "\n";

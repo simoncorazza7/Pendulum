@@ -1,7 +1,11 @@
 #include "runtime/params.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstdlib>
 #include <stdexcept>
+#include <string>
+#include <vector>
 
 namespace rt {
 
@@ -241,5 +245,112 @@ SwingUpConfig swingUpFromSession(const Config& cfg, const SessionConfig& sc) {
 }
 
 SwingUpConfig swingUpFrom(const Config& cfg) { return sessionFrom(cfg).swingup; }
+
+namespace {
+
+// "2, 3,4.5" -> {2, 3, 4.5}; throws on an empty list or a malformed entry.
+std::vector<double> numberList(const Config& cfg, const std::string& key) {
+    const std::string s = cfg.getString(key);
+    std::vector<double> out;
+    std::size_t i = 0;
+    while (i <= s.size()) {
+        const std::size_t j = std::min(s.find(',', i), s.size());
+        std::string item = s.substr(i, j - i);
+        item.erase(0, item.find_first_not_of(" \t"));
+        item.erase(item.find_last_not_of(" \t") + 1);
+        char* end = nullptr;
+        const double v = std::strtod(item.c_str(), &end);
+        if (item.empty() || *end != '\0' || !std::isfinite(v))
+            throw std::runtime_error(key + " must be a comma-separated list of numbers, not '" + s + "'");
+        out.push_back(v);
+        i = j + 1;
+    }
+    return out;
+}
+
+}
+
+ActuatorConfig actuatorFrom(const Config& cfg) {
+    ActuatorConfig a;
+    a.ts = cfg.getDouble("loop.ts");
+    a.calib = calibFrom(cfg);
+    a.w0 = cfg.getDouble("plant.w0");
+    MoverConfig& m = a.mover;                    // homing, travel and touches as in the balance session
+    m.ts = a.ts;
+    m.calib = a.calib;
+    m.w0 = a.w0;
+    m.a_max = cfg.getDouble("balance.move_a_max");
+    m.a_brake = cfg.getDouble("balance.a_brake");
+    m.kp = cfg.getDouble("move.kp");
+    m.kv = cfg.getDouble("move.kv");
+    m.track_tol = cfg.getDouble("move.track_tol");
+    m.release_within = cfg.getDouble("move.release_within");
+    m.overrun_streak = static_cast<int>(cfg.getInt("sup.overrun_streak"));
+    a.v_seek = cfg.getDouble("balance.v_seek");
+    a.v_travel = cfg.getDouble("balance.v_travel");
+    a.seek_max = cfg.getDouble("balance.seek_max");
+    a.span_usteps = cfg.getDouble("balance.span_usteps");
+    a.span_tol = cfg.getDouble("balance.span_tol");
+    a.approach = cfg.getDouble("balance.approach");
+    a.touch_tol = cfg.getDouble("balance.touch_tol");
+    a.hold_a = m.a_brake;
+    const double capA = cfg.getDouble("move.max_accel"), capV = cfg.getDouble("move.max_speed");
+    if (!(a.v_seek > 0 && a.v_travel > 0 && a.v_seek <= capV && a.v_travel <= capV))
+        throw std::runtime_error("balance.v_seek / v_travel must be in (0, move.max_speed]");
+    if (!(m.a_max > 0 && m.a_brake > 0 && m.a_max <= capA && m.a_brake <= capA))
+        throw std::runtime_error("balance.move_a_max / a_brake must be in (0, move.max_accel]");
+    if (!(a.span_usteps > 0 && a.span_tol > 0 && a.span_tol < 0.3 && a.approach > 0 && a.touch_tol > 0 && a.seek_max > 0))
+        throw std::runtime_error("balance.span_usteps / span_tol / approach / touch_tol / seek_max out of range");
+
+    const std::string prof = cfg.getString("actuator.profile");
+    if (!parseActProfile(prof.c_str(), &a.profile))
+        throw std::runtime_error("actuator.profile must be pair, oneway, bang, chirp or table, not '" + prof + "'");
+    a.reps = static_cast<int>(cfg.getInt("actuator.reps"));
+    a.cruise = cfg.getDouble("actuator.cruise");
+    a.leg_max = cfg.getDouble("actuator.leg_max");
+    a.stream_seconds = cfg.getDouble("actuator.stream_seconds");
+    a.stream_x_max = cfg.getDouble("actuator.stream_x_max");
+    a.chirp_f1 = cfg.getDouble("actuator.chirp_f1");
+    a.chirp_taper = cfg.getDouble("actuator.chirp_taper");
+    a.kp = m.kp;
+    a.kv = m.kv;
+    a.track_tol = cfg.getDouble("actuator.track_tol");
+    a.a_margin = cfg.getDouble("actuator.a_margin");
+    a.overrun_streak = m.overrun_streak;
+    a.touch_pass = cfg.getDouble("actuator.touch_pass");
+    a.touch_fail = cfg.getDouble("actuator.touch_fail");
+    a.settle_deg = cfg.getDouble("actuator.settle_deg");
+    a.settle_max = cfg.getDouble("actuator.settle_max");
+    const double vTop = cfg.getDouble("actuator.v_top"), aTop = cfg.getDouble("actuator.a_top");
+    const double half = 0.5 * a.span_usteps / a.calib.usteps_per_m;   // m, centre to a switch
+    if (!(a.reps >= 1 && a.reps <= 20 && a.cruise >= 0 && a.leg_max > 0 && 0.5 * a.leg_max + 0.05 <= half))
+        throw std::runtime_error("actuator.reps / cruise / leg_max out of range (legs are centred and must stay 50 mm "
+                                 "inside the switches)");
+    if (!(a.stream_seconds > 0 && a.stream_x_max > 0 && a.stream_x_max + 0.05 <= half && a.chirp_f1 > 0 &&
+          a.chirp_taper > 0 && 2 * a.chirp_taper < a.stream_seconds))
+        throw std::runtime_error("actuator.stream_seconds / stream_x_max / chirp_f1 / chirp_taper out of range");
+    if (!(a.track_tol > 0 && a.a_margin >= 1.0 && a.touch_pass >= 0 && a.touch_fail > a.touch_pass &&
+          a.settle_deg > 0 && a.settle_max > 0))
+        throw std::runtime_error("actuator.track_tol / a_margin / touch_pass / touch_fail / settle_* out of range");
+    if (a.profile != ActProfile::Table) {
+        a.speeds = numberList(cfg, "actuator.speeds");
+        a.accels = numberList(cfg, "actuator.accels");
+        for (double v : a.speeds)
+            if (!(v > 0 && v <= vTop)) throw std::runtime_error("actuator.speeds: each must be in (0, actuator.v_top]");
+        for (std::size_t i = 0; i < a.accels.size(); ++i)
+            if (!(a.accels[i] > 0 && a.accels[i] <= aTop && (i == 0 || a.accels[i] > a.accels[i - 1])))
+                throw std::runtime_error("actuator.accels: each must be in (0, actuator.a_top], in ascending order");
+        // The Axis caps its acceleration at A (1 - |v| / V): it must stay above every command of the ladder.
+        const double togglesPerM = a.calib.toggles_per_ustep * a.calib.usteps_per_m;
+        const double axisA = static_cast<double>(cfg.getInt("axis.max_accel")) / togglesPerM;
+        const double axisV = static_cast<double>(cfg.getInt("axis.max_speed")) / togglesPerM;
+        for (double v : a.speeds)
+            for (double acc : a.accels)
+                if (axisA * (1 - v / axisV) < a.a_margin * acc)
+                    throw std::runtime_error("the Axis cap axis.max_accel would bite in the ladder (raise it or lower "
+                                             "actuator.accels / speeds)");
+    }
+    return a;
+}
 
 }

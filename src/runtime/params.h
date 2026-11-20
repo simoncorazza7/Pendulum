@@ -3,6 +3,7 @@
 
 #include "common/config.h"
 #include "core/units.h"
+#include "runtime/actuator.h"
 #include "runtime/balance.h"
 #include "runtime/damp.h"
 #include "runtime/session.h"
@@ -27,6 +28,10 @@ SessionConfig sessionFrom(const Config& cfg);
 // Swing-up runtime from swingup.* plus the session's balance (gains, reduced a_max / v_max, estimator, limits).
 // calib.c_bottom and calib.pos_center are set by the caller (the session).
 SwingUpConfig swingUpFrom(const Config& cfg);
+// Stage 0.9 actuator test (pendctl --mode actuator): actuator.* plus homing, travel and touches from balance.* and
+// move.* (as the balance session). The table of profile `table` is loaded by the caller (loadActTable).
+// Throws on unusable values, including a ladder in which the Axis cap would bite.
+ActuatorConfig actuatorFrom(const Config& cfg);
 
 }
 
