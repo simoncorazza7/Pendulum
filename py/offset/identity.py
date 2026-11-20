@@ -23,7 +23,8 @@ delta_hat() is the estimate (rad, theta_true ~ theta + delta_hat); weight() the 
 Use it at engage: theta_ref = theta_ref_config - delta_hat once weight() >= 3 s, held for the whole catch, while
 step() keeps learning for the next one. Changing the trim within a catch fights the Stage 3b cart integral, which is
 already correcting the same offset there (docs/offset_estimator.md, py/offset_study.py).
-Deterministic, no I/O: a C++ port would keep the running sums and a ring buffer of lag/Ts samples.
+Deterministic, no I/O. The C++ port is src/core/offset_est.* (bit-identical: tests/unit/test_offset_est.cpp against
+tests/golden/offset_*.csv from py/offset_golden.py); keep the two in step.
 """
 
 from __future__ import annotations

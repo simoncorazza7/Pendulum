@@ -52,6 +52,13 @@ def cmd_replay(args) -> int:
         w0, bJ = s.f("plant.w0", 4.931), s.f("plant.bJ", 0.024)
         _, own = rp.ground_truth(s, w0, bJ)
         rec = rp.replay_identity(s, di.IdentityParams(w0=w0, bJ=bJ))
+        pi = [r for r in rec if "pi_end" in r]
+        if pi:                                       # a run with offset.mode watch/apply: the Pi's estimate
+            worst = max(abs(r["pi_end"] - r["end"]) for r in pi) / CNT
+            print(f"| {path.name[:19]} | the Pi's own estimate after each balance | | "
+                  + "; ".join(f"#{j + 1} {r['pi_end'] / CNT:+.2f} ({r['pi_w_end']:.0f} s), replay {r['end'] / CNT:+.2f}"
+                              for j, r in enumerate(rec) if "pi_end" in r)
+                  + f"; worst difference {worst:.3f} counts |")
         cells = []
         for j, (r, g) in enumerate(zip(rec, own)):
             if math.isnan(g):

@@ -28,7 +28,31 @@ double AttemptStats::satFraction() const { return n_eng ? static_cast<double>(n_
 
 Session::Session(const SessionConfig& c)
     : c_(c), cal_(c.swing), mover_(c.mover), est_(c.balance.est_kind, c.balance.ts, c.balance.est_fc),
-      calib_(c.balance.calib) {}
+      calib_(c.balance.calib), off_(c.offset.est) {}
+
+// Upright-offset estimate (OffsetUse): the trim the next catch starts with, the estimator's feed, the log fields.
+double Session::offsetTrimNext() const {
+    return c_.offset.mode == OffsetUse::Apply && off_.weight() >= c_.offset.w_use ? off_.deltaHat() : 0.0;
+}
+
+void Session::offsetFeed(bool balancing, double theta, double omega, double v) {
+    if (c_.offset.mode == OffsetUse::Off) return;
+    if (balancing) {
+        if (!off_in_) { off_in_ = true; off_k_ = 0; }
+        off_.step(static_cast<double>(off_k_) * c_.balance.ts, theta, omega, v, true);
+        ++off_k_;
+    } else if (off_in_) {
+        off_.endBalance();
+        off_in_ = false;
+    }
+}
+
+void Session::offsetFill(SessionRecord& r) const {
+    if (c_.offset.mode == OffsetUse::Off) return;
+    r.offset_delta = off_.deltaHat();
+    r.offset_weight = off_.weight();
+    r.offset_trim = off_trim_;
+}
 
 void Session::driver(hw::Hardware& hw, bool on) {
     if (on != driver_on_) {
@@ -56,6 +80,8 @@ void Session::startBalance() {
         return;
     }
     BalanceConfig bc = c_.balance;
+    off_trim_ = offsetTrimNext();                            // set before this catch engages, held for it
+    bc.pid.theta_ref = c_.balance.pid.theta_ref - off_trim_;
     bc.calib = calib_;
     bc.actuate = true;
     bc.keep_driver_on = true;
@@ -179,6 +205,7 @@ SessionRecord Session::tick(hw::Hardware& hw, bool overrun) {
         r.i0 = t.i0;
         est_.update(t.counts);
         const core::Mode m = static_cast<core::Mode>(t.mode);
+        offsetFeed(m == core::Mode::Engaged, t.theta, t.omega, t.v);
         if (phase_ == SessionPhase::Balance) {
             if (t.event == static_cast<int>(core::Reason::ArmedEvent)) {
                 run_started_ = true;
@@ -219,6 +246,7 @@ SessionRecord Session::tick(hw::Hardware& hw, bool overrun) {
         prev_mode_ = m;
         r.phase = static_cast<int>(phase_);
         r.attempt = attempt_;
+        offsetFill(r);
         return r;
     }
 
@@ -303,6 +331,7 @@ SessionRecord Session::tick(hw::Hardware& hw, bool overrun) {
     r.driver_enabled = driver_on_;
     r.phase = static_cast<int>(phase_);
     r.attempt = attempt_;
+    offsetFill(r);
     return r;
 }
 
@@ -324,6 +353,7 @@ SessionRecord Session::swingTick(hw::Hardware& hw, bool overrun, bool go, bool q
         if (quit) swr_->requestStop();
         else if (go) swr_->requestDampOut();
         const SwingRecord w = swr_->tick(hw, s, overrun);
+        offsetFeed(w.phase == static_cast<int>(SwingPhase::Balance), w.theta, w.omega, r.v);
         r.a_cmd = w.a_cmd; r.axis_arg = w.axis_arg; r.integral = w.integral; r.saturated = w.saturated;
         r.sent = w.sent; r.swing_phase = w.phase; r.energy = w.energy;
         r.controller = w.controller; r.epoch = w.epoch; r.i0 = w.i0; r.a_local = w.a_local;
@@ -364,6 +394,8 @@ SessionRecord Session::swingTick(hw::Hardware& hw, bool overrun, bool go, bool q
             ready_ = still;
             if (go && ready_) {
                 SwingUpConfig u = c_.swingup;
+                off_trim_ = offsetTrimNext();                // set before the run starts, held for its balance
+                u.pid.theta_ref = c_.swingup.pid.theta_ref - off_trim_;
                 u.calib = calib_;
                 u.remote = c_.balance.remote;
                 u.remote_delay = c_.balance.remote_delay;
@@ -388,6 +420,7 @@ SessionRecord Session::swingTick(hw::Hardware& hw, bool overrun, bool go, bool q
     r.driver_enabled = driver_on_;
     r.phase = static_cast<int>(phase_);
     r.attempt = attempt_;
+    offsetFill(r);
     return r;
 }
 

@@ -22,7 +22,8 @@ from . import identity as di  # noqa: E402
 from . import observer as ob  # noqa: E402
 
 G = 9.81
-COLS = ("t_ns", "phase", "attempt", "mode", "theta", "omega", "x", "v", "a_cmd", "swing_phase")
+COLS = ("t_ns", "phase", "attempt", "mode", "theta", "omega", "x", "v", "a_cmd", "swing_phase",
+        "offset_delta", "offset_weight")     # the last two only in runs with offset.mode watch/apply (2026-11-20 on)
 
 
 @dataclass
@@ -125,6 +126,9 @@ def replay_identity(s: Session, p: di.IdentityParams, prior: float = 0.0, prior_
             est.step(s.t[k] - s.t[i0], float(th[k]), float(om[k]), float(v[k]), True)
         est.end_balance()
         rec["end"], rec["w_end"] = est.delta_hat(), est.weight()
+        if "offset_delta" in s.cols:                 # the Pi's own estimate (offset.mode watch/apply), for comparison
+            j = min(i1, len(s.t) - 1)                # the tick after the balance: its stretch closed
+            rec["pi_end"], rec["pi_w_end"] = float(s.cols["offset_delta"][j]), float(s.cols["offset_weight"][j])
         out.append(rec)
     return out
 

@@ -31,6 +31,7 @@
 #include "hw/pi_hw.h"
 #include "rt/ringlog.h"
 #include "rt/rt.h"
+#include "runtime/offset_params.h"
 #include "runtime/params.h"
 #include "runtime/session.h"
 
@@ -84,6 +85,13 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
     const bool lockMem = cfg.getBool("rt.lock_memory"), rtOn = cfg.getBool("rt.enable");
     const std::string logDir = cfg.getString("log.dir");
     rt::SessionConfig sc = rt::sessionFrom(cfg);                         // throws on bad parameters
+    sc.offset = rt::offsetFrom(cfg, sc.remote_mode);                     // offset.* (default off); throws on bad ones
+    if (sc.offset.mode != rt::OffsetUse::Off)
+        std::cout << "offset estimate: " << (sc.offset.mode == rt::OffsetUse::Apply ? "APPLY" : "watch")
+                  << (sc.offset.mode == rt::OffsetUse::Apply
+                          ? " (each catch starts trimmed by what the earlier balances of this run learnt)"
+                          : " (logged only; the command is unchanged)")
+                  << ", docs/offset_estimator.md\n";
     const double ts = sc.balance.ts;
     const double upm = sc.balance.calib.usteps_per_m;
     const hw::PiRt rtc = rtFrom(cfg);
@@ -348,6 +356,20 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                 break;
         }
         if (b[0]) std::cout << b << "\n" << std::flush;
+        if (static_cast<rt::SessionEvent>(r.sevent) == rt::SessionEvent::RunEnded && sc.offset.mode != rt::OffsetUse::Off) {
+            const core::DriftIdentityEstimator& oe = ses.offsetEstimate();
+            const double cnt = sc.balance.calib.cpr / (2 * 3.141592653589793);                    // counts per rad
+            char ob[220];
+            std::snprintf(ob, sizeof ob,
+                          "offset: estimate %+.2f counts from %.1f s of quiet balance (%d stretches); this run's trim "
+                          "%+.2f counts%s",
+                          oe.deltaHat() * cnt, oe.weight(), oe.stretches(), ses.offsetTrim() * cnt,
+                          sc.offset.mode == rt::OffsetUse::Apply
+                              ? (oe.weight() >= sc.offset.w_use ? "; the next run starts with the estimate"
+                                                                : "; the next run starts untrimmed (too little yet)")
+                              : " (watch: not applied)");
+            std::cout << ob << "\n" << std::flush;
+        }
 
         // Balance runtime: transitions, refusals (once per change), status while ENGAGED.
         if (r.mode >= 0) {
@@ -445,20 +467,21 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
     writeCsv(log, dir + "/data.csv",
              "tick,late_ns,t_ns,phase,attempt,mode,event,sevent,counts,pos_usteps,speed_toggles,n_edges,theta,omega,x,v,"
              "a_cmd,x_ref,integral,axis_arg,sent,saturated,overrun,lim_l,lim_r,axis_acc,driver,swing_phase,energy,"
-             "ctrl,epoch,a_local,r_miss",
+             "ctrl,epoch,a_local,r_miss,offset_delta,offset_weight,offset_trim",
              [](std::ostream& o, const BalRec& x) {
                  const rt::SessionRecord& r = x.r;
-                 char b[480];
+                 char b[560];
                  std::snprintf(b, sizeof b,
                                "%u,%lld,%lld,%d,%d,%d,%d,%d,%lld,%lld,%lld,%d,%.7f,%.6f,%.7f,%.7f,%.6f,%.7f,%.7f,%d,%d,%d,%d,%d,%d,%d,%d,"
-                               "%d,%.5f,%d,%u,%.6f,%d",
+                               "%d,%.5f,%d,%u,%.6f,%d,%.9f,%.3f,%.9f",
                                x.tick, static_cast<long long>(x.late_ns), static_cast<long long>(r.t_ns), r.phase, r.attempt,
                                r.mode, r.event, r.sevent, static_cast<long long>(r.counts),
                                static_cast<long long>(r.pos_usteps), static_cast<long long>(r.speed_toggles), r.n_edges,
                                r.theta, r.omega, r.x, r.v, r.a_cmd, r.x_ref, r.integral, r.axis_arg, r.sent ? 1 : 0,
                                r.saturated ? 1 : 0, r.overrun ? 1 : 0, r.limit_left ? 1 : 0, r.limit_right ? 1 : 0,
                                r.axis_accelerating ? 1 : 0, r.driver_enabled ? 1 : 0, r.swing_phase, r.energy,
-                               r.controller ? 1 : 0, r.epoch, r.a_local, r.remote_miss ? 1 : 0);
+                               r.controller ? 1 : 0, r.epoch, r.a_local, r.remote_miss ? 1 : 0, r.offset_delta,
+                               r.offset_weight, r.offset_trim);
                  o << b;
              });
     if (link) writeRemoteCsv(*link, dir + "/remote.csv");
@@ -513,6 +536,14 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                        {"encoder_full_batches", std::to_string(pi.encoder().fullBatches())},
                        {"records", std::to_string(log.size())},
                        {"records_overwritten", std::to_string(log.overwritten())}};
+    if (sc.offset.mode != rt::OffsetUse::Off) {   // upright-offset estimate at the end of the program run
+        const core::DriftIdentityEstimator& oe = ses.offsetEstimate();
+        const double cnt = sc.balance.calib.cpr / (2 * 3.141592653589793);
+        meta.push_back({"offset_mode", sc.offset.mode == rt::OffsetUse::Apply ? "apply" : "watch"});
+        meta.push_back({"offset_delta_counts", fmt("%.4f", oe.deltaHat() * cnt)});
+        meta.push_back({"offset_weight_s", fmt("%.2f", oe.weight())});
+        meta.push_back({"offset_stretches", std::to_string(oe.stretches())});
+    }
     if (link) {
         const runlog::Fields rf = remoteMetaFields(*link, sc.balance.remote_delay, ts);
         meta.insert(meta.end(), rf.begin(), rf.end());

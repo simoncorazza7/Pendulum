@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "core/estimator.h"
+#include "core/offset_est.h"
 #include "core/supervisor.h"
 #include "core/units.h"
 #include "hw/hardware.h"
@@ -49,6 +50,19 @@ enum class SessionEvent {
     SwingNotReady = 12
 };
 
+// Upright-offset estimate (docs/offset_estimator.md; offset.*, runtime/offset_params.h). The session owns one
+// core::DriftIdentityEstimator for the whole program run: it learns during every balance (a hand catch while
+// ENGAGED, a swing-up run while in BALANCE) and keeps what it learnt from one catch to the next. Apply sets the
+// next catch's theta_ref = balance/swing-up theta_ref - delta_hat when that catch's runtime is created (before it
+// engages), once w_use s of quiet balance stand behind the estimate, and holds it for the catch: within a catch the
+// cart integral corrects the offset already, and a trim changed under it corrects twice (py/offset_study.py).
+struct OffsetUse {
+    enum Mode { Off = 0, Watch = 1, Apply = 2 };
+    int mode = Off;                 // Off: nothing. Watch: estimate and log only. Apply: also trim each catch
+    core::OffsetParams est;
+    double w_use = 3.0;             // s of quiet balance before Apply uses the estimate
+};
+
 struct SessionConfig {
     BalanceConfig balance;          // calib.c_bottom and calib.pos_center are set by the session
     MoverConfig mover;
@@ -67,6 +81,7 @@ struct SessionConfig {
     SwingUpConfig swingup;          // calib set by the session
     bool remote_mode = false;       // Stage 2b: the controller runs on a PC (balance.remote; the caller sets
                                     // balance.remote to its link; balance.remote_delay / remote_max_miss from remote.*)
+    OffsetUse offset;               // upright-offset estimate (default off; the caller sets it from offset.*)
 };
 
 struct AttemptStats {
@@ -107,6 +122,9 @@ struct SessionRecord {
     double a_local = 0;             // remote mode: the local (shadow) PID's output
     double i0 = 0;                  // rad*s, the integrator the epoch started with (sent to the PC)
     bool remote_miss = false;       // remote mode: the command for this tick had not arrived (held)
+    double offset_delta = 0;        // rad, the offset estimate after this tick (0 with offset off)
+    double offset_weight = 0;       // s of quiet balance behind it
+    double offset_trim = 0;         // rad, the trim of the current catch (theta_ref = config - trim; 0 unless apply)
 };
 
 class Session {
@@ -135,8 +153,13 @@ public:
     std::int64_t lastTouchError() const { return touch_err_; }  // usteps, switch found - expected
     int touches() const { return touches_; }
     const SessionConfig& config() const { return c_; }
+    const core::DriftIdentityEstimator& offsetEstimate() const { return off_; }
+    double offsetTrim() const { return off_trim_; }          // rad, trim of the current / last catch
 
 private:
+    double offsetTrimNext() const;
+    void offsetFeed(bool balancing, double theta, double omega, double v);
+    void offsetFill(SessionRecord& r) const;
     void startBalance();
     SessionRecord swingTick(hw::Hardware& hw, bool overrun, bool go, bool quit);
     void startRecentre(const hw::Sample& s);
@@ -162,6 +185,10 @@ private:
     Side side_ = Side::None, last_side_ = Side::None;
     AttemptStats cur_, last_;
     char reason_[240] = "";
+    core::DriftIdentityEstimator off_;   // upright-offset estimate, kept for the whole program run
+    double off_trim_ = 0.0;              // rad, trim of the current catch
+    long off_k_ = 0;                     // ticks of the current balance (the estimator's clock)
+    bool off_in_ = false;                // a balance is feeding the estimator
 };
 
 }

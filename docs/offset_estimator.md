@@ -1,8 +1,10 @@
 # Upright-offset estimate, carried between catches (simulation prototype, 2026-11-19/20)
 
-Status: simulation and log replay only. It is a separate method with its own script: `./offset_sim.sh`, `py/offset/`,
-`py/offset_check.py`, `py/offset_study.py`, `py/test_offset.py`. It changes nothing in `py/pendel`, the Pi runtime,
-`demo.sh`, `remote.sh` or `swingup.sh`, and nothing here talks to the Pi.
+Status: simulation, log replay, and a port into the Pi runtime (§6), switched off by default. The port is tested on
+the PC only: it has not been built or run on the Pi. It is a separate method with its own scripts: `./offset_sim.sh`
+(PC) and `./offset.sh` (rig), `py/offset/`, `py/offset_check.py`, `py/offset_study.py`, `py/test_offset.py`,
+`src/core/offset_est.*`, `src/runtime/offset_params.h`. `demo.sh`, `remote.sh`, `swingup.sh`, `balance.cpp` and
+`swingup.cpp` are unchanged.
 
 **Result.**
 - **The method:** estimate the upright reference error online from the drift identity during every balance, and set
@@ -12,7 +14,8 @@ Status: simulation and log replay only. It is a separate method with its own scr
   - the 300 rig draws go from 81 % to 85 %, the ceiling for any controller at today's limits;
   - the rig hand-overs at a 2.5-count offset go from 5 to 16 of 29.
 - **What not to do:** change the trim within a catch. It fights the cart integral (77 %).
-- **Rig status:** nothing is built on the Pi; §6 lists the steps.
+- **Rig status:** ported to the Pi runtime (`./offset.sh watch|apply`, off by default) and tested on the PC, including
+  `SimHw` sessions. Not yet built or run on the Pi (§6).
 
 ```
 ./offset_sim.sh test                         13 checks, no logs needed
@@ -200,20 +203,75 @@ Within a catch, the offset is left to the Stage 3b cart integral.
 - **It does not replace a good calibration.** The offset changes at every program start (the start-up fit, §6), so
   the pool starts empty in each session. The first catch of a session stays untrimmed until a balance has run about 5 s.
 
-## 6. On the rig (not built; each step needs a go)
+## 6. The Pi runtime (ported 2026-11-20; tested on the PC, not yet on the Pi)
 
-1. **Watch first.** Run the estimator in the existing sessions and only log its estimate (`delta_hat`, `weight`) next
-   to the drift report. Nothing changes the command, so this carries no risk, and it shows the carry on new data.
-2. **Port.** `DriftIdentityEstimator` in C++ under `src/core/`: a 150-sample ring buffer plus five running sums,
-   golden-tested against this Python file like `pid` and `cascade`. The balance and swing-up runtimes would call
-   `step()` every tick and set `PidParams.theta_ref` at engage. It needs its own mode or flag and its own launcher
-   beside `demo.sh`, `remote.sh` and `swingup.sh`, not inside them.
-3. **Remote.** The PC already receives θ, θ̇ and v in every sample, so `py/remote_ctrl.py` can run the estimator
-   itself and keep the pool between catches. No protocol change.
-4. **Not across sessions.** The offset changes between program starts (the start-up c_bottom fit), so the pool should
-   start empty, or from a weak prior, in every session.
+**The estimator.** `core::DriftIdentityEstimator` (`src/core/offset_est.*`) mirrors `py/offset/identity.py` operation
+for operation. The golden test replays 12 500 ticks from `py/offset_golden.py` (a push, an excursion past θ_max, a
+balance end, a carry into a second balance, a prior), and the worst relative difference is 0: bit-identical. Its
+buffers are fixed rings sized once at construction, so `step()` never allocates in the real-time loop.
 
-Side finding, worth a look before the port: in 3 of the 4 new-pivot swing-up sessions, the start-up c_bottom fit
+**The session** (`src/runtime/session.*`) owns one estimator for the whole program run:
+- it feeds it during every balance: a hand catch while ENGAGED, a swing-up run while in BALANCE; the clock starts at
+  engage or hand-over;
+- with `apply`, it sets the trim where each catch's runtime is created (`startBalance`, the start of each swing-up
+  run): θ_ref = config − δ̂, once `offset.w_use` seconds stand behind the estimate. The trim is held for that catch;
+- `balance.cpp` and `swingup.cpp` are unchanged.
+
+**Configuration:** `offset.*`, read by `src/runtime/offset_params.h`. Every key is optional; the defaults used are
+written to each run's `config_used.conf`.
+
+| key | unit | default | |
+|---|---|---|---|
+| `offset.mode` | | off | `off`, `watch` (estimate and log only), `apply` (also trim each catch) |
+| `offset.w_use` | s | 3 | quiet balance before `apply` uses the estimate |
+| `offset.t_settle` | s | 1.5 | after engage or hand-over before a stretch may start |
+| `offset.theta_max_deg` | deg | 3 | \|θ\| that ends a stretch |
+| `offset.lag` | s | 0.3 | commit delay = step-detection window |
+| `offset.smooth` | s | 0.25 | moving mean for the step detector |
+| `offset.step` | m/s | 0.03 | residual step that marks a push |
+| `offset.min_stretch` | s | 1 | committed before a stretch counts |
+| `offset.delta_max_counts` | counts | 5 | clamp of the estimate |
+
+`apply` is refused together with `balance.remote`. The PC computes the command from its own PARAMS, which carry
+θ_ref, are sent once and are checksummed, so a per-catch trim would be a protocol change. `watch` works remotely.
+
+**Logs:**
+- `data.csv` gains `offset_delta` (rad), `offset_weight` (s) and `offset_trim` (rad), appended as the last columns;
+- `meta.json` gains `offset_mode`, `offset_delta_counts`, `offset_weight_s` and `offset_stretches`;
+- after every run the session prints the estimate, its weight and the trim that run used.
+
+`./offset_sim.sh replay <run>` puts the Pi's logged estimate next to the offline replay of the same balances. They
+are the same algorithm on the same logged inputs, so they should agree to rounding. This path has not seen a real
+log yet.
+
+**Launcher `./offset.sh`** (on the Pi, a hardware action, its own script per the project rule):
+- `./offset.sh watch [--swingup | --remote | --swingup --remote]` or `./offset.sh apply [--swingup]`;
+- it runs `./demo.sh`, `./swingup.sh` or `./remote.sh` with `--set offset.mode=…`, so their checklists and limits apply
+  unchanged.
+
+**Tests** (`bash tests/unit/run_pc.sh`: 113 of 113, 7 of them new in `tests/unit/test_offset_est.cpp`):
+- the golden test;
+- parameter validation and `offset.*` parsing, including `apply` + remote refused;
+- a prior alone is the estimate;
+- **watch, `SimHw` session with a 1-count reference error:** every command bit-identical to `off`; estimate +0.68
+  count from 13 s, which is the quantisation bias of §2 at work;
+- **apply, hand catches:** the second catch starts with the learnt trim, held for the whole catch. From 4 s to 15 s
+  after engage, its cart stays within 4.3 mm; untrimmed it wandered to 31.2 mm while the cart integral learnt the
+  offset;
+- **apply, swing-up:** run 1 balances 30 s and learns +1.18 counts; run 2 starts with exactly that trim.
+
+**Next on the rig** (each run needs a go; the statement before each run as `CLAUDE.md` requires):
+1. **Pi build and tests.** Push to the Pi (`git push pi control-dev`, whose tree must be clean), then `make test` there.
+   That builds nothing that moves and runs nothing that touches GPIO. The `gpio-mockup` session tests need `sudo
+   modprobe` (ask first).
+2. **Watch.** `./offset.sh watch` (hand catches) and `./offset.sh watch --swingup`: the commands are unchanged. Then
+   `./offset_sim.sh replay <run>` and the drift report (`py/stage1_report.py balance`) to compare.
+3. **Apply.** `./offset.sh apply`, first with hand catches, then with swing-ups.
+
+**Not across sessions.** The offset changes between program starts (the start-up c_bottom fit), so the pool starts
+empty in every program run.
+
+Side finding, worth a look: in 3 of the 4 new-pivot swing-up sessions, the start-up c_bottom fit
 differs by 0.6–0.8 count from the hanging equilibrium fitted after every run with the cart at rest (`centres`):
 
 | session | start-up fit | after the runs |
@@ -234,3 +292,7 @@ Each such error enters δ directly at every program start. The calibration's win
 - **The swing-up scatter** of §3: until it is understood, the carry on swing-up sessions is worth about half what it
   is worth on hand catches.
 - **The logs are not in git.** `replay` and `centres` need the run directories under `logs/`.
+- **Remote apply.** It would need the trim in the PC's PARAMS (a protocol version) or the estimator on the PC
+  (`py/remote_ctrl.py` sees θ, θ̇ and v in every sample).
+- **The `offset.*` keys are not in `config/pendctl.conf` yet.** They are optional with defaults; add a commented
+  section the next time that file is edited.
