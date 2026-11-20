@@ -200,6 +200,19 @@ def main() -> int:
     check("late replies hold the applied command (stall_rate)", rep0 < 0.05 and rep1 > 0.3,
           f"held ticks {100 * rep0:.0f} % -> {100 * rep1:.0f} %")
 
+    # 13. the networks kept in the repo load and are valid; the benchmark one still balances the paper's extreme start
+    nets_dir = pathlib.Path(__file__).resolve().parent / "neuro" / "nets"
+    nets = sorted(nets_dir.glob("*.json"))
+    ok = {"bench_4t", "rig4_budget_seeded"} <= {f.stem for f in nets}
+    for f in nets:
+        try:
+            Genome.load(f).check()
+        except (ValueError, KeyError):
+            ok = False
+    r = bench.run(Batch([Genome.load(nets_dir / "bench_4t.json")]), [-2.0], [-0.18], t_max=30.0)
+    check("py/neuro/nets: every kept network loads; bench_4t balances from (-2.0 m, -0.18 rad)",
+          ok and bool(r["alive"][0, 0]), f"{len(nets)} networks")
+
     print(f"\n{'all passed' if failures == 0 else f'{failures} FAILED'}")
     return 1 if failures else 0
 

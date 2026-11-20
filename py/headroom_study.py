@@ -39,7 +39,7 @@ from neuro.net import Batch, Genome
 G = 9.81
 SPEC = rig.RigSpec(n_in=4)
 V_TANGENTS = np.linspace(0.0, 0.45, 10)          # m/s, tangent points of the braking distance v^2 / (2 a_brake)
-NET = "logs/2026-11-19T15-09-24_neuro-rig-4t-budget-seeded-s1/best.json"
+NET = pathlib.Path(__file__).resolve().parent / "neuro" / "nets" / "rig4_budget_seeded.json"   # py/neuro/nets/README.md
 
 
 def discretize(w0: float, bJ: float, h: float, B=None):

@@ -1,18 +1,18 @@
 # Evolved recurrent neurocontrollers in simulation (Pasemann 1998, ENS³)
 
-Status 2026-11-19: simulation only, started at Simon's request ("Start in simulation"). It is a separate method with its own
+Status 2026-11-19: simulation only, started on the maintainer's request. It is a separate method with its own
 script: `py/neuro/`, `py/neuro_check.py`, `py/neuro_evolve.py`, `py/test_neuro.py`, `./neuro_sim.sh`. It changes nothing
 in `py/pendel`, the Pi runtime, `demo.sh`, `remote.sh` or `swingup.sh`. Nothing here talks to the Pi.
 
 ## How to run (PC)
 
 ```
-./neuro_sim.sh test                          # 14 checks, incl. rig model = pendel.plant / pid_step / BdLp2 exactly
+./neuro_sim.sh test                          # 16 checks, incl. rig model = pendel.plant / pid_step / BdLp2 exactly
 ./neuro_sim.sh check --png docs/img/neuro_benchmark.png
-./neuro_sim.sh evolve bench --inputs 4 --gens 1000
+./neuro_sim.sh evolve bench --inputs 4 --gens 1000           # a new run writes logs/<time>_neuro-.../best.json
 ./neuro_sim.sh evolve rig --rig-inputs 4 --gens 600 --seed 1
-./neuro_sim.sh rig logs/<run>/best.json --baseline
-.venv/Scripts/python py/neuro_check.py replay logs/<run>/best.json logs/<time>_balance
+./neuro_sim.sh rig py/neuro/nets/rig4_budget_seeded.json --baseline
+.venv/Scripts/python py/neuro_check.py replay py/neuro/nets/rig4_budget_seeded.json logs/<time>_balance
 ```
 
 ## 1. The paper reproduces, but only with one reading of its simulator
@@ -56,8 +56,8 @@ This matches `py/cascade_study.py` and the rig's history (Stage 1 drifted; the c
 
 ## 3. Evolution results
 
-The networks start empty, as in the paper. Runs from 2026-11-19 are in `logs/2026-11-19T11-*_neuro-*` (`best.json`,
-`summary.json`, `log.csv`).
+The networks start empty, as in the paper. The winning network of every run of 2026-11-19 is kept in `py/neuro/nets/`;
+its README lists them. The full run logs stayed in the git-ignored `logs/`.
 
 **Benchmark: ENS³ finds the paper's answers again.** With 4 inputs, after 1000 generations the best network is one
 output neuron, w = (0.13, 8.55, 11.90, 15.01, 2.22). That has w¹'s structure and signs and close to its gains (w¹: 10.11,
@@ -173,6 +173,6 @@ re-evolved, for the new limits.
 - Headroom (section 6): the remaining failures come from the actuator limits, not the controller. Even an oracle MPC
   adds about 1 point. Raising a_max and v_max after Stage 0.9 is the lever (about +9 points), not computing power.
 - A rig run would therefore demonstrate an evolved controller, not improve balancing. The candidate is
-  `logs/2026-11-19T15-09-24_neuro-rig-4t-budget-seeded-s1/best.json`, the closest to the PID on replay. It would need
-  its own PC program and launcher script beside `remote.sh` (not `swingup.sh`), a test against
-  `pendctl --mode remote-sim`, and Simon's go for each run. None of that is built.
+  `py/neuro/nets/rig4_budget_seeded.json`, the closest to the PID on replay. It would need its own PC program and
+  launcher script beside `remote.sh` (not `swingup.sh`), a test against `pendctl --mode remote-sim`, and an explicit
+  go for each run. None of that is built.
