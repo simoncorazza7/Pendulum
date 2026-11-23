@@ -40,7 +40,7 @@ PENDCTL_H := src/app/modes.h src/rt/rt.h src/rt/latency.h axis.h safety.h SafeQu
              src/runtime/balance.h src/runtime/damp.h src/runtime/swing_calib.h src/runtime/params.h \
              src/runtime/mover.h src/runtime/session.h src/runtime/swingup.h src/runtime/remote.h \
              src/app/remote_link.h src/common/remote_proto.h src/core/pcb_check.h src/hw/sim_hw.h \
-             src/runtime/actuator.h
+             src/runtime/actuator.h src/app/line_queue.h
 TESTS     := tests/unit/test_main.cpp tests/unit/test_ringlog.cpp tests/unit/test_config.cpp tests/unit/test_pid.cpp \
              tests/unit/test_supervisor.cpp tests/unit/test_swingfit.cpp tests/unit/test_simhw.cpp \
              tests/unit/test_estimator.cpp tests/unit/test_balance.cpp tests/unit/test_profile.cpp \

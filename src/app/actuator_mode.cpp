@@ -27,6 +27,7 @@
 #include <thread>
 #include <vector>
 
+#include "app/line_queue.h"
 #include "app/modes.h"
 #include "app/rig.h"
 #include "common/runlog.h"
@@ -65,33 +66,6 @@ public:
 private:
     hw::Hardware& h_;
     hw::Sample last_;
-};
-
-// Lines from the control loop go through this queue to a printer thread, never straight to stdout: a write to stdout
-// (a file on the Pi's SD card, or an ssh pty over Wi-Fi) blocked the loop for 0.23-1.56 s in the 2026-11-23 mock runs.
-// Single producer (the loop), single consumer (the printer); preallocated, so push never allocates or blocks.
-class LineQueue {
-public:
-    static constexpr std::size_t kSlots = 256, kLen = 1024;
-    void push(const char* s) {
-        const std::size_t h = head_.load(std::memory_order_relaxed);
-        if (h - tail_.load(std::memory_order_acquire) >= kSlots) { dropped_.fetch_add(1); return; }   // full: drop
-        std::snprintf(buf_[h % kSlots], kLen, "%s", s);
-        head_.store(h + 1, std::memory_order_release);
-    }
-    bool pop(std::string* out) {
-        const std::size_t t = tail_.load(std::memory_order_relaxed);
-        if (t == head_.load(std::memory_order_acquire)) return false;
-        *out = buf_[t % kSlots];
-        tail_.store(t + 1, std::memory_order_release);
-        return true;
-    }
-    std::uint32_t dropped() const { return dropped_.load(); }
-
-private:
-    char buf_[kSlots][kLen];
-    std::atomic<std::size_t> head_{0}, tail_{0};
-    std::atomic<std::uint32_t> dropped_{0};
 };
 
 std::string fmt(const char* f, double v) {
@@ -243,24 +217,7 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
 
     auto lines = std::make_unique<LineQueue>();
     std::atomic<bool> printRun{true};
-    std::thread printer([&] {                  // the only writer to stdout while the loop runs; not real-time
-        // it inherits the loop's SCHED_FIFO and CPU: back to SCHED_OTHER on core 0 (rt.*: 0 = everything else)
-        sched_param sp{};
-        pthread_setschedparam(pthread_self(), SCHED_OTHER, &sp);
-        cpu_set_t cpus;
-        CPU_ZERO(&cpus);
-        CPU_SET(0, &cpus);
-        pthread_setaffinity_np(pthread_self(), sizeof cpus, &cpus);
-        std::string l;
-        while (true) {
-            const bool last = !printRun.load();
-            bool any = false;
-            while (lines->pop(&l)) { std::cout << l << "\n"; any = true; }
-            if (any) std::cout << std::flush;
-            if (last) break;
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
-        }
-    });
+    std::thread printer = startPrinter(*lines, printRun);
 
     TickClock clk(ts);
     flags.motionSafe = false;

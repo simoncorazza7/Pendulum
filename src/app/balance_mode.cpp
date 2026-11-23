@@ -20,10 +20,12 @@
 #include <cstdio>
 #include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include "app/line_queue.h"
 #include "app/modes.h"
 #include "app/remote_link.h"
 #include "app/rig.h"
@@ -206,17 +208,23 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
     const char* afterCentre = sc.swingup_mode
                                   ? "Let the pendulum hang still; at READY, Enter starts the swing-up."
                                   : "Arms by itself when the pendulum hangs still.";
+    // Text from the loop is collected per tick in `out` and printed by a separate thread (app/line_queue.h): a write to
+    // stdout (ssh pty over Wi-Fi, a file on the SD card) can block the loop for over a second.
+    std::ostringstream out;
+    auto printQueue = std::make_unique<LineQueue>();
+    std::atomic<bool> printRun{true};
+    std::thread printer = startPrinter(*printQueue, printRun);
     while (true) {
         const std::int64_t late = clk.wait();
         const double t = clk.seconds();
         if (!quitSent && (flags.stop || quitReq || t > maxSession)) {
-            if (t > maxSession) std::cout << "balance: balance.max_session reached\n";
+            if (t > maxSession) out << "balance: balance.max_session reached\n";
             ses.requestQuit();
             quitSent = true;
             tQuit = t;
         }
         if (quitSent && t - tQuit > 5.0) {     // never expected: every phase ends within ~2 s
-            std::cerr << "balance: no controlled end within 5 s, HALT\n";
+            out << "balance: no controlled end within 5 s, HALT\n";
             pi.halt();
             halted = true;
             break;
@@ -243,7 +251,7 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
             if (r.remote_miss) ++remoteMiss;
             if (link->linkUp() != linkWasUp) {
                 linkWasUp = link->linkUp();
-                std::cout << fmt("%7.2f s  ", t)
+                out << fmt("%7.2f s  ", t)
                           << (linkWasUp ? "remote: link UP, PC " + link->peer() : std::string("remote: link DOWN (no replies)"))
                           << "\n" << std::flush;
             }
@@ -257,7 +265,7 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                               "(delay %.1f ms), %llu late", link->linkUp() ? "up" : "DOWN", link->peer().c_str(),
                               static_cast<unsigned long long>(n), mx * 1e-6, sc.balance.remote_delay * ts * 1e3,
                               static_cast<unsigned long long>(lateN));
-                if (static_cast<rt::SessionPhase>(r.phase) != rt::SessionPhase::Calibrate) std::cout << s2 << "\n" << std::flush;
+                if (static_cast<rt::SessionPhase>(r.phase) != rt::SessionPhase::Calibrate) out << s2 << "\n" << std::flush;
             }
         }
         const hw::Sample& ls = hw.last();
@@ -355,7 +363,7 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
             default:
                 break;
         }
-        if (b[0]) std::cout << b << "\n" << std::flush;
+        if (b[0]) out << b << "\n" << std::flush;
         if (static_cast<rt::SessionEvent>(r.sevent) == rt::SessionEvent::RunEnded && sc.offset.mode != rt::OffsetUse::Off) {
             const core::DriftIdentityEstimator& oe = ses.offsetEstimate();
             const double cnt = sc.balance.calib.cpr / (2 * 3.141592653589793);                    // counts per rad
@@ -368,7 +376,7 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                               ? (oe.weight() >= sc.offset.w_use ? "; the next run starts with the estimate"
                                                                 : "; the next run starts untrimmed (too little yet)")
                               : " (watch: not applied)");
-            std::cout << ob << "\n" << std::flush;
+            out << ob << "\n" << std::flush;
         }
 
         // Balance runtime: transitions, refusals (once per change), status while ENGAGED.
@@ -376,16 +384,16 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
             const auto m = static_cast<core::Mode>(r.mode);
             if (r.mode != lastMode) {
                 if (m == core::Mode::Armed)
-                    std::cout << "\nARMED (run " << r.attempt << "): lift the pendulum to upright and hold the rod lightly "
+                    out << "\nARMED (run " << r.attempt << "): lift the pendulum to upright and hold the rod lightly "
                                  "near the top with your fingertips, hand still. At the beep (ENGAGED) the cart moves "
                                  "1-2 cm under your hand: let go cleanly about 1 s later. Enter = stop the run.\n";
                 else if (m == core::Mode::Engaged)
-                    std::cout << "\a" << fmt("%7.2f s  ", t) << "ENGAGED (theta " << fmt("%+.1f", r.theta * kRad2Deg)
+                    out << "\a" << fmt("%7.2f s  ", t) << "ENGAGED (theta " << fmt("%+.1f", r.theta * kRad2Deg)
                               << " deg): let go in about 1 s\n";
                 else if (m == core::Mode::Stopping)
-                    std::cout << fmt("%7.2f s  ", t) << "STOPPING: "
+                    out << fmt("%7.2f s  ", t) << "STOPPING: "
                               << core::reasonName(static_cast<core::Reason>(r.event)) << "\n";
-                std::cout << std::flush;
+                out << std::flush;
                 lastRefusal = -1;
             }
             const bool refusal = r.event == static_cast<int>(core::Reason::ArmNotHanging) ||
@@ -394,7 +402,7 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                                  r.event == static_cast<int>(core::Reason::LimitSwitch) ||
                                  r.event == static_cast<int>(core::Reason::RemoteFault);
             if (m == core::Mode::Idle && refusal && r.event != lastRefusal && phase == rt::SessionPhase::Balance) {
-                std::cout << "waiting to arm: " << core::reasonName(static_cast<core::Reason>(r.event)) << "\n" << std::flush;
+                out << "waiting to arm: " << core::reasonName(static_cast<core::Reason>(r.event)) << "\n" << std::flush;
                 lastRefusal = r.event;
             }
             if (m == core::Mode::Engaged && t >= nextStatus) {
@@ -402,16 +410,16 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                 char s[200];
                 std::snprintf(s, sizeof s, "%7.2f s  theta %+6.2f deg  x %+6.1f mm  v %+6.3f m/s  a %+5.2f m/s^2%s", t,
                               r.theta * kRad2Deg, r.x * 1e3, r.v, r.a_cmd, r.saturated ? " (sat)" : "");
-                std::cout << s;
+                out << s;
                 if (link) {
                     std::uint64_t n, lateN;
                     std::int64_t mx;
                     link->takeWindow(&n, &mx, &lateN);
                     std::snprintf(s, sizeof s, "  | PC: worst %.2f ms, %llu late, %ld missed", mx * 1e-6,
                                   static_cast<unsigned long long>(lateN), remoteMiss);
-                    std::cout << s;
+                    out << s;
                 }
-                std::cout << "\n" << std::flush;
+                out << "\n" << std::flush;
             }
             lastMode = r.mode;
         } else {
@@ -421,7 +429,7 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
         if (r.swing_phase >= 0) {
             const auto sp = static_cast<rt::SwingPhase>(r.swing_phase);
             if (r.swing_phase != lastSwing) {
-                std::cout << (sp == rt::SwingPhase::Balance ? "\a" : "") << fmt("%7.2f s  ", t) << rt::swingPhaseName(sp)
+                out << (sp == rt::SwingPhase::Balance ? "\a" : "") << fmt("%7.2f s  ", t) << rt::swingPhaseName(sp)
                           << fmt("  (energy %.3f of upright", r.energy) << fmt(", theta %+.1f deg", r.theta * kRad2Deg)
                           << fmt(", x %+.0f mm)", r.x * 1e3) << "\n" << std::flush;
                 lastSwing = r.swing_phase;
@@ -431,7 +439,7 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
                 char s[200];
                 std::snprintf(s, sizeof s, "%7.2f s  %-8s energy %5.3f  theta %+7.1f deg  x %+6.1f mm  v %+6.3f m/s  a %+5.2f",
                               t, rt::swingPhaseName(sp), r.energy, r.theta * kRad2Deg, r.x * 1e3, r.v, r.a_cmd);
-                std::cout << s << "\n" << std::flush;
+                out << s << "\n" << std::flush;
             }
         } else {
             lastSwing = -1;
@@ -443,7 +451,7 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
             std::snprintf(s, sizeof s, "calib: %4.0f s  amplitude %4.1f deg, %4d edges, rms %5.2f, se %5.3f: %s", t,
                           st.amplitude * 360.0 / sc.balance.calib.cpr, st.n_edges, st.fit.ok ? st.fit.rms : 0.0,
                           st.fit.ok ? st.fit.se : 0.0, st.why);
-            std::cout << s << "\n" << std::flush;
+            out << s << "\n" << std::flush;
         }
         if ((phase == rt::SessionPhase::Home || phase == rt::SessionPhase::Recentre) && t >= nextMove) {
             nextMove = t + 2.0;
@@ -451,7 +459,20 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
             std::snprintf(s, sizeof s, "  %s: pos %lld, v %+.3f m/s, pendulum %+.1f deg from hanging",
                           rt::sessionPhaseName(phase), static_cast<long long>(r.pos_usteps), r.v,
                           core::wrap(r.theta - 3.141592653589793) * kRad2Deg);
-            std::cout << s << "\n" << std::flush;
+            out << s << "\n" << std::flush;
+        }
+        if (out.tellp() > 0) {                 // this tick's text -> the printer thread (one queue slot per line)
+            const std::string text = out.str();
+            std::size_t p = 0;
+            while (p < text.size()) {
+                const std::size_t q = text.find('\n', p);
+                const std::string line = text.substr(p, q == std::string::npos ? std::string::npos : q - p);
+                if (!line.empty() || q != std::string::npos) printQueue->push(line.c_str());
+                if (q == std::string::npos) break;
+                p = q + 1;
+            }
+            out.str("");
+            out.clear();
         }
         if (ses.finished()) break;
     }
@@ -460,6 +481,10 @@ int runBalance(const Config& cfg, const std::string& configPath, const std::stri
     flags.motionSafe = true;
     inputRun = false;
     input.join();
+    printRun = false;
+    printer.join();
+    if (out.tellp() > 0) std::cout << out.str() << std::flush;   // text of a tick that ended in a break (HALT)
+    if (printQueue->dropped()) std::cout << "balance: " << printQueue->dropped() << " lines dropped (printer behind)\n";
     const hw::Sample sEnd = pi.read();
     activeAxis = nullptr;
 
