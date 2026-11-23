@@ -10,15 +10,19 @@
 //   Refuses the real chip unless actuator.allow_real_chip, and refuses to start on a pressed switch.
 
 #include <poll.h>
+#include <pthread.h>
+#include <sched.h>
 #include <unistd.h>
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -61,6 +65,33 @@ public:
 private:
     hw::Hardware& h_;
     hw::Sample last_;
+};
+
+// Lines from the control loop go through this queue to a printer thread, never straight to stdout: a write to stdout
+// (a file on the Pi's SD card, or an ssh pty over Wi-Fi) blocked the loop for 0.23-1.56 s in the 2026-11-23 mock runs.
+// Single producer (the loop), single consumer (the printer); preallocated, so push never allocates or blocks.
+class LineQueue {
+public:
+    static constexpr std::size_t kSlots = 256, kLen = 1024;
+    void push(const char* s) {
+        const std::size_t h = head_.load(std::memory_order_relaxed);
+        if (h - tail_.load(std::memory_order_acquire) >= kSlots) { dropped_.fetch_add(1); return; }   // full: drop
+        std::snprintf(buf_[h % kSlots], kLen, "%s", s);
+        head_.store(h + 1, std::memory_order_release);
+    }
+    bool pop(std::string* out) {
+        const std::size_t t = tail_.load(std::memory_order_relaxed);
+        if (t == head_.load(std::memory_order_acquire)) return false;
+        *out = buf_[t % kSlots];
+        tail_.store(t + 1, std::memory_order_release);
+        return true;
+    }
+    std::uint32_t dropped() const { return dropped_.load(); }
+
+private:
+    char buf_[kSlots][kLen];
+    std::atomic<std::size_t> head_{0}, tail_{0};
+    std::atomic<std::uint32_t> dropped_{0};
 };
 
 std::string fmt(const char* f, double v) {
@@ -210,6 +241,27 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
         }
     });
 
+    auto lines = std::make_unique<LineQueue>();
+    std::atomic<bool> printRun{true};
+    std::thread printer([&] {                  // the only writer to stdout while the loop runs; not real-time
+        // it inherits the loop's SCHED_FIFO and CPU: back to SCHED_OTHER on core 0 (rt.*: 0 = everything else)
+        sched_param sp{};
+        pthread_setschedparam(pthread_self(), SCHED_OTHER, &sp);
+        cpu_set_t cpus;
+        CPU_ZERO(&cpus);
+        CPU_SET(0, &cpus);
+        pthread_setaffinity_np(pthread_self(), sizeof cpus, &cpus);
+        std::string l;
+        while (true) {
+            const bool last = !printRun.load();
+            bool any = false;
+            while (lines->pop(&l)) { std::cout << l << "\n"; any = true; }
+            if (any) std::cout << std::flush;
+            if (last) break;
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+    });
+
     TickClock clk(ts);
     flags.motionSafe = false;
     bool quitSent = false, halted = false;
@@ -224,7 +276,7 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
             tQuit = t;
         }
         if (quitSent && t - tQuit > 5.0) {     // never expected: every phase ends within ~3 s
-            std::cerr << "actuator: no controlled end within 5 s, HALT\n";
+            lines->push("actuator: no controlled end within 5 s, HALT");
             pi.halt();
             halted = true;
             break;
@@ -234,8 +286,8 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
             trips = pi.watchdogTrips();
             char sg[160];
             std::snprintf(sg, sizeof sg, "%7.2f s  STALL GUARD: the control loop stalled; the Axis braked the cart by "
-                          "itself (%u so far)\n", t, static_cast<unsigned>(trips));
-            std::cout << sg << std::flush;
+                          "itself (%u so far)", t, static_cast<unsigned>(trips));
+            lines->push(sg);
         }
         log.push({clk.tick(), late, r});
         const hw::Sample& ls = hw.last();
@@ -295,7 +347,7 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
                                   "%.2f m/s^2, peak |v| %.3f m/s, max tracking %.2f mm", t, x.rung + 1, x.rep,
                                   x.side == 1 ? "right" : "left", static_cast<long long>(x.touch_err), x.touch_err / upm * 1e3,
                                   rt::verdictName(x.verdict), x.peak_a_cmd, x.peak_v, x.max_track * 1e3);
-                    std::cout << b << "\n";
+                    lines->push(b);
                     b[0] = 0;
                 }
                 if (r.event == static_cast<int>(rt::ActEvent::RungDone) && g) {
@@ -320,7 +372,7 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
             default:
                 break;
         }
-        if (b[0]) std::cout << b << "\n" << std::flush;
+        if (b[0]) lines->push(b);
 
         if (t >= nextStatus) {
             char s[220];
@@ -339,7 +391,7 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
                 std::snprintf(s, sizeof s, "  %s: pos %lld, v %+.3f m/s, pendulum swing %.1f deg", rt::actPhaseName(phase),
                               static_cast<long long>(r.pos_usteps), r.v, r.swing_deg);
             }
-            if (s[0]) std::cout << s << "\n" << std::flush;
+            if (s[0]) lines->push(s);
         }
         if (act.finished()) break;
     }
@@ -348,6 +400,9 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
     flags.motionSafe = true;
     inputRun = false;
     input.join();
+    printRun = false;
+    printer.join();
+    if (lines->dropped()) std::cout << "actuator: " << lines->dropped() << " status lines dropped (printer behind)\n";
     const hw::Sample sEnd = pi.read();
     activeAxis = nullptr;
 
