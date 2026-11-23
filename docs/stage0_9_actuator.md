@@ -10,7 +10,8 @@
   - A6 must be rerun on an idle Pi.
 - **Stall guard added (2026-11-20):** if the control loop sends no command for `actuator.stall_timeout` (20 ms), the
   Axis step thread brakes the cart to standstill by itself, at the ladder's hardest acceleration. Tested on the PC
-  (simulated rig); not yet built or run on the Pi. See Risks.
+  (simulated rig) and built on the Pi (11-23, `2cc0116`: `make` 0 warnings, `make test` 114/114). The mock with the
+  guard (and the A6 rerun) is still to do. See Risks.
 - Then: the prerequisites below, then the blocks.
 
 Every rig block is a hardware action: it needs Simon's go for that block, after the statement in its row has been
