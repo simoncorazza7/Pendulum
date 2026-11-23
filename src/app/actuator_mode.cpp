@@ -122,6 +122,11 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
     const double logSeconds = cfg.getDouble("actuator.log_seconds");      // s
     const double statusPeriod = cfg.getDouble("actuator.status_period");  // s
     const double vref = cfg.getDouble("actuator.vref");                   // V, 0 = not entered
+    const double stallTimeout = cfg.getDouble("actuator.stall_timeout");  // s
+    if (!(stallTimeout >= 0.006 && stallTimeout <= 0.1)) {
+        std::cerr << "actuator: actuator.stall_timeout must be in [0.006, 0.1] s\n";
+        return 2;
+    }
     const bool lockMem = cfg.getBool("rt.lock_memory"), rtOn = cfg.getBool("rt.enable");
     const std::string logDir = cfg.getString("log.dir");
     rt::ActuatorConfig ac = rt::actuatorFrom(cfg);                       // throws on bad parameters
@@ -164,6 +169,14 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
     if (rtOn && !rt::makeCurrentThreadRealtime(static_cast<int>(cfg.getInt("rt.loop_prio")),
                                                static_cast<int>(cfg.getInt("rt.loop_cpu")), &err))
         std::cerr << "warning: " << err << "\n";
+    {   // stall guard: no command for actuator.stall_timeout -> the Axis brakes at the ladder's hardest acceleration
+        double aBrake = ac.hold_a;
+        for (const rt::ActRung& g : act.rungs())
+            if (g.runnable) aBrake = std::max(aBrake, g.peak_a);
+        pi.setCommandWatchdog(stallTimeout, static_cast<int>(std::lround(aBrake * ac.calib.toggles_per_ustep * upm)));
+        std::cout << fmt("stall guard: if the control loop stalls for %.0f ms, ", stallTimeout * 1e3)
+                  << fmt("the Axis brakes the cart at %.1f m/s^2 by itself\n", aBrake);
+    }
 
     const hw::Sample s0 = pi.read();
     if (s0.limit_left || s0.limit_right) {
@@ -201,6 +214,7 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
     flags.motionSafe = false;
     bool quitSent = false, halted = false;
     double tQuit = 0, nextStatus = 0;
+    std::uint32_t trips = 0;
     while (true) {
         const std::int64_t late = clk.wait();
         const double t = clk.seconds();
@@ -215,7 +229,12 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
             halted = true;
             break;
         }
-        const rt::ActRecord r = act.tick(hw, clk.overrun());
+        const rt::ActRecord r = act.tick(hw, clk.overrun(), late);
+        if (pi.watchdogTrips() != trips) {
+            trips = pi.watchdogTrips();
+            std::cout << fmt("%7.2f s  STALL GUARD: the control loop stalled; the Axis braked the cart by itself (", t)
+                      << trips << " so far)\n" << std::flush;
+        }
         log.push({clk.tick(), late, r});
         const hw::Sample& ls = hw.last();
         for (int i = 0; i < ls.n_edges; ++i)
@@ -356,12 +375,13 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
     {   // one row per rep and per rung (py/actuator_report.py)
         std::ofstream f(dir + "/reps.csv");
         f << "rung,rep,repeat,v,a,side,touch_err_usteps,verdict,peak_a_cmd,peak_v,max_track_m,swing_start_deg,"
-             "settle_timeout,t_run\n";
+             "settle_timeout,t_run,worst_late_ms\n";
         for (const rt::RepResult& x : act.results()) {
-            char b[260];
-            std::snprintf(b, sizeof b, "%d,%d,%d,%.4f,%.4f,%d,%lld,%s,%.4f,%.4f,%.6f,%.2f,%d,%.3f\n", x.rung + 1, x.rep,
+            char b[280];
+            std::snprintf(b, sizeof b, "%d,%d,%d,%.4f,%.4f,%d,%lld,%s,%.4f,%.4f,%.6f,%.2f,%d,%.3f,%.2f\n", x.rung + 1, x.rep,
                           x.repeat ? 1 : 0, x.v, x.a, x.side, static_cast<long long>(x.touch_err), rt::verdictName(x.verdict),
-                          x.peak_a_cmd, x.peak_v, x.max_track, x.swing_start_deg, x.settle_timeout ? 1 : 0, x.t_run);
+                          x.peak_a_cmd, x.peak_v, x.max_track, x.swing_start_deg, x.settle_timeout ? 1 : 0, x.t_run,
+                          x.worst_late_ms);
             f << b;
         }
         std::ofstream g(dir + "/rungs.csv");
@@ -403,6 +423,7 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
                        {"pos_end_usteps", std::to_string(sEnd.pos_usteps)},
                        {"encoder_same_type", std::to_string(pi.encoder().sameType())},
                        {"encoder_full_batches", std::to_string(pi.encoder().fullBatches())},
+                       {"watchdog_trips", std::to_string(pi.watchdogTrips())},
                        {"records", std::to_string(log.size())},
                        {"records_overwritten", std::to_string(log.overwritten())}});
     std::cout << "actuator: " << result << "; " << act.results().size() << " reps\n";

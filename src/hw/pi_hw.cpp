@@ -1,5 +1,6 @@
 #include "hw/pi_hw.h"
 
+#include <cmath>
 #include <stdexcept>
 
 #include "rt/rt.h"
@@ -74,5 +75,13 @@ void PiHw::halt() {
 }
 
 bool PiHw::isStopped() { return axis_->isStopped(); }
+
+}
+
+namespace hw {
+
+void PiHw::setCommandWatchdog(double timeoutS, int brakeToggles2) {
+    axis_->setCommandWatchdog(static_cast<int>(std::lround(timeoutS * 1e6)), brakeToggles2);
+}
 
 }

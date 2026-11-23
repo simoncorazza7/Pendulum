@@ -124,7 +124,7 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
 
 ## Status (details: `docs/session_log.md`)
 - Claude runs on Simon's Windows PC, drives the Pi over SSH (host key ED25519
-  SHA256:+/uYSPx4f31bInTJd3Lgdp3Fgh76LSaEVURRtlaBABE, new Pi 10-23). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (106 on the PC since 11-19; the Pi last ran 95).
+  SHA256:+/uYSPx4f31bInTJd3Lgdp3Fgh76LSaEVURRtlaBABE, new Pi 10-23). Tests: `bash tests/unit/run_pc.sh` / Pi `make test` (106, both, 11-20).
   Pi = 192.168.0.102 on the lab LAN; pendel.local resolves only from PowerShell/Windows ssh, not Git Bash.
 - Done: 0.1–0.5 (scope check passed 2026-10-09), Gate A. GPIO24 held high from boot (`gpio=24=op,dh`).
 - E-stop: the rocker switch (cuts motor AND Pi); a motor-only switch (+ bulk cap at VMOT) before the aggressive 0.9 runs.
@@ -242,7 +242,13 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   + `./actuator.sh`: homes, then ladders of out-and-back reps (return at T0 leaves the pendulum ~at rest), oneway/bang/
   chirp/table profiles, switch-touch audit after each rep (pass +-3 usteps, 4-7 repeat, >= 8 fail + skip that speed; one
   slip = 32); aborts brake at the rung's a. `py/actuator_report.py` (audit, step-generator delay, pendulum fit with
-  Coulomb, 28 Hz, a_rel, 50-70 % limits), `py/actuator_replay.py` (rig a_cmd -> table). PC 106/106 (11 new), WSL g++
-  syntax check of the Pi sources OK. NOT yet on the Pi: make, make test, tests/mock/run_actuator_mock.sh (A1-A6).
+  Coulomb, 28 Hz, a_rel, 50-70 % limits), `py/actuator_replay.py` (rig a_cmd -> table). Commit 94de94c, pushed to the Pi
+  11-20: make (0 warnings, 441 s) + make test 106/106 there (PC the same). Mock 13:46: A1-A5 pass (20/20 checks);
+  A6 FAILED homing "tracking error": the loop stalled up to 377 ms (190 late ticks) while the Pi was busy (pendctl
+  rebuilt with the offset code, then a real swing-up session at 13:55). Rerun A6 on an idle Pi. During a stall the Axis
+  keeps the last ACCELERATE command, so the actuator mode now turns on a STALL GUARD (Axis::setCommandWatchdog, opt-in,
+  off for main and the other modes): no command for actuator.stall_timeout (20 ms) -> the step thread brakes the cart
+  at the ladder's hardest a. SimHw model + test: 0.4 s stall at 10 m/s^2 peaks at 0.40 m/s with it, 2.3 m/s without.
+  reps.csv has worst_late_ms per rep. NOT yet built or run on the Pi. Keep the Pi idle during actuator blocks.
   Baseline: 2 m/s^2 at <= 0.3 m/s proven (22 audits <= 2 usteps). Open: Vref, motor-only cut, end-stop padding.
 

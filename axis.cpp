@@ -68,10 +68,26 @@
                     {
                         if(!rawPosition) stopOnLimit();
                         int usSinceLast = usDelay-waitedUs <= 2* minUsDelay ? usDelay-waitedUs : minUsDelay;
+                        const int wd = watchdogUs.load();
+                        const std::int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch()).count();
+                        if(wd > 0 && nowNs - lastAccelCmdNs.load() > static_cast<std::int64_t>(wd) * 1000){
+                            // stale command: the control loop has stalled; brake to standstill, never past 0
+                            if(!watchdogActive){ watchdogActive = true; watchdogTrips++; }
+                            double a = watchdogBrake * usSinceLast * 1e-6;
+                            if(std::abs(curSpeed) <= a){
+                                curSpeed = 0;
+                                accumulatedAcceleration = 0;
+                            }else{
+                                accelerate(curSpeed > 0 ? -a : a);
+                            }
+                            break;
+                        }
+                        watchdogActive = false;
                         double maxA = maxAcceleration * usSinceLast * 1e-6 * (maxSpeed - std::abs(curSpeed)) * inverseMaxSpeed;
                         double setA = curTask.arg * usSinceLast * 1e-6;
                         if(setA < -maxA) setA = -maxA;  //cap at maximum allowed Acceleration
-                        if(setA > maxA) setA = maxA; 
+                        if(setA > maxA) setA = maxA;
                         accelerate(setA);
                         if(curSpeed < 0 && direction != 1){
                                 direction = 1;
@@ -276,6 +292,8 @@
             return true;
         }
         bool Axis::setAcceleration(int stepsPerSecond){
+            lastAccelCmdNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count();
             clearQueue();
             if(curSpeed == 0){
                 if(stepsPerSecond > 0){
@@ -439,6 +457,13 @@ curSpeed = 0;
         }
         bool Axis::isAccelerating(){
             return activeState == static_cast<int>(MotorState::ACCELERATE);
+        }
+        void Axis::setCommandWatchdog(int timeoutUs, int brakeStepsPerSecond2){
+            watchdogBrake = brakeStepsPerSecond2;
+            watchdogUs = timeoutUs;
+        }
+        std::uint32_t Axis::getWatchdogTrips(){
+            return watchdogTrips;
         }
         bool Axis::limitRightPressed(){
             return gpiod_line_get_value(right_limit_line) == 0;   // NO switch to GND, pulled up

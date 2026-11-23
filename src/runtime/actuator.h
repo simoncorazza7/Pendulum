@@ -88,6 +88,7 @@ struct RepResult {
     double swing_start_deg = 0;     // pendulum swing amplitude when RUN started
     bool settle_timeout = false;
     double t_run = 0;               // s
+    double worst_late_ms = 0;       // ms, the control loop's worst lateness during RUN
 };
 
 struct ActuatorConfig {
@@ -159,7 +160,8 @@ class ActuatorTest {
 public:
     explicit ActuatorTest(const ActuatorConfig& c);
 
-    ActRecord tick(hw::Hardware& hw, bool overrun);
+    // lateNs: how late the caller's loop woke for this tick (recorded per rep as worst_late_ms).
+    ActRecord tick(hw::Hardware& hw, bool overrun, std::int64_t lateNs = 0);
 
     void requestGo() { go_ = true; }       // WAIT_GO: home; READY: run the next rung (or end after the last)
     void requestSkip() { skip_ = true; }   // READY: skip the rest of the next rung's speed

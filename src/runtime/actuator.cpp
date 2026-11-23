@@ -499,7 +499,7 @@ void ActuatorTest::brakeTick(hw::Hardware& hw, const hw::Sample& s, ActRecord& r
     }
 }
 
-ActRecord ActuatorTest::tick(hw::Hardware& hw, bool overrun) {
+ActRecord ActuatorTest::tick(hw::Hardware& hw, bool overrun, std::int64_t lateNs) {
     ActRecord r;
     r.overrun = overrun;
     const bool go = go_.exchange(false);
@@ -652,6 +652,7 @@ ActRecord ActuatorTest::tick(hw::Hardware& hw, bool overrun) {
 
         case ActPhase::Run: {
             const ActRung& g = rungs_[static_cast<std::size_t>(rung_)];
+            cur_.worst_late_ms = std::max(cur_.worst_late_ms, static_cast<double>(lateNs) * 1e-6);
             const core::ProfilePoint ref = traj_->at(t_run_);
             r.x_ref = ref.x; r.v_ref = ref.v; r.a_ref = ref.a;
             const char* why = nullptr;

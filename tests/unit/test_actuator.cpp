@@ -374,3 +374,36 @@ TEST(actuator_streams_run_and_pass) {
         std::cout << "    " << prof << " 0.45 m/s, 6 m/s^2: peak |x| " << xMax * 1e3 << " mm, |v| " << vMax << " m/s\n";
     }
 }
+
+// The control loop stalls for 0.4 s while a rung accelerates at 10 m/s^2 (as the 377 ms stall in the 11-20 mock). The
+// Axis keeps its last command; with the stall guard (Axis::setCommandWatchdog, modelled in SimHw) it brakes the cart
+// to standstill by itself after 20 ms. Without it the cart gains ~4 m/s. On resuming, the late RUN aborts.
+TEST(actuator_stall_guard_brakes_the_cart) {
+    double peak[2] = {0, 0};
+    for (int guard = 0; guard < 2; ++guard) {
+        Bench b(actCfg({{"actuator.speeds", "0.6"}, {"actuator.accels", "10"}}));
+        if (guard) b.sim.setCommandWatchdog(0.02, 10.0);
+        b.home();
+        b.act.requestGo();
+        b.until(100000, [&](int k) { return k > 0 && b.act.phase() == rt::ActPhase::Run && b.sim.v() > 0.2; });
+        CHECK(b.act.phase() == rt::ActPhase::Run);
+        for (int k = 0; k < 200; ++k) {                       // 0.4 s without a tick: no commands
+            b.sim.advance(kTs);
+            peak[guard] = std::max(peak[guard], std::fabs(b.sim.v()));
+        }
+        if (guard) {
+            CHECK(std::fabs(b.sim.v()) < 0.01);
+            CHECK_EQ(b.sim.watchdogTrips(), 1);
+            CHECK(peak[guard] < 0.45);                        // 0.2 m/s + 10 m/s^2 x 20 ms before the guard acts
+        }
+        b.recs.push_back(b.act.tick(b.sim, true, 400000000));    // the loop wakes 400 ms late
+        b.sim.advance(kTs);
+        b.until(20000, [&](int) { return b.act.finished(); });
+        CHECK(b.act.phase() == rt::ActPhase::Failed);             // the RUN aborts (tracking error)
+        if (!b.act.results().empty()) CHECK(b.act.results().back().worst_late_ms >= 399.0);
+        if (guard) CHECK(!b.sim.crashed());
+    }
+    CHECK(peak[0] > 2.0);
+    std::cout << "    0.4 s loop stall at 10 m/s^2: peak cart speed " << peak[0] << " m/s without the guard, " << peak[1]
+              << " m/s with it\n";
+}

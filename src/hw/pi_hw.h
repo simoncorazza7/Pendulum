@@ -41,6 +41,10 @@ public:
 
     Axis* axis() { return axis_.get(); }
     EdgeReader& encoder() { return *reader_; }
+    // Stall guard in the Axis step thread (Axis::setCommandWatchdog): without a new command for timeoutS, brake
+    // to standstill at brakeToggles2 (STEP toggles/s^2). Off unless a mode sets it (pendctl --mode actuator).
+    void setCommandWatchdog(double timeoutS, int brakeToggles2);
+    std::uint32_t watchdogTrips() { return axis_->getWatchdogTrips(); }
     std::string chipLabel() const { return label_; }
 
 private:

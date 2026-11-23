@@ -54,6 +54,7 @@ void SimHw::commandAccel(int axisArg) {
     a_pending_ = -c.x_sign * axisArg / (c.usteps_per_m * c.toggles_per_ustep);
     has_pending_ = true;
     commanded_ = true;
+    t_cmd_ = t_;
 }
 
 double SimHw::realised(double v, double h) const {
@@ -81,7 +82,12 @@ void SimHw::advance(double dt) {
             a_applied_ = a_pending_;
             has_pending_ = false;
         }
-        const double a = realised(v_, h);
+        // Stall guard (C++ test hook): a command older than wd_timeout_ brakes the cart to standstill.
+        const bool stale = wd_timeout_ > 0 && commanded_ && driver_ && !halted_ && t_ + j * h - t_cmd_ > wd_timeout_;
+        if (stale && !wd_active_) ++wd_trips_;
+        wd_active_ = stale;
+        const double a = stale ? (v_ != 0.0 ? -std::copysign(std::min(wd_brake_, std::fabs(v_) / h), v_) : 0.0)
+                               : realised(v_, h);
         const double s0[4] = {th_, thd_, x_, v_};
         double k1[4], k2[4], k3[4], k4[4], s1[4], s2[4], s3[4];
         f(s0, a, k1);
@@ -101,7 +107,7 @@ void SimHw::advance(double dt) {
             th_ = lift_from_ + (lift_to_ - lift_from_) * frac;
             thd_ = frac < 1.0 ? (lift_to_ - lift_from_) / lift_T_ : 0.0;
         }
-        if ((halted_ || !driver_) && v_ * s0[3] < 0) v_ = 0.0;   // braking/coasting stops at 0
+        if ((halted_ || !driver_ || stale) && v_ * s0[3] < 0) v_ = 0.0;   // braking/coasting stops at 0
         const double ps = pos(x_);
         if (ps <= p_.pos_end_right || ps >= p_.pos_end_left) {     // hard stop: crash
             const double end = ps <= p_.pos_end_right ? p_.pos_end_right : p_.pos_end_left;

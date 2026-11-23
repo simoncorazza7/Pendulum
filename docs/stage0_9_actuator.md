@@ -1,9 +1,20 @@
 # Stage 0.9: actuator capability
 
-**Status (2026-11-19): tooling built and tested on the PC; nothing has run on the Pi or the rig.** Next: `make`,
-`make test` and `tests/mock/run_actuator_mock.sh` on the Pi (it was off), then the prerequisites below, then the
-blocks. Every rig block is a hardware action: it needs Simon's go for that block, after the statement in its row has
-been read out (CLAUDE.md safety rules). The results will go into this file.
+**Status (2026-11-20): tooling built and tested on the PC and the Pi; nothing has moved on the rig.**
+- Done: commit `94de94c` was pushed to the Pi. `make` gave 0 warnings and `make test` passed 106/106 there.
+- Mock test (13:46): A1–A5 pass, 20 of 20 checks.
+- A6 failed homing with "tracking error", because the control loop stalled.
+  - The loop ran up to 377 ms late, with 190 late ticks in all.
+  - The Pi was busy at the time: `pendctl` had just been rebuilt with another session's offset code, and a real
+    swing-up session started at 13:55.
+  - A6 must be rerun on an idle Pi.
+- **Stall guard added (2026-11-20):** if the control loop sends no command for `actuator.stall_timeout` (20 ms), the
+  Axis step thread brakes the cart to standstill by itself, at the ladder's hardest acceleration. Tested on the PC
+  (simulated rig); not yet built or run on the Pi. See Risks.
+- Then: the prerequisites below, then the blocks.
+
+Every rig block is a hardware action: it needs Simon's go for that block, after the statement in its row has been
+read out (CLAUDE.md safety rules). The results will go into this file.
 
 ## What 0.9 decides
 
@@ -140,7 +151,9 @@ scripts are unchanged.
   - The pendulum fit (with the pivot's Coulomb term) gives input gains of 90–99 % and residuals of 1.1–1.9 counts.
     It does not see the single slip, as expected: the touch audit decides.
   - A replay table from 11-03 `10-02-18` run 6 ran twice on the simulated rig and passed both touches.
-- **Not yet done:** `make`, `make test` and `tests/mock/run_actuator_mock.sh` on the Pi.
+- **On the Pi (2026-11-20, commit `94de94c`):** `make` with 0 warnings (441 s) and `make test` 106/106.
+- **Mock on the Pi (2026-11-20 13:46):** A1–A5 pass (20 checks). A6 failed homing on a loop stall of up to 377 ms
+  (see Status). It still needs a rerun on an idle Pi.
 
 When committing, keep `actuator.sh` and `tests/mock/run_actuator_mock.sh` executable:
 `git add --chmod=+x actuator.sh tests/mock/run_actuator_mock.sh`.
@@ -264,6 +277,7 @@ Streams at |v| ≤ 0.45 m/s:
 | Jolts shift the encoder mount or the belt. | Check them before. The first balance session afterwards reports the trim residual (`py/stage1_report.py balance`). |
 | The chirp excites the ~28 Hz mode. | Watch the encoder; `q` ends the stream. A rigid pendulum answers 28 Hz with only 0.3 counts at 10 m/s², so a large 28 Hz signal in the counts comes from the structure. |
 | The step mode flips (the old board's fault). | Homing's span check at every start; the touch audit (a flip makes the error huge). |
+| **The control loop stalls during a run.** The Axis keeps executing the last ACCELERATE command, so a 0.4 s stall at 10 m/s² adds 4 m/s. A 377 ms stall happened in the mock on 11-20 while the Pi was busy. The overrun check only acts after the stall. | **Stall guard** (`Axis::setCommandWatchdog`, on only in `--mode actuator`): with no new command for 20 ms the step thread, which keeps running during a stall, brakes the cart to standstill at the ladder's hardest acceleration. In the simulated rig a 0.4 s stall at 10 m/s² peaks at 0.40 m/s with the guard and 2.3 m/s without (`actuator_stall_guard_brakes_the_cart`). The late RUN then aborts, and `reps.csv` records each rep's worst loop lateness (`worst_late_ms`). A cap on the Axis maxSpeed was rejected: its acceleration taper would cut into the rungs. Also keep the Pi idle during blocks (no builds, no other SSH sessions). |
 | Slips on the way out and back cancel in the net touch error. | The one-way legs of B5b, and the pendulum fit of each leg. |
 
 ## Open questions for Simon

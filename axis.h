@@ -74,6 +74,13 @@ private:
     std::atomic<std::uint32_t> resyncs{0};  // times the loop fell > 500 us behind and reset its schedule
     std::atomic<bool> rawPosition{false};   // pendctl: only count steps, no pos rewriting, no stopOnLimit
     std::atomic<int> activeState{-1};       // MotorState the step thread last executed (-1: none)
+    // Command watchdog (pendctl --mode actuator): an ACCELERATE task older than watchdogUs is stale (the control
+    // loop stalled), and the step thread brakes to standstill at watchdogBrake instead. 0 = off (main, other modes).
+    std::atomic<std::int64_t> lastAccelCmdNs{0};
+    std::atomic<int> watchdogUs{0};
+    std::atomic<int> watchdogBrake{0};      // steps/s^2
+    std::atomic<std::uint32_t> watchdogTrips{0};
+    bool watchdogActive = false;            // step thread only
 
     // --- internal loop ---
     void eventLoop();
@@ -141,6 +148,10 @@ public:
     // caller owns all limits. Off by default, so main is unchanged.
     void setRawPosition(bool on);
     bool isAccelerating();        // the step thread is executing an ACCELERATE task
+    // Stall guard: if no setAcceleration() arrives for timeoutUs, brake to standstill at brakeStepsPerSecond2
+    // until the next one. timeoutUs 0 = off (the default). getWatchdogTrips(): times it took over.
+    void setCommandWatchdog(int timeoutUs, int brakeStepsPerSecond2);
+    std::uint32_t getWatchdogTrips();
     bool limitRightPressed();     // switch at the low-pos end (GPIO2 on the rig), read now
     bool limitLeftPressed();      // switch at the high-pos end (GPIO9)
 

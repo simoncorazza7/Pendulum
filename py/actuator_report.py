@@ -118,7 +118,8 @@ def analyse(path: Path) -> list[dict]:
                "rep": int(row["rep"]), "repeat": row["repeat"] == "1", "verdict": row["verdict"],
                "touch": int(row["touch_err_usteps"]), "side": int(row["side"]), "peak_a": float(row["peak_a_cmd"]),
                "peak_v": float(row["peak_v"]), "track_mm": float(row["max_track_m"]) * 1e3,
-               "swing0": float(row["swing_start_deg"]), "delay_ms": math.nan, "axis_err": math.nan,
+               "swing0": float(row["swing_start_deg"]), "late_ms": float(row.get("worst_late_ms") or "nan"),
+               "delay_ms": math.nan, "axis_err": math.nan,
                "gain": math.nan, "res": math.nan, "hz28": math.nan}
         if 0 <= w < len(wins):
             i0, i1 = wins[w]
