@@ -37,7 +37,10 @@ OUT=build/balance_mock.out
 FIFO=build/balance_in
 lastdir() { ls -td logs/*_balance | head -1; }
 meta() { python3 -c "import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])" "$(lastdir)/meta.json" "$1"; }
-swing() { sudo python3 tests/mock/swing_gen.py "$DBG" --amp-deg "${2:-5}" --duration "$1" > build/swing_gen.out & }
+conf() { awk -v k="$1" '$1 == k { print $3; exit }' config/pendctl.conf; }
+# The swing the start-up calibration expects: plant.w0 and calib.swing_sigma of the config and 15 deg (it accepts
+# ~12-18 deg since the 2026-11-02 pivot; the old 5 deg default with the old pivot's w0 / sigma never got se low enough).
+swing() { sudo python3 tests/mock/swing_gen.py "$DBG" --amp-deg "${2:-15}" --w0 "$(conf plant.w0)" --sigma "$(conf calib.swing_sigma)" --duration "$1" > build/swing_gen.out & }
 start() { # overrides...: pendctl in the background, stdin from the FIFO (held open by a sleeper)
     rm -f $FIFO; mkfifo $FIFO
     sleep 300 > $FIFO & HOLD=$!
