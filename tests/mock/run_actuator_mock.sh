@@ -43,7 +43,9 @@ start() { # overrides...: pendctl in the background, stdin from the FIFO (held o
     PID=$!
 }
 finish() { wait $PID; RC=$?; kill $HOLD 2>/dev/null; wait $HOLD 2>/dev/null; rm -f $FIFO; }
-say() { echo "$1" > $FIFO; }
+say() { # a write that waits at most 3 s: if pendctl has already exited, nobody reads the FIFO
+    timeout 3 bash -c 'echo "$1" > "$2"' _ "$1" "$FIFO" || echo "    (pendctl no longer reads its input)"
+}
 waitfor() { # pattern, timeout s: 0 when it appeared in $OUT
     local i
     for ((i = 0; i < $2 * 10; i++)); do grep -q "$1" $OUT 2>/dev/null && return 0; sleep 0.1; done
