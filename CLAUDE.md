@@ -253,6 +253,8 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   make test 114/114. The stalls themselves came from printing in the RT loop (stdout to the SD card / an ssh pty
   blocked 0.23-1.56 s): the actuator mode now prints from a SCHED_OTHER thread via a lock-free queue (273dfb5,
   3668a12). Mock 11-23 (3668a12): 28/28, worst loop lateness 0.0 ms, 0 guard trips. The balance mode
-  (demo/swingup/remote) still prints from its RT loop: same exposure. Keep the Pi idle during actuator blocks.
+  (demo/swingup/remote) does the same since f280ff9 (shared src/app/line_queue.h; printer SCHED_OTHER, any core).
+  Mocks 11-23 (c647334): balance 28/28 (its swing now uses plant.w0 / calib.swing_sigma, 15 deg: B2-B7 had failed
+  calibration since the 11-03 config), actuator 28/28, worst loop lateness 0.0 ms. Keep the Pi idle during blocks.
   Baseline: 2 m/s^2 at <= 0.3 m/s proven (22 audits <= 2 usteps). Open: Vref, motor-only cut, end-stop padding.
 

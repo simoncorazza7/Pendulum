@@ -15,7 +15,9 @@
   terminal over Wi-Fi on the rig) blocked the loop for 0.23–1.56 s, each time at a print. The actuator mode now prints
   from a separate, non-real-time thread through a lock-free queue (`273dfb5`).
 - **Mock on the Pi, 11-23 (`3668a12`): 28/28 checks**, worst loop lateness 0.0 ms in every run, 0 stall-guard trips,
-  A6 homing passes. The balance mode (`demo.sh`, `swingup.sh`, `remote.sh`) still prints from its control loop.
+  A6 homing passes.
+- **The balance mode** (`demo.sh`, `swingup.sh`, `remote.sh`) prints the same way since `f280ff9`. Mocks on 11-23
+  (`c647334`): balance 28/28, actuator 28/28, worst loop lateness 0.0 ms.
 - Then: the prerequisites below, then the blocks.
 
 Every rig block is a hardware action: it needs Simon's go for that block, after the statement in its row has been
