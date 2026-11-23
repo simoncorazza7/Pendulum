@@ -395,6 +395,7 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
         }
         if (act.finished()) break;
     }
+    const std::uint32_t tripsInRun = pi.watchdogTrips();   // before the last command: no command follows it
     if (!halted) pi.commandAccel(0);
     pi.enableDriver(false);
     flags.motionSafe = true;
@@ -480,7 +481,7 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
                        {"pos_end_usteps", std::to_string(sEnd.pos_usteps)},
                        {"encoder_same_type", std::to_string(pi.encoder().sameType())},
                        {"encoder_full_batches", std::to_string(pi.encoder().fullBatches())},
-                       {"watchdog_trips", std::to_string(pi.watchdogTrips())},
+                       {"watchdog_trips", std::to_string(tripsInRun)},
                        {"records", std::to_string(log.size())},
                        {"records_overwritten", std::to_string(log.overwritten())}});
     std::cout << "actuator: " << result << "; " << act.results().size() << " reps\n";
