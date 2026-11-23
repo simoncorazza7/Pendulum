@@ -100,3 +100,20 @@ takes the first tick in the angle window where it is inside (`swingup_speed_gate
 now sets the cart gains to 0 explicitly and reproduces the pre-Stage-3 numbers exactly (+13.9 / +45.8 mm/s); the
 1-count session now returns the cart to 2 mm of the centre in 20 s (P loop: parked at 70 mm). Remote protocol
 version 4 (PARAMS + cart_ki, cart_i_max).
+
+## Rig sessions (2026-11-04)
+
+**Stage 3, P outer loop** (commit `7853407`):
+- Hand catches `logs/2026-11-04T08-58-08_balance` and `09-09-03`: all 5 runs ended at the +x soft limit, at +139 mm,
+  after 4.7–8.7 s.
+- Swing-up, local `09-15-27`: balances 0.2–18.5 s. Remote `09-20-36`: 0.2–1.9 s.
+- The causes (the reference error and the hand-over speed) are analysed under "Stage 3b" above.
+
+**Stage 3b, local swing-up `logs/2026-11-04T10-16-08_balance`:**
+- 6 of 7 runs handed over. Balances: **30, 30 and 30 s** (`swingup.balance_max`), 3.9, 3.5 and 0.7 s.
+- The gate refused run 5 (predicted speed 106 mm/s). The pendulum came round again, and the run ended at the soft
+  limit while pumping.
+- **Open:**
+  - The cart wanders ±90–136 mm while balancing (soft limits ±0.15 m).
+  - The gate ignores the cart position: run 2 was accepted at x = +68 mm.
+  - Stage 3b has not been tried in hand catches (`./demo.sh`) or remote mode on the rig.

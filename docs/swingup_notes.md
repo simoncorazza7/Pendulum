@@ -160,3 +160,30 @@ aborts stay on the Pi. Design, tests and the delay study: `docs/remote.md`, "Rem
   round again. Expect fewer instant soft-limit stops and balances of a few seconds.
 - **The real fix is Stage 2 cart feedback** (position and velocity in the balance law after the hand-over). Without
   it, no catch from a moving cart lasts.
+
+## 8. Rig sessions after the pivot rework (2026-11-03)
+
+The reworked pivot (`docs/stage1_demo.md`, "Rebuild on the new PCB and carriage") loses several times more energy
+per swing, so the tuning of §7 no longer reached the top.
+
+- **`logs/2026-11-03T09-44-23_balance`** (old swing-up defaults, new plant via `--set`): 2 runs, no hand-over in 40 s,
+  peak energy 0.92 and 0.84, cart −53 … +63 mm, |v| ≤ 220 mm/s. Energy balance from `data.csv` (input
+  −a θ̇ cos θ / 2g, with a from v): input 0.08–0.10/s against a loss of 0.07–0.09/s at E 0.8–0.9. The friction model
+  (b/J ⟨θ̇²⟩ + Coulomb ⟨|θ̇|⟩) gives 0.064/s; the old pivot lost about 0.02/s.
+- **Looser limits** (agreed for the next try): `swingup.a_pump` 1.1, `swingup.k_e` 2, `swingup.e_ref` 0.02,
+  `swingup.pump_max` 60. v_max stayed 0.3 m/s: 0.4 fails the soft-limit braking-distance check and the
+  `move.max_speed` guard.
+- **`logs/2026-11-03T09-52-36_balance`:** pumping now reached the top in 17–18 s (4 of 4), but **0 of 4 hand-overs**.
+  The arrivals were at E 0.99–1.015: over the top at 30–70°/s, or turned back at 10–11°. The minimum |u| was 2.9–5.6°
+  against `swingup.u_sw_deg` 3. The cart was at ±50–100 mm, moving at 150–250 mm/s at the top, and all 4 runs ended
+  "soft limit while pumping". At k_e 2 the arrival lands about 0.7–1 % below e_ref.
+- **`logs/2026-11-03T10-02-18_balance`** (`swingup.e_ref` 0.01, `swingup.u_sw_deg` 5): **6 of 6 handed over** after
+  16.6–21 s of pumping (cart −81 … +95 mm). Arrivals at E 1.0008–1.0048; hand-over at |θ| 9.1°, u 1.3–3.8°. Balances
+  2.8, 0.35, 0.36, 0.96, **30 and 30 s** (`swingup.balance_max`). The short ones handed over with the cart at about
+  +52 mm moving at +190 mm/s, and reached the soft limit within 0.35 s. Run 5: RMS θ 0.10°, 0 % saturation. Run 6:
+  RMS θ 1.19°, 22 % saturation and a 1.6 Hz sway, probably a hand on the rod.
+- **These became the defaults** on 2026-11-03: `swingup.a_pump` 1.1, `swingup.k_e` 2, `swingup.e_ref` 0.01,
+  `swingup.u_sw_deg` 5, `swingup.pump_max` 60.
+- **Lesson:** the hand-over needs the arrival energy within about 1 %, and the cart speed at the hand-over decides how
+  long the balance lasts. What came next: the remote swing-up the same afternoon (`docs/remote.md`), then the cart
+  loop and the hand-over speed gate (`docs/stage3_cascade.md`, Stage 3 and 3b).

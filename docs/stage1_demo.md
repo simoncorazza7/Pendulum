@@ -311,3 +311,30 @@ stepper's electrical cycle (417/m, 28 Hz at 67 mm/s) and its full step (1667/m, 
   the cart mass, cart rocking, the encoder bracket. Discriminating test (needs a go): tap the cart with the driver
   enabled and holding, no steps, encoder logged.
 - The new carriage (10-20) may have moved the mode. Rerun `py/osc_speed.py logs/<new runs>` on its first sessions.
+
+## Rebuild on the new PCB and carriage (2026-11-02)
+
+The rig was rebuilt on the new carrier PCB and the new carriage. The PCB test script was logged for stage C only
+(2026-10-30); stages D and E and a step-by-step re-commissioning were not logged. What the sessions show:
+
+- **Pivot friction.** An extra support bearing had been added on the encoder shaft. Free swing
+  `logs/2026-11-02T15-27-20_encoder-log`: 43° to rest in 16 s with a linear decay, Coulomb 0.31 rad/s² (27× the old
+  pivot), stiction ±4.4 counts. The start-up calibration never accepted, and no `calib.swing_sigma` or `plant.w0`
+  passed on replay (rms 5–10 counts). Decision: fix the bearing first, then re-identify.
+- **After the bearing was realigned** (`logs/2026-11-02T15-43-11_encoder-log`, `py/fit_swing.py --t0 2 --t1 29`):
+  43° to rest in ~27 s, **ω₀ 4.97 rad/s, b/J 0.054 1/s, Coulomb 0.168 rad/s²** (14× the old pivot). The calibration
+  replay accepts at 12–18° with ω₀ 4.97 and `calib.swing_sigma` 0.12. In simulation (`py/catch_study.py` plant) no
+  catch fell, but runs reached the soft limit sooner (3–4.6 s against 4–10 s).
+- **First catches** (`logs/2026-11-02T15-52-23_balance`, the new values passed with `--set`): calibration accepted
+  (se 0.03); homing span **5938 µsteps** (−2.7 % against the configured 6104, inside `balance.span_tol`, and
+  consistent with 1/8 step); switch-touch errors 0 and 1. Three catches: 2.8 s, **60 s** (`sup.max_run_time`) and
+  16.4 s. So the θ sign and the combined loop are right on the new hardware.
+- **Defaults** (2026-11-03): `plant.w0` 4.97, `plant.bJ` 0.054, `plant.coulomb` 0.168, `calib.swing_sigma` 0.12
+  (start-up swing about 20°), `encoder.trim` 0. The first remote session (`logs/2026-11-03T14-32-03_balance`,
+  `docs/remote.md`) measured a trim residual of +0.08 counts, so trim 0 holds. The residual was +1.2 to +1.4 counts
+  the next morning (`docs/stage3_cascade.md`, Stage 3b): it is not stable from day to day.
+- **The ~28 Hz mode is still there** (checked 2026-11-19, `py/osc_speed.py` on `2026-11-02T15-52-23`,
+  `2026-11-03T10-02-18` and `2026-11-04T10-16-08`): peaks at 28.1–28.6 Hz in open-loop moves and 27.8–28.1 Hz in
+  swing-up, but no peaked window while balancing (1523 windows, `ctrl.est_fc` 14 Hz).
+
+Swing-up on the new hardware: `docs/swingup_notes.md` §8.

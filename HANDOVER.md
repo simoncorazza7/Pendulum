@@ -59,15 +59,12 @@ List them with `grep -n "TODO (handover)" HANDOVER.md`, and delete each marker o
 
 | What | Result | Run (`logs/`) | Details |
 |---|---|---|---|
-| Hand catches, angle-only PID (Stage 1) | RMS θ 0.08° on the first catches; a full 60 s run (the limit) on the new PCB and carriage | `2026-10-12T15-30-52_balance`, `2026-11-02T15-52-23_balance` | [`docs/stage1_demo.md`](docs/stage1_demo.md); the 11-02 run: `CLAUDE.md`, Status 2026-11-02 |
-| Swing-up by energy pumping, local | 6 of 6 handed over; 2 balanced the full 30 s (the limit) | `2026-11-03T10-02-18_balance` | `CLAUDE.md`, Status 2026-11-03; design: [`docs/swingup_notes.md`](docs/swingup_notes.md) |
+| Hand catches, angle-only PID (Stage 1) | RMS θ 0.08° on the first catches; a full 60 s run (the limit) on the new PCB and carriage | `2026-10-12T15-30-52_balance`, `2026-11-02T15-52-23_balance` | [`docs/stage1_demo.md`](docs/stage1_demo.md), including "Rebuild on the new PCB and carriage" |
+| Swing-up by energy pumping, local | 6 of 6 handed over; 2 balanced the full 30 s (the limit) | `2026-11-03T10-02-18_balance` | [`docs/swingup_notes.md`](docs/swingup_notes.md) §8 |
 | Remote balance: PID on a wired PC, 4 ticks (8 ms) of constant delay | 60 s at RMS θ 0.099°, as good as local; 172 907 replies, none lost | `2026-11-03T14-32-03_balance` | [`docs/remote.md`](docs/remote.md) |
 | Remote swing-up: pumping on the Pi, balance on the PC | 5 of 7 handed over; 2 balanced 30 s | `2026-11-03T15-32-17_balance` | [`docs/remote.md`](docs/remote.md) |
-| Stage 3b (cart loop with integral, hand-over speed gate), local swing-up | 6 of 7 handed over; 3 balanced 30 s | `2026-11-04T10-16-08_balance` | `CLAUDE.md`, Status 2026-11-04; design: [`docs/stage3_cascade.md`](docs/stage3_cascade.md) |
-| Plant after the pivot rework | ω₀ 4.97 rad/s, b/J 0.054 1/s, Coulomb 0.168 rad/s² (now the config defaults) | `2026-11-02T15-43-11_encoder-log` | `CLAUDE.md`, Status 2026-11-02 |
-
-The rig results from 2026-11-02 to 2026-11-04 are written up only in the `CLAUDE.md` Status log so far. The topic
-notes stop before them (§7).
+| Stage 3b (cart loop with integral, hand-over speed gate), local swing-up | 6 of 7 handed over; 3 balanced 30 s | `2026-11-04T10-16-08_balance` | [`docs/stage3_cascade.md`](docs/stage3_cascade.md), "Rig sessions" |
+| Plant after the pivot rework | ω₀ 4.97 rad/s, b/J 0.054 1/s, Coulomb 0.168 rad/s² (now the config defaults) | `2026-11-02T15-43-11_encoder-log` | `docs/stage1_demo.md`, "Rebuild on the new PCB and carriage" |
 
 ### 3.2 Built, but not run on the rig
 
@@ -75,8 +72,10 @@ notes stop before them (§7).
   in only one local swing-up session (`2026-11-04T10-16-08`). All 5 hand catches with the earlier P-only cart loop
   ended at the soft limit. Stage 3b is the fix, but it is untested in hand catches.
 - **Stage 0.9 actuator test** (`pendctl --mode actuator`, `./actuator.sh`, `py/actuator_report.py`). It was built
-  and tested on the PC on 2026-11-19 (commit `94de94c`), but not yet built on the Pi. Plan, prerequisites and rig
-  blocks: [`docs/stage0_9_actuator.md`](docs/stage0_9_actuator.md).
+  and tested on the PC on 2026-11-19 (commit `94de94c`). On 2026-11-20 it was built and tested on the Pi; one mock
+  test (A6) failed while the Pi was busy and must be rerun on an idle Pi. Nothing has moved the cart. Plan,
+  prerequisites, rig blocks and the latest status: [`docs/stage0_9_actuator.md`](docs/stage0_9_actuator.md) and
+  the `CLAUDE.md` Status log.
 - **Upright-offset estimate carried between catches** (`./offset_sim.sh`,
   [`docs/offset_estimator.md`](docs/offset_estimator.md)). In progress since 2026-11-19: simulation and log replay,
   plus a port into the Pi runtime. The port is off by default and not yet built on the Pi.
@@ -143,12 +142,12 @@ notes stop before them (§7).
   Hence the integral (Stage 3b).
 - **Hand-overs with the cart near v_max end within 0.2–0.5 s.** Hence the speed gate `swingup.v_sw` (Stage 3b).
 - **The swing-up arrival needs about 1 % energy precision.** `swingup.e_ref` 0.02 with `swingup.u_sw_deg` 3 gave
-  0 of 4 hand-overs. `swingup.e_ref` 0.01 with `swingup.u_sw_deg` 5 gave 6 of 6 (`CLAUDE.md` Status 2026-11-03).
+  0 of 4 hand-overs. `swingup.e_ref` 0.01 with `swingup.u_sw_deg` 5 gave 6 of 6 (`docs/swingup_notes.md` §8).
 - **A support bearing added on the encoder shaft raised the pivot friction 27-fold.** The start-up calibration then
   never accepted. Realigning the bearing brought the friction down to 14× the original. Re-identify the plant after
-  any change at the pivot (`CLAUDE.md` Status 2026-11-02).
+  any change at the pivot (`docs/stage1_demo.md`, "Rebuild on the new PCB and carriage").
 - **A toothed idler would not cure the 28 Hz mode.** The spectrum has no belt-tooth line (`docs/stage1_demo.md`).
-- **v_max 0.4 m/s fails the soft-limit braking check** on this track (`CLAUDE.md` Status 2026-11-03).
+- **v_max 0.4 m/s fails the soft-limit braking check** on this track (`docs/swingup_notes.md` §8).
 - **Evolved neural controllers rediscover the PID** and do not beat it (`docs/neuro_sim.md`).
 - **Three incidents set the safety rules in §4:**
   - 2026-10-08: a stale binary moved the cart.
@@ -240,9 +239,7 @@ For the outgoing maintainer. Delete this section when every box is ticked.
   - the power path, with the rocker switch.
 - [ ] Record a short video of one full session: power on, SSH, `./demo.sh`, a catch, stop, fetch the logs.
 - [ ] Export the PCB: schematic PDF, Gerbers, BOM.
-- [ ] Move the rig results of 2026-11-02 to 2026-11-04 out of the `CLAUDE.md` Status log and into the topic notes:
-      `docs/stage1_demo.md` (the 60 s catch on the new hardware), `docs/swingup_notes.md` (the 11-03 tuning) and
-      `docs/stage3_cascade.md` (the Stage 3b rig run).
+- [ ] Write rig sessions after 2026-11-04 into their topic notes, not only into the `CLAUDE.md` Status log.
 - [ ] Make `CLAUDE.md` work for the next person. Today it names one person as the one who gives the go for every
       run and who sets the scope.
 - [ ] Fill in every **TODO (handover)** in this file, and confirm §3.5.

@@ -33,17 +33,17 @@ Status words:
 | [`../README.md`](../README.md) | The front page | Current |
 | [`../CLAUDE.md`](../CLAUDE.md) | Working rules (safety, conventions), hardware facts, the model, the stage plan. Its run-by-run Status log is the most complete history of the project. | Current, but written for Claude Code and around one operator. See "Known stale statements" below. |
 | [`../CONTROL_BRIEF.md`](../CONTROL_BRIEF.md) | The original brief: ground rules, model, staged roadmap, Gates A–C, deliverables | The plan of record. Stages 2b, 3 and 4 were started early as exceptions (`CLAUDE.md`, Scope). |
-| [`session_log.md`](session_log.md) | Detailed notes of the sessions on 2026-10-08 and 2026-10-09 | Record. Stops on 2026-10-09; later sessions are only in the `CLAUDE.md` Status log. |
+| [`session_log.md`](session_log.md) | Detailed notes of the sessions on 2026-10-08 and 2026-10-09 | Record. Stops on 2026-10-09; later sessions are in the `CLAUDE.md` Status log and the topic notes. |
 
 ## Controllers and modes: design and rig results
 
 | Document | What it covers | Status |
 |---|---|---|
-| [`stage1_demo.md`](stage1_demo.md) | The balance session (`./demo.sh`, `pendctl --mode balance`): running it, its messages, the design, the rig sessions of 2026-10-12 and 10-14, the ~28 Hz analysis, "After a mechanical rebuild" | Current up to 2026-10-26. The 60 s catch on the new hardware (2026-11-02) is in the `CLAUDE.md` Status log, not here. |
-| [`swingup_notes.md`](swingup_notes.md) | Swing-up by energy pumping: theory, feasibility study, implementation, the first rig test (2026-10-14) | The design is current. The 2026-11-03 tuning and its rig results are in the `CLAUDE.md` Status log, not here. |
+| [`stage1_demo.md`](stage1_demo.md) | The balance session (`./demo.sh`, `pendctl --mode balance`): running it, its messages, the design, the rig sessions of 2026-10-12 and 10-14, the ~28 Hz analysis, "After a mechanical rebuild", and the rebuild on the new PCB and carriage (2026-11-02) | Current up to 2026-11-02 |
+| [`swingup_notes.md`](swingup_notes.md) | Swing-up by energy pumping: theory, feasibility study, implementation, the first rig test (2026-10-14), and in §8 the 2026-11-03 tuning behind today's defaults | Current |
 | [`remote.md`](remote.md) | Remote mode (controller on the PC): how it works, remote swing-up, choosing the delay, procedure, files, open items | Current |
-| [`stage3_cascade.md`](stage3_cascade.md) | Stage 3 cascade (outer cart loop) and Stage 3b (cart integral, hand-over speed gate) | The design is current. The Stage 3b rig run (`2026-11-04T10-16-08`) is in the `CLAUDE.md` Status log, not here. |
-| [`stage0_9_actuator.md`](stage0_9_actuator.md) | Stage 0.9, the actuator test: what it decides, prerequisites, tooling, rig blocks, pass criteria | Plan. The tooling was built on the PC on 2026-11-19 (commit `94de94c`). Nothing has run on the Pi or the rig. |
+| [`stage3_cascade.md`](stage3_cascade.md) | Stage 3 cascade (outer cart loop) and Stage 3b (cart integral, hand-over speed gate), and the rig sessions of 2026-11-04 | Current |
+| [`stage0_9_actuator.md`](stage0_9_actuator.md) | Stage 0.9, the actuator test: what it decides, prerequisites, tooling, rig blocks, pass criteria | Plan. The tooling was built on the PC on 2026-11-19 (commit `94de94c`), and built and mock-tested on the Pi on 2026-11-20. Nothing has run on the rig. |
 | [`neuro_sim.md`](neuro_sim.md) | Evolved neural controllers (Pasemann 1998, ENS³) in simulation, and the headroom study (§6) | Current. Simulation only. |
 | [`offset_estimator.md`](offset_estimator.md) | The upright-offset estimate carried between catches: method, log replay, simulation, and a port into the Pi runtime (off by default) | In progress since 2026-11-19. Simulation and PC tests only. |
 | [`stage1_drift.md`](stage1_drift.md) | Why the cart drifts under angle-only control; engage on release with pre-load (built, off) | Record, 2026-10-09. Old plant and 20 Hz filter, but the reasoning still holds. |
