@@ -10,8 +10,12 @@
   - A6 must be rerun on an idle Pi.
 - **Stall guard added (2026-11-20):** if the control loop sends no command for `actuator.stall_timeout` (20 ms), the
   Axis step thread brakes the cart to standstill by itself, at the ladder's hardest acceleration. Tested on the PC
-  (simulated rig) and built on the Pi (11-23, `2cc0116`: `make` 0 warnings, `make test` 114/114). The mock with the
-  guard (and the A6 rerun) is still to do. See Risks.
+  (simulated rig) and built on the Pi (11-23, `2cc0116`: `make` 0 warnings, `make test` 114/114). See Risks.
+- **The stalls came from printing in the control loop.** A write to stdout (a file on the SD card in the mock; an ssh
+  terminal over Wi-Fi on the rig) blocked the loop for 0.23–1.56 s, each time at a print. The actuator mode now prints
+  from a separate, non-real-time thread through a lock-free queue (`273dfb5`).
+- **Mock on the Pi, 11-23 (`3668a12`): 28/28 checks**, worst loop lateness 0.0 ms in every run, 0 stall-guard trips,
+  A6 homing passes. The balance mode (`demo.sh`, `swingup.sh`, `remote.sh`) still prints from its control loop.
 - Then: the prerequisites below, then the blocks.
 
 Every rig block is a hardware action: it needs Simon's go for that block, after the statement in its row has been

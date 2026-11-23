@@ -250,6 +250,9 @@ A reference offset δ gives a steady cart accel ≈ gδ, so sub-count upright ca
   off for main and the other modes): no command for actuator.stall_timeout (20 ms) -> the step thread brakes the cart
   at the ladder's hardest a. SimHw model + test: 0.4 s stall at 10 m/s^2 peaks at 0.40 m/s with it, 2.3 m/s without.
   reps.csv has worst_late_ms per rep. Pi 11-23 (2cc0116; 2ad3299 did not link on armhf: 64-bit atomic): make 0 warnings,
-  make test 114/114. NOT yet: the mock (A6 rerun) with the guard. Keep the Pi idle during actuator blocks.
+  make test 114/114. The stalls themselves came from printing in the RT loop (stdout to the SD card / an ssh pty
+  blocked 0.23-1.56 s): the actuator mode now prints from a SCHED_OTHER thread via a lock-free queue (273dfb5,
+  3668a12). Mock 11-23 (3668a12): 28/28, worst loop lateness 0.0 ms, 0 guard trips. The balance mode
+  (demo/swingup/remote) still prints from its RT loop: same exposure. Keep the Pi idle during actuator blocks.
   Baseline: 2 m/s^2 at <= 0.3 m/s proven (22 audits <= 2 usteps). Open: Vref, motor-only cut, end-stop padding.
 
