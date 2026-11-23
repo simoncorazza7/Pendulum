@@ -232,8 +232,10 @@ int runActuator(const Config& cfg, const std::string& configPath, const std::str
         const rt::ActRecord r = act.tick(hw, clk.overrun(), late);
         if (pi.watchdogTrips() != trips) {
             trips = pi.watchdogTrips();
-            std::cout << fmt("%7.2f s  STALL GUARD: the control loop stalled; the Axis braked the cart by itself (", t)
-                      << trips << " so far)\n" << std::flush;
+            char sg[160];
+            std::snprintf(sg, sizeof sg, "%7.2f s  STALL GUARD: the control loop stalled; the Axis braked the cart by "
+                          "itself (%u so far)\n", t, static_cast<unsigned>(trips));
+            std::cout << sg << std::flush;
         }
         log.push({clk.tick(), late, r});
         const hw::Sample& ls = hw.last();

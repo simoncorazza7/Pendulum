@@ -76,7 +76,7 @@ private:
     std::atomic<int> activeState{-1};       // MotorState the step thread last executed (-1: none)
     // Command watchdog (pendctl --mode actuator): an ACCELERATE task older than watchdogUs is stale (the control
     // loop stalled), and the step thread brakes to standstill at watchdogBrake instead. 0 = off (main, other modes).
-    std::atomic<std::int64_t> lastAccelCmdNs{0};
+    std::atomic<std::uint32_t> lastAccelCmdUs{0};   // steady clock, us mod 2^32 (32-bit: lock-free on armhf)
     std::atomic<int> watchdogUs{0};
     std::atomic<int> watchdogBrake{0};      // steps/s^2
     std::atomic<std::uint32_t> watchdogTrips{0};

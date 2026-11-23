@@ -69,9 +69,10 @@
                         if(!rawPosition) stopOnLimit();
                         int usSinceLast = usDelay-waitedUs <= 2* minUsDelay ? usDelay-waitedUs : minUsDelay;
                         const int wd = watchdogUs.load();
-                        const std::int64_t nowNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                            std::chrono::steady_clock::now().time_since_epoch()).count();
-                        if(wd > 0 && nowNs - lastAccelCmdNs.load() > static_cast<std::int64_t>(wd) * 1000){
+                        const std::uint32_t nowUs = static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                            std::chrono::steady_clock::now().time_since_epoch()).count());
+                        // unsigned difference: exact across the 2^32 us (71 min) wrap
+                        if(wd > 0 && nowUs - lastAccelCmdUs.load() > static_cast<std::uint32_t>(wd)){
                             // stale command: the control loop has stalled; brake to standstill, never past 0
                             if(!watchdogActive){ watchdogActive = true; watchdogTrips++; }
                             double a = watchdogBrake * usSinceLast * 1e-6;
@@ -292,8 +293,8 @@
             return true;
         }
         bool Axis::setAcceleration(int stepsPerSecond){
-            lastAccelCmdNs = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                std::chrono::steady_clock::now().time_since_epoch()).count();
+            lastAccelCmdUs = static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::microseconds>(
+                std::chrono::steady_clock::now().time_since_epoch()).count());
             clearQueue();
             if(curSpeed == 0){
                 if(stepsPerSecond > 0){
