@@ -44,15 +44,16 @@ private:
 };
 
 // The only writer to stdout while a loop runs. Each queued text is written as given plus "\n" (push without a
-// trailing newline). It runs SCHED_OTHER on core 0 (rt.*: 0 = everything else): a thread started by the loop's thread
-// would otherwise inherit its SCHED_FIFO priority and core. Stops, after draining the queue, once `run` is false.
+// trailing newline). It runs SCHED_OTHER on any core: a thread started by the loop's thread would otherwise inherit
+// its SCHED_FIFO priority and its single core. Stops, after draining the queue, once `run` is false.
 inline std::thread startPrinter(LineQueue& q, std::atomic<bool>& run) {
     return std::thread([&q, &run] {
         sched_param sp{};
         pthread_setschedparam(pthread_self(), SCHED_OTHER, &sp);
-        cpu_set_t cpus;
+        cpu_set_t cpus;                        // any core: pinned to one, a busy process there delayed it (mock 11-23)
         CPU_ZERO(&cpus);
-        CPU_SET(0, &cpus);
+        const unsigned n = std::thread::hardware_concurrency();
+        for (unsigned c = 0; c < (n ? n : 4); ++c) CPU_SET(c, &cpus);
         pthread_setaffinity_np(pthread_self(), sizeof cpus, &cpus);
         std::string l;
         while (true) {
@@ -61,7 +62,7 @@ inline std::thread startPrinter(LineQueue& q, std::atomic<bool>& run) {
             while (q.pop(&l)) { std::cout << l << "\n"; any = true; }
             if (any) std::cout << std::flush;
             if (last) break;
-            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
     });
 }
