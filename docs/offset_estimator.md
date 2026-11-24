@@ -106,8 +106,10 @@ carry it starts with (own − carried).
   gave +0.08 and −0.10; 11-04 08-58-08 gave +1.22, +1.21 and +1.26. Swing-up sessions do not. Two 30 s balances of
   11-03 15-32-17 gave +0.10 and +1.63, and of 11-04 10-16-08 −1.42 and +0.22. That scatter is the floor of any carry.
   - A Coulomb term in the identity (0.168 rad/s², tanh at 0.02–0.15 rad/s) does not reduce it.
-  - The count reference does not move between runs. `./offset_sim.sh centres` fits the hanging equilibrium after
-    every swing-up run: within ±0.2 count over each session, so no edges are lost in the fast rotation.
+  - No edges are lost in the fast rotation: `./offset_sim.sh centres` fits the hanging equilibrium after every
+    swing-up run, and it moves by fractions of a count, never by whole counts. It does move, though: the turning-point
+    centres of `docs/calib_bias.md` §7 span 0.5–0.6 count within a session (09-15-27, 10-16-08), and 0.7 between
+    two start-up swings after the pendulum was handled (09-52-36). That is still far below the scatter here.
   - The cause is open. A candidate is stiction during the long, steady leans that bring a fast hand-over back to the
     centre.
 
@@ -271,18 +273,22 @@ log yet.
 **Not across sessions.** The offset changes between program starts (the start-up c_bottom fit), so the pool starts
 empty in every program run.
 
-Side finding, worth a look: in 3 of the 4 new-pivot swing-up sessions, the start-up c_bottom fit
-differs by 0.6–0.8 count from the hanging equilibrium fitted after every run with the cart at rest (`centres`):
+Side finding: the start-up c_bottom fit against the hanging equilibrium fitted after every run with the cart at rest
+(`centres`). Corrected 2026-11-20: `centres` used to place the edges at count ∓ 0.5, while the calibrator uses
+count / count + 1 (count = floor(u)), so its after-run values were 0.5 count low (earlier table: −0.87 … −1.08,
+−0.26 … −0.73, +1.13 … +1.46, −1.06 … −1.45). In the calibrator's convention:
 
-| session | start-up fit | after the runs |
-|---|---|---|
-| 11-03 10-02-18 | −0.97 | −0.87 … −1.08 |
-| 11-03 15-32-17 | +0.40 | −0.26 … −0.73 |
-| 11-04 09-15-27 | +1.86 | +1.13 … +1.46 |
-| 11-04 10-16-08 | −0.63 | −1.06 … −1.45 |
+| session | start-up fit | after the runs | start-up − after (mean) |
+|---|---|---|---|
+| 11-03 10-02-18 | −0.97 | −0.37 … −0.58 | −0.51 |
+| 11-03 15-32-17 | +0.40 | +0.24 … −0.23 | +0.32 |
+| 11-04 09-15-27 | +1.86 | +1.63 … +1.96 | +0.11 |
+| 11-04 10-16-08 | −0.63 | −0.57 … −0.95 | +0.09 |
 
-Each such error enters δ directly at every program start. The calibration's window and decay model
-(`calib.swing_sigma`, 12–18° swings on a pivot with Coulomb friction) are the first suspects.
+`docs/calib_bias.md` follows this up. The start-up fit is not biased (mean −0.00 against the turning-point centre of
+its own swing, 18 start-ups) but noisy: sd 0.19, max 0.40 count (10-02-18: −0.40), from the fixed σ on Coulomb
+decay. The hanging reference itself moves by 0.5–0.7 count with handling and between runs. Neither explains the
+offsets in this document.
 
 ## 7. Open
 

@@ -109,7 +109,9 @@ def cmd_centres(args) -> int:
                 continue
             cc = ec[m]
             prev = np.concatenate(([cc[0]], cc[:-1]))
-            u = np.where(cc > prev, cc - 0.5, cc + 0.5)          # the boundary each edge crossed
+            # the boundary each edge crossed, in the calibrator's convention (count = floor(u): up to n -> u = n,
+            # down to n -> u = n + 1; rt::SwingCalibrator, core::thetaFromCounts). Was cc -+ 0.5, 0.5 count low.
+            u = np.where(cc > prev, cc, cc + 1.0)
             try:
                 f = fit_damped(et[m] - et[m][0], u)
             except (RuntimeError, ValueError):
