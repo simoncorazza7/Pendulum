@@ -39,13 +39,13 @@ Status words:
 
 | Document | What it covers | Status |
 |---|---|---|
-| [`stage1_demo.md`](stage1_demo.md) | The balance session (`./demo.sh`, `pendctl --mode balance`): running it, its messages, the design, the rig sessions of 2026-10-12 and 10-14, the ~28 Hz analysis, "After a mechanical rebuild", and the rebuild on the new PCB and carriage (2026-11-02) | Current up to 2026-11-02 |
+| [`stage1_demo.md`](stage1_demo.md) | The balance session (`./demo.sh`, `pendctl --mode balance`): running it, its messages, the design, the rig sessions of 2026-10-12 and 10-14, the ~28 Hz analysis, "After a mechanical rebuild" with "After a pivot change" (plant re-identification and the offset check), and the rebuild on the new PCB and carriage (2026-11-02) | Current up to 2026-11-02; the rebuild procedure 2026-11-23 |
 | [`swingup_notes.md`](swingup_notes.md) | Swing-up by energy pumping: theory, feasibility study, implementation, the first rig test (2026-10-14), and in §8 the 2026-11-03 tuning behind today's defaults | Current |
 | [`remote.md`](remote.md) | Remote mode (controller on the PC): how it works, remote swing-up, choosing the delay, procedure, files, open items | Current |
 | [`stage3_cascade.md`](stage3_cascade.md) | Stage 3 cascade (outer cart loop) and Stage 3b (cart integral, hand-over speed gate), and the rig sessions of 2026-11-04 | Current |
 | [`stage0_9_actuator.md`](stage0_9_actuator.md) | Stage 0.9, the actuator test: what it decides, prerequisites, tooling, rig blocks, pass criteria | Plan. The tooling was built on the PC on 2026-11-19 (commit `94de94c`), and built and mock-tested on the Pi on 2026-11-20. Nothing has run on the rig. |
 | [`neuro_sim.md`](neuro_sim.md) | Evolved neural controllers (Pasemann 1998, ENS³) in simulation, and the headroom study (§6) | Current. Simulation only. |
-| [`offset_estimator.md`](offset_estimator.md) | The upright-offset estimate carried between catches: method, log replay, simulation, and a port into the Pi runtime (off by default) | In progress since 2026-11-19. Simulation and PC tests only. |
+| [`offset_estimator.md`](offset_estimator.md) | The upright-offset estimate carried between catches: method, log replay, simulation, and a port into the Pi runtime (off by default) | In progress since 2026-11-19. Ported to the Pi (`5af4951`, off by default, 113/113 on the Pi); the first rig watch session (2026-11-20) was spoilt by a pivot change, so applying it is not judged yet. |
 | [`stage1_drift.md`](stage1_drift.md) | Why the cart drifts under angle-only control; engage on release with pre-load (built, off) | Record, 2026-10-09. Old plant and 20 Hz filter, but the reasoning still holds. |
 
 ## Hardware

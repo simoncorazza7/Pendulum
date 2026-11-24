@@ -151,7 +151,7 @@ Values that belong to the old build. Re-check them in this order before the next
    - Hanging, pushing the bob toward +x must lower θ from 180°, as in the 2026-10-09 hand test.
    - An encoder remounted mirrored flips the sign, and a wrong sign turns the PID into positive feedback.
 3. **Pivot.** If the pivot, bearing, rod or bob changed, re-identify the free swing (`plant.w0`, `bJ`, `coulomb`).
-   The gains are designed from ω₀.
+   The gains are designed from ω₀. The full procedure, with the offset check, is "After a pivot change" below.
 4. **Cart direction and step mode.** A short `--mode move`: +x must go toward the LEFT switch
    (`calib.x_sign = 1`), and the distance must match the ruler at 13333 µsteps/m.
 5. **Track span.** If the carriage changed the travel between the switches, homing fails its span check, safely
@@ -163,6 +163,49 @@ Values that belong to the old build. Re-check them in this order before the next
    first catches (`py/stage1_report.py balance`).
 8. **The ~28 Hz mode and encoder flickers.** They may change with the carriage. Check the first sessions with
    `py/osc_compare.py` and the flicker count.
+
+### After a pivot change: re-identify the plant and check the offset (added 2026-11-23)
+
+Any change at the pivot (nut, bearing, shaft, rod, bob) changes its friction and can move the hanging reference. On
+2026-11-20 the pivot nut was loosened in the middle of a watch session (`logs/2026-11-20T14-04-42_balance`). The
+hanging reference moved by about 1.9 counts and the friction changed. From then on `plant.*` and the start-up
+calibration no longer matched the rig, and the upright offset was different.
+
+Work through these steps in order. Every step that moves the cart needs the operator's go. The free swing (step 3)
+only reads the encoder.
+
+1. **Settle the pivot.** Tighten it and leave it in its final position. Any later change makes everything below
+   stale: start again from here.
+2. **The usual checks** from the list above:
+   - the θ sign (step 2);
+   - the track span (step 5): homing prints about 0.445 m (5938 µsteps on 2026-11-02);
+   - a hand-catch session with `./demo.sh`.
+3. **Free swing, motor off.** On the Pi:
+   ```
+   sudo build/pendctl --mode encoder-log --set enc.allow_real_chip=true --set enc.duration=120
+   ```
+   - Release the rod once from about 45° and let it come to rest, then once from about 15°.
+   - Copy the run to the PC (`py/fetch_runs.py`, or `scp`: `docs/02` §6.5). Fit each swing separately:
+     ```
+     .venv/Scripts/python py/fit_swing.py logs/<run> --t0 <s> --t1 <s>
+     ```
+   - It prints ω₀, b/J, the Coulomb term and the stiction band, and saves `swingfit.png`. Compare them with
+     `plant.w0`, `plant.bJ` and `plant.coulomb` in `config/pendctl.conf` (2026-11-02: 4.97 rad/s, 0.054 1/s,
+     0.168 rad/s²). Update the config if they changed. If ω₀ changed, re-check the gains, which are designed from it.
+4. **Start-up calibration.** Check that it still accepts its swing: a 12–18° window, with the decay rate
+   `calib.swing_sigma`. With friction mostly Coulomb, that fixed rate is only an approximation. How to check, and how
+   large the error is on the 2026-11-02 pivot: `docs/calib_bias.md` and `py/calib_bias.py`.
+5. **Watch the upright offset.** Run `./offset.sh watch` (hand catches) and `./offset.sh watch --swingup`. The
+   controller is unchanged; the estimate is only logged. Then, on the PC:
+   - `./offset_sim.sh replay <run>`: the Pi's estimate against the offline replay. The two should agree to about 0.
+   - `./offset_sim.sh centres <run>`: the hanging equilibrium after each swing-up run. The pivot is settled if it
+     (good fits only) spans at most 0.5 count over the session, with no steady trend. On settled pivots the span
+     was 0.21–0.49 count (five sessions, 10-14 to 11-04). A span of 1 count or more, or a steady drift, means the
+     pivot is still moving: fix it and start again from step 1 before judging the offset. On 11-20, after the nut
+     change, it climbed 1.9 counts in steps (−0.75, +0.16, +0.78, +1.11, +1.15).
+6. **Apply the offset only if the per-catch offsets agree within about 0.3 count:** `./offset.sh apply`, or
+   `./offset.sh apply --swingup`. The method, thresholds and results are in
+   [`offset_estimator.md`](offset_estimator.md): §6 for the Pi runtime, §7 for the open items.
 
 ## First rig session, 2026-10-12 (`logs/2026-10-12T15-30-52_balance`, Simon ran `./demo.sh`)
 

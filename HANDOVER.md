@@ -51,7 +51,8 @@ List them with `grep -n "TODO (handover)" HANDOVER.md`, and delete each marker o
 5. First motion: `./demo.sh`, after the pre-flight checklist (`docs/02` §7.2). If possible, have someone with you
    who has run it before.
 6. If the rig was rebuilt, moved or rewired, work through "After a mechanical rebuild" in
-   [`docs/stage1_demo.md`](docs/stage1_demo.md) before the first catch.
+   [`docs/stage1_demo.md`](docs/stage1_demo.md) before the first catch. If anything at the pivot changed, also work
+   through "After a pivot change" there: re-identify the plant and check the upright offset.
 
 ## 3. Where things stand
 
@@ -78,7 +79,10 @@ List them with `grep -n "TODO (handover)" HANDOVER.md`, and delete each marker o
   the `CLAUDE.md` Status log.
 - **Upright-offset estimate carried between catches** (`./offset_sim.sh`,
   [`docs/offset_estimator.md`](docs/offset_estimator.md)). In progress since 2026-11-19: simulation and log replay,
-  plus a port into the Pi runtime. The port is off by default and not yet built on the Pi.
+  plus a port into the Pi runtime (commit `5af4951`, off by default, `./offset.sh watch|apply`). On the Pi, `make
+  test` passes 113/113, and on real data the Pi's estimate equals the offline replay exactly. Whether to apply it is
+  not judged yet: the first rig session (`2026-11-20T14-04-42_balance`) was spoilt when the pivot nut was loosened
+  part-way through.
 - **Engage on release, with the integrator pre-load** (`sup.engage_on_release`, `ctrl.preload`). Built, but off
   by default (`docs/stage1_drift.md`).
 - **Evolved neural controllers (ENS³).** Simulation only (`./neuro_sim.sh`, [`docs/neuro_sim.md`](docs/neuro_sim.md)).
@@ -107,7 +111,7 @@ List them with `grep -n "TODO (handover)" HANDOVER.md`, and delete each marker o
    +1.4 counts on 2026-11-04. An offset δ makes the cart accelerate steadily (about g·δ). The Stage 3b cart integral
    copes with up to about 1.5 counts; at 2.5 counts only 5–10 of 29 simulated hand-overs survive
    (`docs/stage3_cascade.md`). A possible fix is to estimate the offset online (`docs/01` §3.8, "State estimation").
-   A first version is in progress in simulation (`docs/offset_estimator.md`).
+   A first version runs on the Pi in watch mode, and is not yet judged on the rig (`docs/offset_estimator.md`).
 3. **The cart wanders while balancing after a swing-up.** It moved ±90–136 mm in `2026-11-04T10-16-08`, against
    soft limits at ±0.15 m. The hand-over gate also ignores the cart position: one run was accepted at x = +68 mm
    (`docs/01` §3.8).
@@ -145,7 +149,11 @@ List them with `grep -n "TODO (handover)" HANDOVER.md`, and delete each marker o
   0 of 4 hand-overs. `swingup.e_ref` 0.01 with `swingup.u_sw_deg` 5 gave 6 of 6 (`docs/swingup_notes.md` §8).
 - **A support bearing added on the encoder shaft raised the pivot friction 27-fold.** The start-up calibration then
   never accepted. Realigning the bearing brought the friction down to 14× the original. Re-identify the plant after
-  any change at the pivot (`docs/stage1_demo.md`, "Rebuild on the new PCB and carriage").
+  any change at the pivot (`docs/stage1_demo.md`, "Rebuild on the new PCB and carriage", and the procedure in
+  "After a pivot change").
+- **Loosening the pivot nut moved the hanging reference by about 1.9 counts** (`2026-11-20T14-04-42_balance`), and
+  that spoilt the session's offset estimates. Fix the pivot first, then identify and calibrate
+  (`docs/stage1_demo.md`, "After a pivot change").
 - **A toothed idler would not cure the 28 Hz mode.** The spectrum has no belt-tooth line (`docs/stage1_demo.md`).
 - **v_max 0.4 m/s fails the soft-limit braking check** on this track (`docs/swingup_notes.md` §8).
 - **Evolved neural controllers rediscover the PID** and do not beat it (`docs/neuro_sim.md`).
@@ -188,8 +196,8 @@ The full lists are "Safety first" in `docs/02`, §4.6 of `docs/01`, and the work
   - VMOT: C5 +.
 - **Run the bench supply in constant-voltage mode only.**
 - **Edit on the PC, commit, then `git push pi control-dev`.** Never edit on the Pi. Never push to `upstream`.
-- **After any mechanical change, re-commission before the first catch.** See "After a mechanical rebuild" in
-  `docs/stage1_demo.md`.
+- **After any mechanical change, re-commission before the first catch.** See "After a mechanical rebuild" and,
+  for the pivot, "After a pivot change" in `docs/stage1_demo.md`.
 - **After anything unexpected, check that the motor driver is off.** `pinctrl get 24` must read high
   (`docs/02` §7.5).
 
