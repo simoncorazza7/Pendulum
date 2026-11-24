@@ -14,7 +14,7 @@ are in `parts_reference.md`.
 | GT2 timing belt, 6 mm, open (10 m roll) | 1 | https://www.roboter-bausatz.de/p/10-meter-gt2-zahnriemen-offen-6mm | 11.95 €. Need ≥ 1.5 m |
 | A4988 stepper driver | 1 | https://www.roboter-bausatz.de/p/a4988-schrittmotorentreiber | 2.99 € |
 | Linear rail **MGN15H, 600 mm**, with carriage | 1 | https://www.roboter-bausatz.de/p/linearfuehrung-mgn15h-600mm | 30.80 €. The rig has MGN15, so this is the right size; the thesis text's "MGN12" is wrong |
-| 608-2Z bearing, 8 × 22 × 7 (belt idler) | 1 | https://3d-druckershop.com/p/fag-miniatur-rillenkugellager-608-zz-2z-8x22x7-mm-kaufen | 3.15 €. **Not checked**: the site's security certificate is broken. Any 608ZZ/608-2Z works |
+| 608-2Z bearing, 8 × 22 × 7 (belt idler) | 1 | https://3d-druckershop.com/p/fag-miniatur-rillenkugellager-608-zz-2z-8x22x7-mm-kaufen | **Not needed**: replaced by the toothed belt idler under Additions (decided 2026-11-19). 3.15 €. **Not checked**: the site's security certificate is broken. Any 608ZZ/608-2Z works |
 | Round rocker switch, on/off | 1 | https://www.reichelt.de/de/de/shop/produkt/wippenschalter_rund_1x_ein_-_aus-105442 | 1.05 €. Panel hole 20.2 mm |
 | Fuse holder, 5-way, ATO blade (Littelfuse 03500417TXN) | 1 | https://www.reichelt.de/de/de/shop/produkt/sicherungshalter_80_v_15_a-242449 | 15.50 € |
 | 7" touchscreen, Joy-IT RB-LCD-7-3 | 1 | https://www.reichelt.com/ch/de/shop/produkt/raspberry_-_display_lcd-touch_7_ips-317040 | 64.85 € |
@@ -30,6 +30,7 @@ a carriage, and an MGN12 carriage does not fit an MGN15 rail.
 | Part | Qty | Link | Notes |
 |---|---|---|---|
 | Axial fan SUNON MF40202V2-1000U-A99, 40 × 40 × 20 mm, 24 V | 1 | https://www.reichelt.de/de/de/shop/produkt/axialluefter_40x40x20mm_24v_13_1m_h_21dba-260665 | 3.40 € (2026-11-16). 30 mA / 0.68 W, 13.1 m³/h, 21 dB, 2 bare leads. Runs off the rig's 24 V. Datasheet: https://cdn-reichelt.de/documents/datenblatt/C800/MF40202V21000UA99_D04115160G-01.pdf |
+| Belt idler, GT2, 20 teeth, 2 ball bearings, 5 mm bore, 6 mm belt | 1 | https://www.roboter-bausatz.de/p/gt2-riemenscheibe-20-zaehne-5mm-bohrung-mit-dual-kugellager | RBS12569, 1.75 €, "sofort verfügbar" (2026-11-19). Same shop as the belt. **Chosen** (2026-11-19) to replace the 608-2Z roller above; the idler's tooth count doesn't change steps/m (only the motor pulley does). Needs an M5 axle instead of the 8 mm one: reprint or sleeve the tensioner fork. Pitch Ø 12.7 mm vs ~24 mm for the 608 under the belt teeth, so the belt sits ~5.6 mm closer to the axle: check that the run clamped to the cart stays parallel to the rail. Largest bearing idler in the shop (2026-11-19): its 30–80-tooth GT2 pulleys all have set screws and no bearings. Reviews: oil the bearings, deburr the bore; one arrived with a bearing missing |
 
 ## Parts with no link in the thesis
 
